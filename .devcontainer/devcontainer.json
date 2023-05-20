@@ -1,0 +1,19 @@
+{
+    "name": "borex-node.js",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "DavidAnson.vscode-markdownlint",
+                "dbaeumer.vscode-eslint",
+                "EditorConfig.EditorConfig",
+                "streetsidesoftware.code-spell-checker"
+            ]
+        }
+    },
+    "image": "mcr.microsoft.com/devcontainers/javascript-node:0-20",
+    "forwardPorts": [
+        3000
+    ],
+    // "postCreateCommand": "npm install && npx next dev"
+    "postCreateCommand": "npx next dev"
+}
