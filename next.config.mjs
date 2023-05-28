@@ -4,6 +4,17 @@ const nextConfig = {
   experimental: {
     appDir: true,
   },
+
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'place-hold.it',
+        port: '',
+        pathname: '/*',
+      },
+    ],
+  },
 }
 
 export default nextConfig

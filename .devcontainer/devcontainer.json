@@ -1,21 +1,22 @@
 {
-    "name": "borex-node.js",
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "DavidAnson.vscode-markdownlint",
-                "dbaeumer.vscode-eslint",
-                "EditorConfig.EditorConfig",
-                "streetsidesoftware.code-spell-checker"
-            ],
-            "settings": {
-                "remote.autoForwardPorts": false
-            }
-        }
-    },
-    "image": "mcr.microsoft.com/devcontainers/javascript-node:0-20",
-    "forwardPorts": [
-        3000
-    ],
-    "postCreateCommand": "npm install"
+  "name": "borex-node.js",
+  "customizations": {
+      "vscode": {
+          "extensions": [
+              "DavidAnson.vscode-markdownlint",
+              "dbaeumer.vscode-eslint",
+              "EditorConfig.EditorConfig",
+              "streetsidesoftware.code-spell-checker"
+          ],
+          "settings": {
+              "remote.autoForwardPorts": false
+          }
+      }
+  },
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:0-20",
+  "forwardPorts": [
+      3000
+  ],
+  "postCreateCommand": ".devcontainer/postCreate.sh",
+  "runArgs": ["--env-file",".devcontainer/devcontainer.env"]
 }

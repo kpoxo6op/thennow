@@ -34,3 +34,6 @@ yarn-error.log*
 
 .contentlayer
 .env
+
+# vscode devcontainer env files
+.devcontainer/*.env
