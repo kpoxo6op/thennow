@@ -9,6 +9,7 @@ import { SiteFooter } from "@/components/site-footer"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
 
+
 export const metadata: Metadata = {
   title: {
     default: siteConfig.name,
@@ -41,14 +42,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
             fontSans.variable
           )}
         >
-          <SiteHeader />
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-            <div className="mx-auto max-w-[45rem] flex-1">
-              <div>{children}</div>
-            </div>
+            {children}
             <TailwindIndicator />
           </ThemeProvider>
-          <SiteFooter />
         </body>
       </html>
     </>

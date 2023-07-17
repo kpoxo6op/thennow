@@ -12,7 +12,7 @@ type Props = { posts: Post[] }
 
 const AllPosts = ({ posts }: Props) => {
   return (
-    <section className="container flex flex-col items-center gap-4 space-y-12 text-left">
+    <section className="container flex max-w-3xl flex-col gap-4 space-y-12 text-left">
       {posts && posts.map((post) => (
         <Card key={post.name}>
           <Link href={post.slug} id={post.slug}>
@@ -28,7 +28,7 @@ const AllPosts = ({ posts }: Props) => {
             <CardHeader>
               <CardTitle>{post.name}</CardTitle>
               <CardDescription className="line-clamp-1">
-                {post.description}
+                {/* {post.description} */}
               </CardDescription>
             </CardHeader>
           </Link>

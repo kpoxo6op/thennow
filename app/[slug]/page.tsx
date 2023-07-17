@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card"
 import Image from "next/image"
 import Link from "next/link"
+import Post from '@/components/Post'
 
 interface PostProps {
   params: {
@@ -59,24 +60,6 @@ export default async function PostPage({ params }: PostProps) {
   }
 
   return (
-    <Card key={post.name}>
-      <CardContent>
-        <Link href={`${post.slug}/slider`}>
-          <Image
-            src={post.ba_imageUrl}
-            alt={post.name}
-            width={post.w}
-            height={post.h}
-          >
-          </Image>
-        </Link>
-      </CardContent>
-      <CardHeader>
-        <CardTitle>{post.name}</CardTitle>
-        <CardDescription className="whitespace-pre-line">
-          {post.description}
-        </CardDescription>
-      </CardHeader>
-    </Card>
+    <Post post={post}/>
   );
 }

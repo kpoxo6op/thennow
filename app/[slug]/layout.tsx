@@ -1,17 +1,14 @@
-import { PostNav } from "@/components/post-nav";
-import { SiteFooter } from "@/components/site-footer"
+import { SiteHeader } from "@/components/site-header"
 
+interface RootLayoutProps {
+  children: React.ReactNode
+}
 
-export default function PostLayout({
-  children, // will be a page or nested layout
-}: {
-  children: React.ReactNode;
-}) {
+export default function PostLayout({ children }: RootLayoutProps) {
   return (
-    <section className="flex flex-col">
-        <section className="grow">
-          {children}
-        </section>
-    </section>
-  );
+    <>
+      <SiteHeader className="fixed bg-background/50"></SiteHeader>
+      {children}
+    </>
+  )
 }
