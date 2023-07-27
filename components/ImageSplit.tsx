@@ -1,46 +1,91 @@
-import React from 'react';
-import Image from "next/image";
-import Post from '@/interfaces/post';
+'use client';
+import React from "react";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import Image from 'next/image'
+import { ReactCompareSlider, ReactCompareSliderHandle, ReactCompareSliderImage } from 'react-compare-slider';
+import { cn } from "@/lib/utils"
+import PostType from "@/interfaces/post"
 
-interface ImageSplitProps {
-  images: Post;
-  split: number[];
+interface Props extends React.HTMLAttributes<HTMLDivElement> {
+  post: PostType;
+  position: number;
 }
 
-const ImageSplit: React.FC<ImageSplitProps> = ({ images, split }) => {
-  const aspectRatio = images.h / images.w * 100;
+const ImageSplit = ({ post, position, className, ...props }: Props) => {
 
   return (
-    <div className="relative w-full max-w-lg">
-      <div
-        style={{ paddingBottom: `${aspectRatio}%` }}
-        className="relative h-0 w-full"
+    <section
+      className={cn("flex flex-1 flex-col items-center", className)}
+      {...props}
+    >
+      <TransformWrapper
+        centerOnInit
+        centerZoomedOut
+        initialScale={1}
+        minScale={1}
+
       >
-        <Image
-          src={images.a_imageUrl}
-          alt={images.name}
-          // fill
-          className="absolute left-0 top-0 h-full w-full"
-          style={{ objectFit: "cover" }}
-          width={images.w}
-          height={images.h}
-        />
-        <div
-          className="absolute h-full w-full overflow-hidden"
-          style={{ clipPath: `inset(0 ${100 - split[0]}% 0 0)` }}
+        <TransformComponent
+          wrapperClass=""
+          contentClass=""
         >
-          <Image
-            src={images.b_imageUrl}
-            alt={images.name}
-            // fill
-            className="absolute left-0 top-0 h-full w-full"
-            style={{ objectFit: "cover" }}
-            width={images.w}
-            height={images.h}
+          <ReactCompareSlider
+            boundsPadding={0}
+            style={{
+              height: '100vh',
+              // width: '100%',
+              // objectPosition: 'center',
+            }}
+            position={position}
+            onlyHandleDraggable={true}
+            itemOne={
+              // <Image
+              //   src={post.b_imageUrl}
+              //   alt={post.name}
+              //   width={post.w}
+              //   height={post.h}
+              //   style={{
+              //     objectFit: "contain",
+              //     border: "4px solid #fff"
+              //   }}
+              // />
+              <ReactCompareSliderImage
+                src={post.b_imageUrl}
+                alt={post.name}
+                style={{
+                  objectFit: 'contain',
+                }}
+              />
+            }
+            itemTwo={
+              // <Image
+              //   src={post.a_imageUrl}
+              //   alt={post.name}
+              //   width={post.w}
+              //   height={post.h}
+              //   style={{
+              //     objectFit: "contain",
+              //     border: "4px solid #fff"
+              //   }}
+              // />
+              <ReactCompareSliderImage
+                src={post.a_imageUrl}
+                alt={post.name}
+                style={{
+                  objectFit: 'contain',
+                }}
+              />
+            }
+            handle={
+              <ReactCompareSliderHandle
+                buttonStyle={{ display: 'none' }}
+                linesStyle={{ display: 'none' }}
+              />
+            }
           />
-        </div>
-      </div>
-    </div>
+        </TransformComponent>
+      </TransformWrapper>
+    </section>
   )
 }
 
