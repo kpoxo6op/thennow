@@ -41,6 +41,9 @@ const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props 
 
         <div className="fixed inset-x-0 bottom-0 flex h-24 bg-background/50 px-10">
           <Slider
+            min={0}
+            max={100}
+            step={1}
             defaultValue={[50]}
             onValueChange={setValue}
             className="z-10">
