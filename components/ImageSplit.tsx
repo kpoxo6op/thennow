@@ -13,68 +13,66 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 
 const ImageSplit = ({ post, position, className, ...props }: Props) => {
 
+  const newLocal = "flex flex-1 flex-col justify-center border-0 border-teal-600";
   return (
     <section
-      className={cn("flex flex-1 flex-col items-center", className)}
+      className={cn(newLocal, className)}
       {...props}
     >
       <TransformWrapper
-        centerOnInit
         centerZoomedOut
-        initialScale={1}
-        minScale={1}
-
+        centerOnInit
+        initialScale={0.8}
+        minScale={0.6}
       >
         <TransformComponent
-          wrapperClass=""
-          contentClass=""
+        wrapperClass="border-0 border-green-600 grow"
+        contentClass="border-0 border-orange-600"
         >
           <ReactCompareSlider
             boundsPadding={0}
             style={{
-              height: '100vh',
+              // height: '100vh',
               // width: '100%',
               // objectPosition: 'center',
             }}
             position={position}
             onlyHandleDraggable={true}
             itemOne={
-              // <Image
-              //   src={post.b_imageUrl}
-              //   alt={post.name}
-              //   width={post.w}
-              //   height={post.h}
-              //   style={{
-              //     objectFit: "contain",
-              //     border: "4px solid #fff"
-              //   }}
-              // />
-              <ReactCompareSliderImage
+              <Image
                 src={post.b_imageUrl}
                 alt={post.name}
+                width={post.w}
+                height={post.h}
                 style={{
-                  objectFit: 'contain',
+                  // border: "4px solid #fff"
                 }}
               />
+              // <ReactCompareSliderImage
+              //   src={post.b_imageUrl}
+              //   alt={post.name}
+                // style={{
+                //   objectFit: 'contain',
+                // }}
+              // />
             }
             itemTwo={
-              // <Image
-              //   src={post.a_imageUrl}
-              //   alt={post.name}
-              //   width={post.w}
-              //   height={post.h}
-              //   style={{
-              //     objectFit: "contain",
-              //     border: "4px solid #fff"
-              //   }}
-              // />
-              <ReactCompareSliderImage
+              <Image
                 src={post.a_imageUrl}
                 alt={post.name}
+                width={post.w}
+                height={post.h}
                 style={{
-                  objectFit: 'contain',
+                  // border: "4px solid #fff"
                 }}
               />
+              // <ReactCompareSliderImage
+              //   src={post.a_imageUrl}
+              //   alt={post.name}
+                // style={{
+                //   objectFit: 'contain',
+                // }}
+              // />
             }
             handle={
               <ReactCompareSliderHandle
