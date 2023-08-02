@@ -18,6 +18,6 @@
   "forwardPorts": [
       3000
   ],
-  "postCreateCommand": ".devcontainer/postCreate.sh",
-  "runArgs": ["--env-file",".devcontainer/devcontainer.env"]
+//   "postCreateCommand": ".devcontainer/postCreate.sh",
+//   "runArgs": ["--env-file",".devcontainer/devcontainer.env"]
 }
