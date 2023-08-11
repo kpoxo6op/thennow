@@ -1,18 +1,38 @@
 'use client';
-import React from "react";
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import Image from 'next/image'
+import React, { useRef, useEffect } from "react";
+import { TransformWrapper, TransformComponent, useTransformEffect } from "react-zoom-pan-pinch";
 import { ReactCompareSlider, ReactCompareSliderHandle, ReactCompareSliderImage } from 'react-compare-slider';
-import { cn } from "@/lib/utils"
-import PostType from "@/interfaces/post"
+import { cn } from "@/lib/utils";
+import PostType from "@/interfaces/post";
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   post: PostType;
   position: number;
 }
 
-const ImageSplit = ({ post, position, className, ...props }: Props) => {
+const MyComponent = () => {
+  const ref = useRef<HTMLDivElement | null>(null); // Reference to the element
 
+  // Hook to track changes in the transform state
+  useTransformEffect(({ state }) => {
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect(); // Get bounding client rect
+      const hiddenLeft = Math.max(0, -rect.left); // Calculate hidden left part
+      const hiddenRight = Math.max(0, rect.right - window.innerWidth); // Calculate hidden right part
+
+      console.log({ hiddenLeft, hiddenRight }); // Log the results
+    }
+
+    return () => {
+      // unmount
+    };
+  });
+
+  // Return a div with a reference, so we can measure its dimensions
+  return <div ref={ref} style={{ width: '100%', height: '100%' }}></div>;
+};
+
+const ImageSplit = ({ post, position, className, ...props }: Props) => {
   return (
     <section
       className={cn("flex flex-1 flex-col items-center", className)}
@@ -23,32 +43,20 @@ const ImageSplit = ({ post, position, className, ...props }: Props) => {
         centerZoomedOut
         initialScale={1}
         minScale={1}
-
       >
         <TransformComponent
           wrapperClass=""
           contentClass=""
         >
+          <MyComponent /> {/* Include the MyComponent that uses useTransformEffect */}
           <ReactCompareSlider
             boundsPadding={0}
             style={{
               height: '100vh',
-              // width: '100%',
-              // objectPosition: 'center',
             }}
             position={position}
             onlyHandleDraggable={true}
             itemOne={
-              // <Image
-              //   src={post.b_imageUrl}
-              //   alt={post.name}
-              //   width={post.w}
-              //   height={post.h}
-              //   style={{
-              //     objectFit: "contain",
-              //     border: "4px solid #fff"
-              //   }}
-              // />
               <ReactCompareSliderImage
                 src={post.b_imageUrl}
                 alt={post.name}
@@ -58,16 +66,6 @@ const ImageSplit = ({ post, position, className, ...props }: Props) => {
               />
             }
             itemTwo={
-              // <Image
-              //   src={post.a_imageUrl}
-              //   alt={post.name}
-              //   width={post.w}
-              //   height={post.h}
-              //   style={{
-              //     objectFit: "contain",
-              //     border: "4px solid #fff"
-              //   }}
-              // />
               <ReactCompareSliderImage
                 src={post.a_imageUrl}
                 alt={post.name}
@@ -86,7 +84,7 @@ const ImageSplit = ({ post, position, className, ...props }: Props) => {
         </TransformComponent>
       </TransformWrapper>
     </section>
-  )
+  );
 }
 
 export default ImageSplit;
