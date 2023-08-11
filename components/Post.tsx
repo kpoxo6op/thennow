@@ -39,17 +39,16 @@ const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props 
 
         <Desc description={post.description} className="fixed inset-x-0 bottom-24 flex whitespace-pre-line bg-background/50 px-2" />
 
-        <div className="fixed inset-x-0 bottom-0 flex h-24 bg-background/50 px-10">
+        <div className="fixed inset-x-0 bottom-0 z-10 flex h-24 bg-background/50 px-10">
           <Slider
             defaultValue={[50]}
-            onValueChange={setValue}
-            className="z-10">
+            onValueChange={setValue}>
           </Slider>
         </div>
 
         {showOverlay && (
           <div
-            className="absolute inset-0 z-20 bg-background animate-in fade-in"
+            className="absolute inset-0 z-20 h-screen bg-background animate-in fade-in"
             onClick={handleImageSplitClick}
           />
         )}
