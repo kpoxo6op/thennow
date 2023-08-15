@@ -23,7 +23,7 @@ const ImageSplit = ({ post, position, className, ...props }: Props) => {
         centerZoomedOut
         initialScale={1}
         minScale={1}
-
+        limitToBounds
       >
         <TransformComponent
           wrapperClass=""
