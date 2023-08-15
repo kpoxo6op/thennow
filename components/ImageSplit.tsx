@@ -29,8 +29,8 @@ const ImageSplit = ({ post, position, className, ...props }: Props) => {
       // minScale={1}
       >
         <TransformComponent
-          wrapperClass="border-2 border-pink-600"
-          contentClass="border-2 border-orange-600"
+          wrapperClass=""
+          contentClass=""
           wrapperStyle={{
             height: "100vh",
           }}
@@ -38,7 +38,7 @@ const ImageSplit = ({ post, position, className, ...props }: Props) => {
           <ReactCompareSlider
             boundsPadding={0}
             style={{
-              border: "dashed",
+              // border: "dashed",
               // height: "100vh",
               // width: "100%",
               // alignSelf: "center",
