@@ -20,19 +20,20 @@ const ImageSplit = ({ post, position, className, ...props }: Props) => {
     >
       <TransformWrapper
         centerOnInit
-        centerZoomedOut
         initialScale={1}
         minScale={1}
-        limitToBounds
       >
         <TransformComponent
           wrapperClass=""
           contentClass=""
+          wrapperStyle={{
+            height: '100vh'
+          }}
         >
           <ReactCompareSlider
             boundsPadding={0}
             style={{
-              height: '100vh',
+              // height: '100vh',
               // width: '100%',
               // objectPosition: 'center',
             }}
