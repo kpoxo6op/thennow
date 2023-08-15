@@ -16,10 +16,30 @@ interface PostProps extends React.HTMLAttributes<HTMLDivElement> {
 const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props }, ref) => {
   const [value, setValue] = useState<number[]>([50]);
   const [showOverlay, setShowOverlay] = useState(false);
+  const [mouseDownPosition, setMouseDownPosition] = useState<{ x: number; y: number } | null>(null);
 
-  const handleImageSplitClick = () => {
-    setShowOverlay(!showOverlay);
+  // Function to handle mouse down event
+  const handleMouseDown = (event: React.MouseEvent) => {
+    setMouseDownPosition({ x: event.clientX, y: event.clientY });
   }
+
+  // Function to handle mouse up event
+  const handleImageSplitClick = (event: React.MouseEvent) => {
+    // Get the mouse up position
+    const mouseUpPosition = { x: event.clientX, y: event.clientY };
+
+    // Check if mouse down position is set and if there was a significant movement
+    if (mouseDownPosition &&
+        Math.abs(mouseDownPosition.x - mouseUpPosition.x) < 5 &&
+        Math.abs(mouseDownPosition.y - mouseUpPosition.y) < 5) {
+      // If no significant movement, consider it a click and toggle the overlay
+      setShowOverlay(!showOverlay);
+    }
+
+    // Reset the mouse down position
+    setMouseDownPosition(null);
+  }
+
   return (
     <>
       <section
@@ -34,7 +54,8 @@ const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props 
           post={post}
           position={value[0]}
           className={showOverlay ? "z-30" : ""}
-          onClick={handleImageSplitClick}
+          onMouseDown={handleMouseDown} // Handle mouse down
+          onMouseUp={handleImageSplitClick} // Handle mouse up
         />
 
         <Desc description={post.description} className="fixed inset-x-0 bottom-24 flex whitespace-pre-line bg-background/50 px-2" />
