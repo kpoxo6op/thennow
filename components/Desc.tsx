@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 
 
 interface DescProps {
-  description: React.ReactNode;
+  description: string;
   className?: string;
 }
 
