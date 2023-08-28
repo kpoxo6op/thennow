@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react';
 import "@/styles/globals.css"
 import { Metadata } from "next"
 
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
             {children}
             <TailwindIndicator />
           </ThemeProvider>
+          <Analytics />
         </body>
       </html>
     </>
