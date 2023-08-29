@@ -12,7 +12,7 @@ const SiteHeader = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElemen
         className={cn("container z-10 flex flex-col items-center gap-4 bg-background text-left", className)}
         {...props}
       >
-        <div className="container flex h-16 items-center space-x-4 sm:justify-between sm:space-x-0">
+        <div className="container flex h-16 items-center space-x-4 border-2 border-blue-400 sm:justify-between sm:space-x-0">
           <MainNav items={siteConfig.mainNav} />
         </div>
       </header>
