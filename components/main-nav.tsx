@@ -1,9 +1,12 @@
+'use client'
+
 import * as React from "react"
 import Link from "next/link"
 
 import { NavItem } from "@/types/nav"
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
+import { Dropdown } from "@/components/Dropdown"
 import { BurgerMenu } from "@/components/burger-menu"
 
 interface MainNavProps {
@@ -11,14 +14,23 @@ interface MainNavProps {
 }
 
 export function MainNav({ items }: MainNavProps) {
+  const [showDropdown, setShowDropdown] = React.useState(false)
+
+  const toggleDropdown = () => {
+    setShowDropdown(!showDropdown)
+  }
   return (
     <>
-      <div className="flex gap-6 border-2 border-yellow-500 px-2 md:gap-10">
+      <div className="flex gap-6 px-2 md:gap-10">
         <Link href="/" className="items-center space-x-2 md:flex">
           <span className="font-bold sm:inline-block">{siteConfig.name}</span>
         </Link>
       </div>
-      <BurgerMenu className="border-2 border-pink-400" />
+      <BurgerMenu
+        onClick={toggleDropdown}
+        className="px-2 md:hidden"
+      />
+      <Dropdown show={showDropdown} />
     </>
   )
 }
