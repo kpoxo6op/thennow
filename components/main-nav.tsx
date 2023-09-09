@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import * as React from "react"
 import Link from "next/link"
@@ -6,7 +6,7 @@ import Link from "next/link"
 import { NavItem } from "@/types/nav"
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
-import { Dropdown } from "@/components/Dropdown"
+import { MobileMenu } from "@/components/MobileMenu"
 import { BurgerMenu } from "@/components/burger-menu"
 
 interface MainNavProps {
@@ -14,10 +14,10 @@ interface MainNavProps {
 }
 
 export function MainNav({ items }: MainNavProps) {
-  const [showDropdown, setShowDropdown] = React.useState(false)
+  const [showMobileMenu, setshowMobileMenu] = React.useState(false)
 
   const toggleDropdown = () => {
-    setShowDropdown(!showDropdown)
+    setshowMobileMenu(!showMobileMenu)
   }
   return (
     <>
@@ -26,11 +26,10 @@ export function MainNav({ items }: MainNavProps) {
           <span className="font-bold sm:inline-block">{siteConfig.name}</span>
         </Link>
       </div>
-      <BurgerMenu
-        onClick={toggleDropdown}
-        className="px-2 md:hidden"
-      />
-      <Dropdown show={showDropdown} />
+      <BurgerMenu onClick={toggleDropdown} className="px-2 md:hidden" />
+      {showMobileMenu && items && (
+        <MobileMenu className="animate-in fade-in duration-500" items={items} />
+      )}
     </>
   )
 }
