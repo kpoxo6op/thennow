@@ -8,6 +8,7 @@ import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
 import { MobileMenu } from "@/components/MobileMenu"
 import { BurgerMenu } from "@/components/burger-menu"
+import { DesktopMenu } from "@/components/desktop-menu"
 
 interface MainNavProps {
   items?: NavItem[]
@@ -21,12 +22,15 @@ export function MainNav({ items }: MainNavProps) {
   }
   return (
     <>
-      <div className="flex gap-6 px-2 md:gap-10">
-        <Link href="/" className="items-center space-x-2 md:flex">
-          <span className="font-bold sm:inline-block">{siteConfig.name}</span>
-        </Link>
+      <div className="flex w-full items-center justify-between">
+        <div className="flex gap-6 px-2 md:gap-10">
+          <Link href="/" className="items-center space-x-2 md:flex">
+            <span className="font-bold sm:inline-block">{siteConfig.name}</span>
+          </Link>
+        </div>
+        {items && <DesktopMenu items={items} />}
+        <BurgerMenu onClick={toggleDropdown} className="px-2 md:hidden" />
       </div>
-      <BurgerMenu onClick={toggleDropdown} className="px-2 md:hidden" />
       {showMobileMenu && items && (
         <MobileMenu className="animate-in fade-in duration-500" items={items} />
       )}
