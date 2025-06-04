@@ -8,6 +8,7 @@ import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
 import { MobileMenu } from "@/components/MobileMenu"
 import { BurgerMenu } from "@/components/burger-menu"
+import { DesktopMenu } from "@/components/desktop-menu"
 
 interface MainNavProps {
   items?: NavItem[]
@@ -26,6 +27,7 @@ export function MainNav({ items }: MainNavProps) {
           <span className="font-bold sm:inline-block">{siteConfig.name}</span>
         </Link>
       </div>
+      <DesktopMenu items={items} className="ml-4" />
       <BurgerMenu onClick={toggleDropdown} className="px-2 md:hidden" />
       {showMobileMenu && items && (
         <MobileMenu className="animate-in fade-in duration-500" items={items} />
