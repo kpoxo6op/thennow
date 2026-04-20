@@ -1,17 +1,16 @@
-import fs from 'fs'
-import path from 'path'
-import PostType from '@/interfaces/post'
-export async function fetchPosts(): Promise<PostType[]> {
+import fs from "fs"
+import path from "path"
+import PostType from "@/interfaces/post"
 
-  const postsDirectory = path.join(process.cwd(), 'public', 'posts');
+export async function fetchPosts(): Promise<PostType[]> {
+  const postsDirectory = path.join(process.cwd(), "public", "posts")
   const postFolders = fs.readdirSync(postsDirectory)
 
-  const posts = postFolders.map( (postFolder) => {
-    const fullPath = path.join(postsDirectory, postFolder, `${postFolder}.json`);
-    const fileContents = fs.readFileSync(fullPath, 'utf8');
+  const posts = postFolders.map((postFolder) => {
+    const fullPath = path.join(postsDirectory, postFolder, `${postFolder}.json`)
+    const fileContents = fs.readFileSync(fullPath, "utf8")
 
-    const jsonContent = JSON.parse(fileContents);
-    // return jsonContent
+    const jsonContent = JSON.parse(fileContents)
     return {
       name: jsonContent.name,
       description: jsonContent.description,
@@ -21,8 +20,9 @@ export async function fetchPosts(): Promise<PostType[]> {
       w: jsonContent.w,
       h: jsonContent.h,
       slug: jsonContent.slug,
+      location: jsonContent.location,
     }
-  });
+  })
 
   return posts
 }

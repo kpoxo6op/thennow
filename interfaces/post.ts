@@ -1,3 +1,8 @@
+export type PostLocation = {
+  lat: number
+  lng: number
+}
+
 type PostType = {
   name: string
   description: string
@@ -7,6 +12,7 @@ type PostType = {
   w: number
   h: number
   slug: string
+  location: PostLocation
 }
 
 export default PostType
