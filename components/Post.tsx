@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, forwardRef, useEffect } from "react";
-import { Slider } from "@/components/ui/slider"
+import React, { useCallback, useEffect, useState, forwardRef } from "react";
 import PostType from "@/interfaces/post"
 import { cn } from "@/lib/utils"
+import { COMPARE_SIDE_GUTTER_PX } from "@/lib/compare";
 import ImageSplit from "@/components/ImageSplit";
 import Desc from "@/components/Desc";
+import { Slider } from "@/components/ui/slider";
 
 
 
@@ -13,10 +14,74 @@ interface PostProps extends React.HTMLAttributes<HTMLDivElement> {
   post: PostType;
 }
 
+const DEFAULT_POSITION = 50;
+
+function clampPosition(position: number) {
+  return Math.min(100, Math.max(0, position));
+}
+
+function parsePositionParam(positionParam: string | null) {
+  if (!positionParam) {
+    return DEFAULT_POSITION;
+  }
+
+  const parsedPosition = Number(positionParam);
+
+  if (!Number.isFinite(parsedPosition)) {
+    return DEFAULT_POSITION;
+  }
+
+  return clampPosition(parsedPosition);
+}
+
 const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props }, ref) => {
-  const [value, setValue] = useState<number[]>([50]);
+  const [position, setPosition] = useState(DEFAULT_POSITION);
   const [showOverlay, setShowOverlay] = useState(false);
   const [mouseDownPosition, setMouseDownPosition] = useState<{ x: number; y: number } | null>(null);
+
+  const applyPosition = useCallback((position: number) => {
+    setPosition(clampPosition(position));
+  }, []);
+
+  useEffect(() => {
+    const syncPositionFromUrl = () => {
+      const url = new URL(window.location.href);
+      const nextPosition = parsePositionParam(url.searchParams.get("p"));
+
+      setPosition((currentPosition) => {
+        if (Math.abs(currentPosition - nextPosition) < 0.01) {
+          return currentPosition;
+        }
+
+        return nextPosition;
+      });
+    };
+
+    syncPositionFromUrl();
+    window.addEventListener("popstate", syncPositionFromUrl);
+
+    return () => {
+      window.removeEventListener("popstate", syncPositionFromUrl);
+    };
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const roundedPosition = Math.round(position);
+
+    if (roundedPosition === DEFAULT_POSITION) {
+      url.searchParams.delete("p");
+    } else {
+      url.searchParams.set("p", String(roundedPosition));
+    }
+
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, [position]);
 
   // Function to handle mouse down event
   const handleMouseDown = (event: React.MouseEvent) => {
@@ -52,7 +117,8 @@ const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props 
       >
         <ImageSplit
           post={post}
-          position={value[0]}
+          position={position}
+          onPositionChange={applyPosition}
           className={showOverlay ? "z-30" : ""}
           onMouseDown={handleMouseDown} // Handle mouse down
           onMouseUp={handleImageSplitClick} // Handle mouse up
@@ -60,11 +126,18 @@ const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props 
 
         <Desc description={post.description} className="fixed inset-x-0 bottom-24 mx-auto flex max-w-prose whitespace-pre-line bg-background/50 px-2" />
 
-        <div className="fixed inset-x-0 bottom-0 z-10 flex h-24 bg-background/50 px-10">
+        <div
+          className="fixed inset-x-0 bottom-0 z-10 flex h-24 bg-background/50"
+          style={{ paddingInline: `${COMPARE_SIDE_GUTTER_PX}px` }}
+        >
           <Slider
-            defaultValue={[50]}
-            onValueChange={setValue}>
-          </Slider>
+            aria-label="Compare slider"
+            className="cursor-ew-resize"
+            value={[position]}
+            onValueChange={(value) => {
+              applyPosition(value[0] ?? DEFAULT_POSITION);
+            }}
+          />
         </div>
 
         {showOverlay && (

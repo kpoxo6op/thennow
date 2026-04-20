@@ -23,11 +23,9 @@ const DesktopMenu = React.forwardRef<HTMLDivElement, DesktopMenuProps>(
         <NavigationMenuList className="flex gap-6">
           {items.map((item) => (
             <NavigationMenuItem key={item.href}>
-              <Link href={item.href} legacyBehavior passHref>
-                <NavigationMenuLink className="px-2 py-1 text-sm font-medium hover:text-foreground/80">
-                  {item.title}
-                </NavigationMenuLink>
-              </Link>
+              <NavigationMenuLink asChild className="px-2 py-1 text-sm font-medium hover:text-foreground/80">
+                <Link href={item.href}>{item.title}</Link>
+              </NavigationMenuLink>
             </NavigationMenuItem>
           ))}
         </NavigationMenuList>
