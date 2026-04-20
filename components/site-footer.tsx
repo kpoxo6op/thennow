@@ -3,6 +3,7 @@ import Link from "next/link"
 
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
+import { appVersion } from "@/lib/version"
 import { MainNav } from "@/components/main-nav"
 
 const SiteFooter = React.forwardRef<
@@ -18,8 +19,11 @@ const SiteFooter = React.forwardRef<
       )}
       {...props}
     >
-      <div className="flex h-16 items-center space-x-4 text-center sm:justify-between sm:space-x-0">
-        {siteConfig.name}
+      <div className="flex h-16 flex-col items-center justify-center gap-1 text-center sm:justify-between sm:space-x-0">
+        <div>{siteConfig.name}</div>
+        <div className="text-sm font-medium tracking-wide text-muted-foreground">
+          Version {appVersion}
+        </div>
       </div>
     </footer>
   )

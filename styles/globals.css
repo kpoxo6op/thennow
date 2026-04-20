@@ -1,3 +1,6 @@
+@import "leaflet/dist/leaflet.css";
+@import "leaflet.markercluster/dist/MarkerCluster.css";
+@import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
@@ -75,7 +78,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 }
 
@@ -121,4 +126,12 @@
   cursor: ew-resize;
   opacity: 0;
   box-shadow: none;
+}
+
+.leaflet-container {
+  background: hsl(var(--muted));
+}
+
+.leaflet-tile {
+  filter: saturate(0.7) brightness(1.04) contrast(0.9);
 }

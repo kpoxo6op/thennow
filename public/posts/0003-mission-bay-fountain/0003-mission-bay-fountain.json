@@ -6,5 +6,9 @@
   "ba_imageUrl": "/posts/0003-mission-bay-fountain/fountain-preview-1080x885.jpg",
   "w": 1080,
   "h": 885,
-  "slug": "mission-bay-fountain"
+  "slug": "mission-bay-fountain",
+  "location": {
+    "lat": -36.8483,
+    "lng": 174.8318
+  }
 }
