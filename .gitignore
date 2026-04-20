@@ -37,3 +37,15 @@ yarn-error.log*
 
 # vscode devcontainer env files
 .devcontainer/*.env
+.vercel
+
+# playwright
+playwright-report
+test-results
+.playwright-mcp
+
+# local codex artifacts
+.codex
+
+# typescript incremental output
+*.tsbuildinfo

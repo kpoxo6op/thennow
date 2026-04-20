@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.js";
 
 @layer base {
   :root {
@@ -78,4 +77,48 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+.tn-slider::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.tn-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: 0;
+  height: 0;
+  width: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  cursor: ew-resize;
+  opacity: 0;
+  box-shadow: none;
+}
+
+.tn-slider::-moz-range-track {
+  height: 0.5rem;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.tn-slider::-moz-range-progress {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.tn-slider::-moz-range-thumb {
+  height: 0;
+  width: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  cursor: ew-resize;
+  opacity: 0;
+  box-shadow: none;
 }

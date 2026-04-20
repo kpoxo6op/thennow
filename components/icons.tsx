@@ -1,18 +1,21 @@
+import type { ComponentType } from "react"
 import {
-  LucideProps,
+  type LucideProps,
   Moon,
   SunMedium,
-  Twitter,
   Menu,
-  type Icon as LucideIcon,
 } from "lucide-react"
 
-export type Icon = LucideIcon
+export type Icon = ComponentType<LucideProps>
 
 export const Icons = {
   sun: SunMedium,
   moon: Moon,
-  twitter: Twitter,
+  twitter: (props: LucideProps) => (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M18.9 2H22l-6.77 7.74L23.2 22h-6.27l-4.9-7.43L5.53 22H2.4l7.24-8.28L1.8 2h6.43l4.43 6.75L18.9 2Zm-1.1 18h1.74L7.28 3.9H5.41L17.8 20Z" />
+    </svg>
+  ),
   menu: Menu,
   logo: (props: LucideProps) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" {...props}>
