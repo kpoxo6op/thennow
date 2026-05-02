@@ -1,4 +1,5 @@
 import { Metadata } from "next"
+import { notFound } from "next/navigation"
 import { fetchPosts } from "@/lib/api"
 import Post from "@/components/Post"
 
@@ -48,7 +49,7 @@ export default async function PostPage({ params }: PostProps) {
   const post = await getPostFromParams(params)
 
   if (!post) {
-    throw new Error("Failed to fetch posts")
+    notFound()
   }
 
   return <Post post={post} />

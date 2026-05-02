@@ -1,6 +1,7 @@
 @import "leaflet/dist/leaflet.css";
 @import "leaflet.markercluster/dist/MarkerCluster.css";
 @import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+@import "maplibre-gl/dist/maplibre-gl.css";
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
@@ -134,4 +135,41 @@
 
 .leaflet-tile {
   filter: saturate(0.7) brightness(1.04) contrast(0.9);
+}
+
+.tn-osm-variant--default .leaflet-tile {
+  filter: none;
+}
+
+.tn-osm-variant--muted .leaflet-tile {
+  filter: saturate(0.58) brightness(1.06) contrast(0.9);
+}
+
+.tn-osm-variant--paper .leaflet-tile {
+  filter: grayscale(0.35) saturate(0.5) brightness(1.12) contrast(0.84);
+}
+
+.tn-osm-variant--mono .leaflet-tile {
+  filter: grayscale(0.82) brightness(1.08) contrast(0.88);
+}
+
+.tn-map-marker {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid white;
+  border-radius: 9999px;
+  background: hsl(var(--foreground));
+  box-shadow: 0 2px 10px rgb(15 23 42 / 0.28);
+  cursor: pointer;
+}
+
+.tn-map-marker:focus-visible {
+  outline: 3px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+
+.maplibregl-popup-content {
+  border-radius: 0.5rem;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 0.18);
 }
