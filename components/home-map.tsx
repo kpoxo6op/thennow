@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useRef } from "react"
 import type PostType from "@/interfaces/post"
 
-import { getRuntimeBasemapConfig } from "@/lib/map-basemaps"
-
 export type MapViewport = {
   lat: number
   lng: number
@@ -34,7 +32,7 @@ export function HomeMap({
   viewport,
 }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null)
-  const mapInstanceRef = useRef<import("leaflet").Map | null>(null)
+  const mapInstanceRef = useRef<import("maplibre-gl").Map | null>(null)
   const postsRef = useRef(posts)
   const viewportRef = useRef(viewport)
   const visibleCallbackRef = useRef(onVisibleSlugsChange)
@@ -69,27 +67,15 @@ export function HomeMap({
 
   useEffect(() => {
     let isMounted = true
-    let map: import("leaflet").Map | null = null
+    let map: import("maplibre-gl").Map | null = null
 
     async function setupMap() {
       if (!mapRef.current) {
         return
       }
 
-      const leafletModule = await import("leaflet")
-      const L = leafletModule.default ?? leafletModule
-      ;(
-        globalThis as typeof globalThis & {
-          L?: typeof L
-          window?: Window & typeof globalThis & { L?: typeof L }
-        }
-      ).L = L
-
-      if (typeof window !== "undefined") {
-        ;(window as Window & typeof globalThis & { L?: typeof L }).L = L
-      }
-
-      await import("leaflet.markercluster/dist/leaflet.markercluster-src.js")
+      const maplibreModule = await import("maplibre-gl")
+      const maplibregl = maplibreModule.default ?? maplibreModule
 
       if (!isMounted || !mapRef.current) {
         return
@@ -97,52 +83,42 @@ export function HomeMap({
 
       const currentPosts = postsRef.current
       const currentViewport = viewportRef.current
-      const currentBasemap = getRuntimeBasemapConfig(window.location.hostname)
+      const initialCenter = currentViewport
+        ? ([currentViewport.lng, currentViewport.lat] as [number, number])
+        : ([174.76, -36.85] as [number, number])
 
-      map = L.map(mapRef.current, {
-        attributionControl: false,
+      map = new maplibregl.Map({
+        attributionControl: { compact: true },
+        center: initialCenter,
+        container: mapRef.current,
         keyboard: false,
-        scrollWheelZoom: false,
+        maxZoom: 17,
+        minZoom: 8,
+        scrollZoom: false,
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        zoom: currentViewport?.z ?? 10,
       })
       mapInstanceRef.current = map
+      const activeMap = map
 
-      L.tileLayer(currentBasemap.tileUrl, {
-        attribution: currentBasemap.attribution,
-        maxZoom: 19,
-      }).addTo(map)
-
-      const bounds = L.latLngBounds(
-        currentPosts.map(
-          (post) => [post.location.lat, post.location.lng] as [number, number]
-        )
+      activeMap.addControl(
+        new maplibregl.NavigationControl({ showCompass: false }),
+        "top-right"
       )
 
-      const globalLeaflet = (
-        globalThis as typeof globalThis & {
-          L?: typeof L & {
-            markerClusterGroup?: (options?: object) => {
-              addLayer: (layer: import("leaflet").Layer) => void
-            } & import("leaflet").Layer
-          }
-        }
-      ).L
-
-      const clusterFactory = globalLeaflet?.markerClusterGroup
-      const clusterGroup = clusterFactory?.({
-        showCoverageOnHover: false,
-        maxClusterRadius: 40,
-      })
-
       currentPosts.forEach((post) => {
-        const marker = L.circleMarker([post.location.lat, post.location.lng], {
-          radius: 7,
-          color: "#ffffff",
-          weight: 3,
-          fillColor: "#0f172a",
-          fillOpacity: 1,
-        })
+        const markerElement = document.createElement("a")
+        markerElement.className = "tn-map-marker"
+        markerElement.href = `/${post.slug}`
+        markerElement.ariaLabel = post.name
+        markerElement.dataset.testid = "home-map-marker"
 
-        marker.bindPopup(
+        const popup = new maplibregl.Popup({
+          closeButton: true,
+          closeOnClick: true,
+          maxWidth: "220px",
+          offset: 18,
+        }).setHTML(
           `
             <div style="width: 190px; font-family: sans-serif;">
               <a href="/${post.slug}" style="display: block; color: inherit; text-decoration: none;">
@@ -157,28 +133,21 @@ export function HomeMap({
                 <a href="/${post.slug}" style="color: #0f172a; text-decoration: underline;">Open story</a>
               </div>
             </div>
-          `,
-          { maxWidth: 220, minWidth: 190 }
+          `
         )
 
-        if (clusterGroup) {
-          clusterGroup.addLayer(marker)
-        } else if (map) {
-          marker.addTo(map)
-        }
+        new maplibregl.Marker({ element: markerElement })
+          .setLngLat([post.location.lng, post.location.lat])
+          .setPopup(popup)
+          .addTo(activeMap)
       })
 
-      if (clusterGroup) {
-        map.addLayer(clusterGroup)
-      }
-
-      if (currentViewport) {
-        map.setView(
-          [currentViewport.lat, currentViewport.lng],
-          currentViewport.z
-        )
-      } else {
-        map.fitBounds(bounds.pad(0.35))
+      if (!currentViewport && currentPosts.length > 0) {
+        const bounds = new maplibregl.LngLatBounds()
+        currentPosts.forEach((post) => {
+          bounds.extend([post.location.lng, post.location.lat])
+        })
+        activeMap.fitBounds(bounds, { padding: 72 })
       }
 
       const updateVisiblePosts = () => {
@@ -189,7 +158,7 @@ export function HomeMap({
         const currentBounds = map.getBounds()
         const visible = currentPosts
           .filter((post) =>
-            currentBounds.contains([post.location.lat, post.location.lng])
+            currentBounds.contains([post.location.lng, post.location.lat])
           )
           .map((post) => post.slug)
 
@@ -205,14 +174,16 @@ export function HomeMap({
         viewportCallbackRef.current({
           lat: Number(center.lat.toFixed(6)),
           lng: Number(center.lng.toFixed(6)),
-          z: map.getZoom(),
+          z: Number(map.getZoom().toFixed(2)),
         })
       }
 
       updateVisiblePosts()
       updateViewport()
-      map.on("moveend zoomend", updateVisiblePosts)
-      map.on("moveend zoomend", updateViewport)
+      map.on("moveend", updateVisiblePosts)
+      map.on("zoomend", updateVisiblePosts)
+      map.on("moveend", updateViewport)
+      map.on("zoomend", updateViewport)
     }
 
     setupMap()
@@ -244,13 +215,14 @@ export function HomeMap({
       return
     }
 
-    map.setView([viewport.lat, viewport.lng], viewport.z, { animate: false })
+    map.jumpTo({ center: [viewport.lng, viewport.lat], zoom: viewport.z })
   }, [viewport])
 
   return (
     <div className="overflow-hidden border border-border/70 shadow-sm">
       <div
         ref={mapRef}
+        data-testid="home-map"
         className="h-[360px] w-full sm:h-[420px] lg:h-[540px]"
         aria-label="Map of story locations"
       />
