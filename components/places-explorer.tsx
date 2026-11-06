@@ -12,7 +12,7 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ArrowRight, ChevronDown, Grid2x2, Map as MapIcon, Search, X } from "lucide-react"
+import { ArrowRight, ChevronDown, Grid2x2, Map as MapIcon, Search } from "lucide-react"
 import type { StorySummary } from "@/interfaces/post"
 
 import { cn } from "@/lib/utils"
@@ -82,6 +82,9 @@ const PhotoGrid = memo(function PhotoGrid({
   )
 })
 
+const ROW_CLASS = "flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors"
+
+// A place in the list. Choosing it finds it on the map; once chosen, it is the way into its story.
 function StoryRow({
   story,
   chosen,
@@ -93,28 +96,53 @@ function StoryRow({
   onChoose: (story: StorySummary) => void
   onHighlight?: (slug: string | null) => void
 }) {
+  const picture = (
+    <Image
+      src={story.ba_imageUrl}
+      alt=""
+      width={story.w}
+      height={story.h}
+      sizes="96px"
+      className="aspect-[3/2] w-24 shrink-0 bg-muted object-cover"
+    />
+  )
+
   return (
-    <button
-      type="button"
+    <div
       data-testid="map-list-item"
-      aria-pressed={Boolean(chosen)}
-      className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted aria-pressed:bg-muted aria-pressed:ring-1 aria-pressed:ring-accent"
-      onClick={() => onChoose(story)}
       onPointerEnter={() => onHighlight?.(story.slug)}
       onPointerLeave={() => onHighlight?.(null)}
-      onFocus={() => onHighlight?.(story.slug)}
-      onBlur={() => onHighlight?.(null)}
     >
-      <Image
-        src={story.ba_imageUrl}
-        alt=""
-        width={story.w}
-        height={story.h}
-        sizes="96px"
-        className="aspect-[3/2] w-24 shrink-0 bg-muted object-cover"
-      />
-      <span className="line-clamp-2 text-[15px] font-medium leading-snug">{story.name}</span>
-    </button>
+      {chosen ? (
+        <Link
+          href={`/${story.slug}`}
+          data-testid="map-selection"
+          className={cn(ROW_CLASS, "group bg-muted ring-1 ring-accent")}
+        >
+          {picture}
+          <span className="min-w-0 flex-1">
+            <span data-testid="map-selection-name" className="block text-[15px] font-medium leading-snug">
+              {story.name}
+            </span>
+            <span className="mt-0.5 inline-flex items-center gap-1 text-[15px] text-muted-foreground underline-offset-4 group-hover:underline">
+              Open story
+              <ArrowRight aria-hidden className="size-4" />
+            </span>
+          </span>
+        </Link>
+      ) : (
+        <button
+          type="button"
+          className={cn(ROW_CLASS, "hover:bg-muted")}
+          onClick={() => onChoose(story)}
+          onFocus={() => onHighlight?.(story.slug)}
+          onBlur={() => onHighlight?.(null)}
+        >
+          {picture}
+          <span className="line-clamp-2 text-[15px] font-medium leading-snug">{story.name}</span>
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -158,7 +186,7 @@ export function PlacesExplorer({ stories }: Props) {
   }
 
   const deferredQuery = useDeferredValue(query)
-  // Arriving from a story's "See it on the map", that story is already chosen.
+  // An address can name a chosen place, so coming back from its story finds it still chosen.
   const [selected, setSelected] = useState<StorySummary[] | null>(() => {
     const arrived = stories.find((story) => story.slug === searchParams.get("story"))
     return arrived ? [arrived] : null
@@ -169,7 +197,7 @@ export function PlacesExplorer({ stories }: Props) {
   const fitAllRef = useRef<(() => void) | null>(null)
   const [visibleCount, setVisibleCount] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const selectedRef = useRef<HTMLDivElement | null>(null)
+  const listRef = useRef<HTMLUListElement | null>(null)
 
   const areas = useMemo(() => groupByArea(stories), [stories])
 
@@ -294,8 +322,8 @@ export function PlacesExplorer({ stories }: Props) {
     }
 
     const previousFocus = document.activeElement
-    selectedRef.current
-      ?.querySelector("a")
+    listRef.current
+      ?.querySelector<HTMLElement>('[data-testid="map-selection"]')
       ?.focus({ preventScroll: true })
 
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -441,17 +469,23 @@ export function PlacesExplorer({ stories }: Props) {
         <div className="tn-map-view flex flex-col-reverse lg:flex-row" data-testid="map-view">
           <aside className="shrink-0 border-t lg:w-[23rem] lg:overflow-y-auto lg:border-r lg:border-t-0">
             {filtered.length > 0 ? (
-              <ul className="p-2">
-                {filtered.map((story) => (
-                  <li key={story.slug}>
-                    <StoryRow
-                      story={story}
-                      chosen={Boolean(selected?.some((other) => other.slug === story.slug))}
-                      onChoose={handleChoose}
-                      onHighlight={handleHighlight}
-                    />
-                  </li>
-                ))}
+              <ul ref={listRef} className="flex flex-col p-2">
+                {filtered.map((story) => {
+                  const chosen = Boolean(selected?.some((other) => other.slug === story.slug))
+
+                  return (
+                    // On a phone the chosen place leads the list, right under the map, so it never
+                    // has to be repeated on top of the map. Beside a map, every row is already in view.
+                    <li key={story.slug} className={chosen ? "max-lg:order-first" : undefined}>
+                      <StoryRow
+                        story={story}
+                        chosen={chosen}
+                        onChoose={handleChoose}
+                        onHighlight={handleHighlight}
+                      />
+                    </li>
+                  )
+                })}
               </ul>
             ) : null}
           </aside>
@@ -516,42 +550,6 @@ export function PlacesExplorer({ stories }: Props) {
               </div>
             ) : null}
 
-            {selected ? (
-              <div
-                ref={selectedRef}
-                data-testid="map-selection"
-                className="absolute inset-x-2 bottom-2 z-[2] max-h-[60%] overflow-y-auto rounded-lg bg-popover shadow-[0_6px_28px_rgb(0_0_0/0.55)] sm:left-auto sm:right-3 sm:bottom-10 sm:w-[28rem]"
-              >
-                <button
-                  type="button"
-                  aria-label="Close"
-                  className="absolute right-1 top-1 z-[1] flex size-10 items-center justify-center rounded-full bg-popover/90"
-                  onClick={() => setSelected(null)}
-                >
-                  <X aria-hidden className="size-4" />
-                </button>
-                {selected.map((story) => (
-                  <Link
-                    key={story.slug}
-                    href={`/${story.slug}`}
-                    className="group flex items-center gap-2.5 p-2 pr-11"
-                  >
-                    <Image
-                      src={story.ba_imageUrl}
-                      alt=""
-                      width={story.w}
-                      height={story.h}
-                      sizes="144px"
-                      className="aspect-[3/2] w-28 sm:w-36 shrink-0 bg-muted object-cover"
-                    />
-                    <span className="min-w-0 text-[17px] font-medium leading-snug underline-offset-4 group-hover:underline">
-                      {story.name}
-                    </span>
-                    <ArrowRight aria-hidden className="size-4 shrink-0" />
-                  </Link>
-                ))}
-              </div>
-            ) : null}
           </div>
         </div>
       )}

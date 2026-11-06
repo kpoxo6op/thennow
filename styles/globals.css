@@ -323,6 +323,18 @@
   border-top-color: hsl(var(--border));
 }
 
+/* A vertical swipe over a story's map stays with the page. */
+.tn-story-map .maplibregl-canvas,
+.tn-story-map .maplibregl-canvas-container {
+  touch-action: pan-y !important;
+}
+
+/* The story's own pin marks a place; it isn't something to press. */
+.tn-story-pin {
+  cursor: default;
+  pointer-events: none;
+}
+
 /* The anchor is the touch target; its child is what you see. */
 .tn-map-marker {
   display: grid;

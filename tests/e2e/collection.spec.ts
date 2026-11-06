@@ -77,8 +77,8 @@ for (const viewport of [
       const mapUrl = page.url()
       expect(mapUrl).toMatch(/lat=.*lng=.*z=/)
 
-      const name = (await selection.getByRole("link").textContent())?.trim() ?? ""
-      await selection.getByRole("link").click()
+      const name = (await page.getByTestId("map-selection-name").textContent())?.trim() ?? ""
+      await selection.click()
       await expect(page.getByRole("heading", { level: 1, name })).toBeVisible()
 
       await page.goBack()
@@ -367,16 +367,19 @@ test("the homepage has one way onward, and the map is one choice further in", as
   await expect(markers(page).first()).toBeVisible()
 })
 
-test("a story's map link arrives with that story chosen, and every story still listed", async ({ page }) => {
+const MILL_HOUSE_ON_MAP = "/places?view=map&lat=-36.7903&lng=174.6536&z=13&story=mill-house"
+
+// The story's own map replaced its link here, so this starts from the address that link used to carry.
+test("an address naming a place arrives with it chosen, once, and every story still listed", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto("/mill-house")
-  await page.getByRole("link", { name: "See it on the map" }).click()
+  await page.goto(MILL_HOUSE_ON_MAP)
   const selection = page.getByTestId("map-selection")
   await expect(selection).toContainText("Mill House")
   await expect(page.locator(".tn-map-marker.is-active")).toHaveCount(1)
   await expect(page.getByTestId("map-list-item")).toHaveCount(posts.length)
+  await expect(page.getByText("Mill House, Auckland")).toHaveCount(1)
 
-  await selection.getByRole("button", { name: "Close" }).click()
+  await page.keyboard.press("Escape")
   await expect(selection).toHaveCount(0)
   await expect(page).not.toHaveURL(/story=/)
 })
@@ -417,11 +420,9 @@ test("the homepage reaches every story", async ({ page }) => {
 
 test("a place chosen on the map is still chosen after visiting its story", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto("/mill-house")
-  await page.getByRole("link", { name: "See it on the map" }).click()
+  await page.goto(MILL_HOUSE_ON_MAP)
   const selection = page.getByTestId("map-selection")
-  await expect(page.getByTestId("map-list-item").filter({ hasText: "Mill House" })).toHaveAttribute("aria-pressed", "true")
-  await selection.getByRole("link").click()
+  await selection.click()
   await expect(page.getByRole("heading", { level: 1, name: "Mill House, Auckland" })).toBeVisible()
   await page.goBack()
   await expect(selection).toContainText("Mill House")
@@ -437,15 +438,17 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(page.locator(".tn-map-marker.is-active")).toHaveCount(1)
     const selection = page.getByTestId("map-selection")
     await expect(selection).toBeInViewport()
-    await selection.getByRole("link").click()
+    await expect(page.locator(".tn-map-marker.is-active")).toBeInViewport()
+    // The page glides back up to the map first; a tap lands once it has settled.
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+    await selection.click()
     await expect(page.getByRole("heading", { level: 1, name: "Mission House, Auckland" })).toBeVisible()
   })
 }
 
 test("changing the filter frames what was found, not the old camera", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto("/mill-house")
-  await page.getByRole("link", { name: "See it on the map" }).click()
+  await page.goto(MILL_HOUSE_ON_MAP)
   await expect(page).toHaveURL(/z=13/)
   await page.getByRole("button", { name: "Photos" }).click()
   await page.getByRole("combobox", { name: "Area" }).selectOption("Helensville")
@@ -485,7 +488,7 @@ test("the phone map has real height and draws", async ({ page }) => {
   expect(canvas.width).toBeGreaterThan(380)
 })
 
-test("choosing any story shows its own pin, from the list and from its map link", async ({ page }) => {
+test("choosing any story shows its own pin, from the list and from an address", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const active = page.locator(".tn-map-marker.is-active")
 
@@ -496,8 +499,7 @@ test("choosing any story shows its own pin, from the list and from its map link"
     await expect(active, post.slug).toHaveAttribute("data-count", "1")
     await expect(active, post.slug).toHaveAttribute("aria-label", post.name)
 
-    await page.goto(`/${post.slug}`)
-    await page.getByRole("link", { name: "See it on the map" }).click()
+    await page.goto(`/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=13&story=${post.slug}`)
     await expect(active, post.slug).toHaveAttribute("data-count", "1")
     await expect(active, post.slug).toHaveAttribute("aria-label", post.name)
   }
