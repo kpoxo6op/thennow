@@ -1,6 +1,6 @@
 import Form from "next/form"
 import Link from "next/link"
-import { Search } from "lucide-react"
+import { ArrowRight, Search } from "lucide-react"
 import type PostType from "@/interfaces/post"
 
 import { fetchPosts } from "@/lib/api"
@@ -8,6 +8,7 @@ import { placesHref, STORY_TRIM } from "@/lib/places"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
 import { CtaLink } from "@/components/cta-link"
 import { HomeHero } from "@/components/home-hero"
+import { InlineCompare } from "@/components/inline-compare"
 import { SeamTile } from "@/components/seam-tile"
 import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
@@ -79,45 +80,39 @@ export default async function IndexPage() {
                 {hero.name}
               </Link>
             }
-          >
-            <h1 className="text-balance px-4 pb-2 pt-3 font-serif text-[2.4rem] leading-[1.03] md:pb-6 md:pl-8 md:pt-16 md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
+          />
+          <div className="flex flex-col gap-4 border-t px-4 pb-10 pt-4 md:h-[var(--hero-band-h)] md:flex-row md:items-center md:justify-between md:gap-10 md:py-0">
+            <h1 className="text-balance font-serif text-[2.125rem] leading-[1.04] min-[360px]:text-[2.4rem] md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
               <span className="md:block">The same corner, </span>
               <span className="md:block">
                 ninety<span className="mx-[-0.05em]">-</span>three years apart.
               </span>
             </h1>
-          </HomeHero>
-          <div className="tn-home-band flex flex-col gap-4 px-4 pb-8 pt-3 md:flex-row md:items-center md:justify-between md:gap-10 md:border-t md:py-0">
-            <p className="max-w-[36rem] text-lg leading-snug text-muted-foreground md:text-xl">
-              Old photographs of New Zealand places, each paired with a modern retake.
-            </p>
-            <CtaLink href="/places" className="w-full md:w-auto">
-              Explore the places
-            </CtaLink>
+            <div className="flex shrink-0 flex-col gap-4 md:w-[20rem] md:items-start lg:w-[24rem]">
+              <p className="text-[17px] leading-snug text-muted-foreground">
+                Old photographs of New Zealand places, each paired with a modern retake.
+              </p>
+              <CtaLink href="/places" className="w-full md:w-auto">
+                Explore the places
+              </CtaLink>
+            </div>
           </div>
         </section>
 
         <section className="space-y-12 px-4 pb-20 pt-12 md:space-y-20 md:pb-28 md:pt-24">
-          <div className="grid gap-4 md:grid-cols-2 md:items-end md:gap-10">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-10 gap-y-2">
             <h2 className="font-serif text-5xl leading-none md:text-7xl">Photographed twice.</h2>
-            <p className="max-w-xl text-[17px] leading-snug">
-              With the corner above, these are the {originals.length} stories so far.{" "}
-              <Link href="/places" className="whitespace-nowrap underline underline-offset-2">
-                All {originals.length} stories
-              </Link>
-            </p>
+            <Link href="/places" className="-my-2 py-2 underline underline-offset-4">
+              All {originals.length} stories
+            </Link>
           </div>
 
           <figure>
-            <SeamTile
-              href={`/${lead.slug}`}
+            <InlineCompare
               name={lead.name}
               thenSrc={lead.b_imageUrl}
               nowSrc={lead.a_imageUrl}
               ratio={lead.w / lead.h}
-              sizes="100vw"
-              trim={1.06}
-              wide
             />
             <figcaption className="mt-2">
               <Link href={`/${lead.slug}`} className={STORY_TITLE}>
@@ -142,7 +137,7 @@ export default async function IndexPage() {
           <StoryRow stories={rest.slice(2, 4)} />
         </section>
 
-        <section className="grid gap-10 border-t px-4 pb-20 pt-10 md:grid-cols-2 md:gap-10 md:pb-28">
+        <section className="grid gap-8 border-t px-4 pb-20 pt-10 md:grid-cols-2 md:items-end md:gap-10 md:pb-28">
           <div className="space-y-5">
             <h2 className="font-serif text-5xl leading-none md:text-7xl">Find a place</h2>
             <Form action="/places" className="relative max-w-xl">
@@ -158,15 +153,14 @@ export default async function IndexPage() {
                 className="h-14 w-full rounded-full border border-input bg-popover pl-12 pr-5 text-lg placeholder:text-muted-foreground"
               />
             </Form>
-            <div className="flex flex-wrap gap-x-6">
-              <Link href="/places" className="inline-block py-2 underline underline-offset-4">
-                Browse all {posts.length} places
-              </Link>
-              <Link href={placesHref({ view: "map" })} className="inline-block py-2 underline underline-offset-4">
-                Look around the map
-              </Link>
-            </div>
           </div>
+          <Link
+            href={placesHref({ view: "map" })}
+            className="group inline-flex items-center gap-3 self-end py-2 font-serif text-4xl leading-none underline-offset-[6px] hover:underline md:h-14 md:justify-self-end md:text-5xl"
+          >
+            Look around the map
+            <ArrowRight aria-hidden className="size-7 shrink-0" />
+          </Link>
         </section>
       </main>
       <SiteFooter />

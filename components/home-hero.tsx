@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ChevronsLeftRight } from "lucide-react"
 
 import { CompareStage } from "@/components/compare-stage"
 
@@ -14,8 +13,6 @@ interface Props {
   nowYear?: string
   // Belongs to the photograph: its own place, directly under it.
   caption: React.ReactNode
-  // Belongs to the photograph too: the headline about this corner.
-  children?: React.ReactNode
 }
 
 const SWEEP = [
@@ -24,19 +21,14 @@ const SWEEP = [
   { at: 2400, position: 50 },
 ]
 const SWEEP_DELAY_MS = 900
-// Where the words on the road begin. A line past here, with a mouse still on the photograph, keeps them away.
-const COPY_EDGE_PERCENT = 51
-
 function ease(t: number) {
   return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
 }
 
 // One slow pass of the line says what this site is before anything is read.
-export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, caption, children }: Props) {
+export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, caption }: Props) {
   const [position, setPosition] = useState(50)
-  // The words sit on the dark road in the "now" half, and step aside while someone is studying what is under them.
-  const [dragging, setDragging] = useState(false)
-  const [mouseOnPhoto, setMouseOnPhoto] = useState(false)
+  const [touched, setTouched] = useState(false)
   const cancelRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -78,28 +70,15 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, capt
 
   const handleInteract = useCallback(() => {
     cancelRef.current?.()
+    setTouched(true)
   }, [])
 
   const yearClass =
     "tn-year absolute top-3 flex h-7 items-center justify-center rounded-full bg-black/70 font-serif text-[1.0625rem] leading-none text-white md:top-4 md:h-8 md:text-xl"
-  const clear = dragging ? "drag" : mouseOnPhoto && position > COPY_EDGE_PERCENT ? "study" : undefined
 
   return (
-    <div
-      className="tn-home-hero relative"
-      onPointerEnter={(event) => setMouseOnPhoto(event.pointerType === "mouse")}
-      onPointerLeave={() => setMouseOnPhoto(false)}
-    >
-      <div
-        className="relative"
-        onPointerMove={(event) => {
-          if (event.buttons > 0 && !dragging) {
-            setDragging(true)
-          }
-        }}
-        onPointerUp={() => setDragging(false)}
-        onPointerCancel={() => setDragging(false)}
-      >
+    <div className="tn-home-hero">
+      <div className="relative">
         <CompareStage
           name={name}
           thenSrc={thenSrc}
@@ -110,7 +89,7 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, capt
           onInteract={handleInteract}
           fit="cover"
           priority
-          className="h-[50svh] min-h-64 md:h-[calc(100svh-var(--header-h)-var(--hero-caption-h)-var(--hero-band-h))] md:min-h-[30rem]"
+          className="h-[46svh] min-h-56 md:h-[calc(100svh-var(--header-h)-var(--hero-caption-h)-var(--hero-band-h))] md:min-h-72"
         />
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           {/* Each year stays beside the line, and inside the frame when the line nears an edge. */}
@@ -126,17 +105,19 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, capt
           >
             {nowYear}
           </span>
+          {touched ? null : (
+            <span
+              data-testid="hero-drag-hint"
+              className="absolute top-[calc(50%+2rem)] -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-3 py-1 text-sm text-white"
+              style={{ left: `${position}%` }}
+            >
+              Drag the line
+            </span>
+          )}
         </div>
       </div>
-      <div className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm md:h-[var(--hero-caption-h)] md:items-center md:py-0">
+      <div className="flex items-center px-4 py-2.5 text-sm md:h-[var(--hero-caption-h)] md:py-0">
         {caption}
-        <span data-testid="hero-drag-hint" className="flex shrink-0 items-center gap-1 text-muted-foreground">
-          <ChevronsLeftRight aria-hidden className="size-4" />
-          Drag the line
-        </span>
-      </div>
-      <div className="tn-hero-copy" data-clear={clear}>
-        {children}
       </div>
     </div>
   )

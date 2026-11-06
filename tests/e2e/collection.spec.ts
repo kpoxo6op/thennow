@@ -265,25 +265,23 @@ test.describe("the homepage comparison", () => {
   test.describe("with reduced motion", () => {
     test.use({ contextOptions: { reducedMotion: "reduce" } })
 
-    // The ways onward no longer sit on the photograph, so they stay usable whatever the line does.
-    test("the headline clears for a drag and the way onward never leaves", async ({ page }) => {
+    // The words moved off the photograph, so nothing has to step aside for it any more.
+    test("the headline and the way onward stay clear of the photograph through a drag", async ({ page }) => {
       await page.goto("/")
-      const words = page.getByRole("heading", { level: 1 }).locator("xpath=..")
+      const stage = page.getByTestId("compare-stage")
+      const box = (await stage.boundingBox())!
+      const headline = (await page.getByRole("heading", { level: 1 }).boundingBox())!
       const explore = page.getByRole("link", { name: "Explore the places" })
-      const box = (await page.getByTestId("compare-stage").boundingBox())!
       const y = box.y + box.height / 2
+      expect(headline.y).toBeGreaterThanOrEqual(box.y + box.height)
+      await expect(page.getByTestId("hero-drag-hint")).toBeVisible()
 
       await page.mouse.move(box.x + box.width / 2, y)
       await page.mouse.down()
       await page.mouse.move(box.x + box.width * 0.8, y, { steps: 6 })
-      await expect(words).toHaveCSS("opacity", "0")
-      await expect(explore).toBeInViewport()
-
       await page.mouse.up()
-      await expect(words).toHaveCSS("opacity", "0")
-
-      await explore.hover()
-      await expect(words).toHaveCSS("opacity", "1")
+      await expect(page.getByTestId("hero-drag-hint")).toHaveCount(0)
+      await expect(explore).toBeInViewport()
       await explore.click()
       await expect(page).toHaveURL(/\/places$/)
     })
@@ -310,7 +308,7 @@ test("the navigation only offers pages with something on them", async ({ page })
 
   await page.goto("/no-such-story")
   await expect(page.getByRole("heading", { level: 1, name: "Not found" })).toBeVisible()
-  await page.getByRole("link", { name: "See the places" }).click()
+  await page.getByRole("link", { name: "Explore the places" }).click()
   await expect(cards(page)).toHaveCount(posts.length)
 })
 
@@ -369,4 +367,44 @@ test("the homepage has one way onward, and the map is one choice further in", as
   await page.getByRole("button", { name: "Map" }).click()
   await expect(page).toHaveURL(/view=map/)
   await expect(markers(page).first()).toBeVisible()
+})
+
+test("a story's map link arrives with that story chosen, and every story still listed", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto("/mill-house")
+  await page.getByRole("link", { name: "See it on the map" }).click()
+  const selection = page.getByTestId("map-selection")
+  await expect(selection).toContainText("Mill House")
+  await expect(page.locator(".tn-map-marker.is-active")).toHaveCount(1)
+  await expect(page.getByTestId("map-list-item")).toHaveCount(posts.length)
+
+  await selection.getByRole("button", { name: "Close" }).click()
+  await expect(selection).toHaveCount(0)
+  await expect(page).not.toHaveURL(/story=/)
+})
+
+test("search and the view switch stay put between photos and map", async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    await page.goto("/places")
+    const search = page.getByRole("searchbox", { name: "Search places" })
+    const map = page.getByRole("button", { name: "Map" })
+    const before = [(await search.boundingBox())!, (await map.boundingBox())!]
+    await map.click()
+    await expect(page).toHaveURL(/view=map/)
+    const after = [(await search.boundingBox())!, (await map.boundingBox())!]
+    expect(after[0].y).toBeCloseTo(before[0].y, 0)
+    expect(after[1].y).toBeCloseTo(before[1].y, 0)
+    await expect(page.getByTestId("places-count")).toBeVisible()
+  }
+})
+
+test("the large pairs beyond the first are real comparisons", async ({ page }) => {
+  for (const path of ["/", "/about"]) {
+    await page.goto(path)
+    const input = page.getByTestId("inline-slider-input")
+    await input.focus()
+    await page.keyboard.press("ArrowLeft")
+    await expect(input).toHaveValue("49")
+  }
 })

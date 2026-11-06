@@ -19,6 +19,8 @@ type StoryCluster = {
 }
 
 const MAX_ZOOM = 16
+// Clear of the controls, so no marker hugs an edge.
+const FIT_PADDING = { top: 96, bottom: 96, left: 72, right: 72 }
 const CLUSTER_RADIUS_PX = 34
 // At full zoom only near-identical spots still share a marker.
 const MAX_ZOOM_CLUSTER_RADIUS_PX = 12
@@ -90,7 +92,8 @@ export function PlacesMap({
   const viewportRef = useRef(viewport)
   const callbacksRef = useRef({ onVisibleSlugsChange, onViewportChange, onSelect, onFail })
   const refreshRef = useRef<((fit: boolean) => void) | null>(null)
-  const selectRef = useRef<((key: string | null) => void) | null>(null)
+  const selectedSlugsRef = useRef<string[]>([])
+  const applyActiveRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     callbacksRef.current = { onVisibleSlugsChange, onViewportChange, onSelect, onFail }
@@ -146,7 +149,7 @@ export function PlacesMap({
             : initialStories.length > 0
               ? {
                   bounds: boundsOf(initialStories),
-                  fitBoundsOptions: { padding: 56, maxZoom: 15 },
+                  fitBoundsOptions: { padding: FIT_PADDING, maxZoom: 15 },
                 }
               : { center: [174.76, -36.85] as [number, number], zoom: 10 }),
         })
@@ -203,14 +206,14 @@ export function PlacesMap({
         { element: HTMLElement; marker: import("maplibre-gl").Marker }
       >()
       let highlighted: string | null = null
-      let selectedKey: string | null = null
 
       const applyActive = () => {
         liveMarkers.forEach(({ element }, key) => {
           element.classList.toggle(
             "is-active",
-            key === selectedKey ||
-              (highlighted !== null && key.split(",").includes(highlighted))
+            key.split(",").some(
+              (slug) => slug === highlighted || selectedSlugsRef.current.includes(slug)
+            )
           )
         })
       }
@@ -222,10 +225,7 @@ export function PlacesMap({
         }
       }
 
-      selectRef.current = (key) => {
-        selectedKey = key
-        applyActive()
-      }
+      applyActiveRef.current = applyActive
 
       const createMarker = (cluster: StoryCluster) => {
         const isSingle = cluster.stories.length === 1
@@ -251,8 +251,6 @@ export function PlacesMap({
           event.stopPropagation()
 
           if (isSingle || activeMap.getZoom() >= MAX_ZOOM) {
-            selectedKey = cluster.key
-            applyActive()
             callbacksRef.current.onSelect?.(cluster.stories)
           } else {
             callbacksRef.current.onSelect?.(null)
@@ -341,7 +339,7 @@ export function PlacesMap({
 
         if (fit && storiesRef.current.length > 0) {
           activeMap.fitBounds(boundsOf(storiesRef.current), {
-            padding: 56,
+            padding: FIT_PADDING,
             maxZoom: 15,
             duration: 500,
           })
@@ -360,7 +358,7 @@ export function PlacesMap({
     return () => {
       isMounted = false
       refreshRef.current = null
-      selectRef.current = null
+      applyActiveRef.current = null
       if (highlightRef) {
         highlightRef.current = null
       }
@@ -379,9 +377,8 @@ export function PlacesMap({
   }, [storiesKey])
 
   useEffect(() => {
-    if (!selected) {
-      selectRef.current?.(null)
-    }
+    selectedSlugsRef.current = selected?.map((story) => story.slug) ?? []
+    applyActiveRef.current?.()
   }, [selected])
 
   return (

@@ -1,13 +1,17 @@
+import { Metadata } from "next"
 import Link from "next/link"
 
 import { fetchPosts } from "@/lib/api"
-import { STORY_TRIM } from "@/lib/places"
 import { CtaLink } from "@/components/cta-link"
+import { InlineCompare } from "@/components/inline-compare"
 import { SOURCE_LINE } from "@/components/Desc"
 import { ResetScroll } from "@/components/reset-scroll"
-import { SeamTile } from "@/components/seam-tile"
 
 const FEATURE_SLUG = "historic-post-office"
+
+export const metadata: Metadata = {
+  title: "About",
+}
 
 export default async function AboutPage() {
   const posts = await fetchPosts()
@@ -23,7 +27,7 @@ export default async function AboutPage() {
   return (
     <article className="px-4 pb-16 pt-8 md:pb-24 md:pt-14">
       <ResetScroll />
-      <div className="grid gap-6 md:grid-cols-2 md:gap-10">
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
         <h1 className="font-serif text-6xl leading-none md:text-8xl">About</h1>
         <div className="max-w-2xl space-y-4">
           <p className="font-serif text-[2rem] leading-[1.1] md:text-[2.75rem]">
@@ -37,16 +41,12 @@ export default async function AboutPage() {
       </div>
 
       <figure className="mt-10 md:mt-16">
-        <SeamTile
-          href={`/${feature.slug}`}
+        <InlineCompare
           name={feature.name}
           thenSrc={feature.b_imageUrl}
           nowSrc={feature.a_imageUrl}
           ratio={feature.w / feature.h}
-          trim={STORY_TRIM[feature.slug] ?? 1.06}
-          sizes="100vw"
           priority
-          wide
         />
         <figcaption className="mt-2 text-sm">
           <Link href={`/${feature.slug}`} className="underline underline-offset-4">
@@ -55,7 +55,7 @@ export default async function AboutPage() {
         </figcaption>
       </figure>
 
-      <section id="sources" className="mt-14 grid scroll-mt-20 gap-6 border-t pt-6 md:mt-20 md:grid-cols-2 md:gap-10">
+      <section id="sources" className="mt-14 grid scroll-mt-20 gap-6 border-t pt-6 md:mt-20 lg:grid-cols-2 lg:gap-10">
         <h2 className="font-serif text-5xl leading-none md:text-7xl">Sources</h2>
         <ul>
           {sources.map(({ source, slug, name }) => {
@@ -75,8 +75,7 @@ export default async function AboutPage() {
                   className="block text-[15px] leading-snug text-muted-foreground underline underline-offset-4 hover:text-foreground"
                 >
                   <span className="text-foreground">{host}</span>
-                  <wbr />
-                  <span className="[overflow-wrap:anywhere]">{path}</span>
+                  <span className="text-[0px]">{path}</span>
                 </a>
               </li>
             )
@@ -84,8 +83,8 @@ export default async function AboutPage() {
         </ul>
       </section>
 
-      <CtaLink href="/places" className="mt-12 w-full md:ml-[calc(50%+1.25rem)] md:w-auto">
-        See the places
+      <CtaLink href="/places" className="mt-12 w-full md:w-auto lg:ml-[calc(50%+1.25rem)]">
+        Explore the places
       </CtaLink>
     </article>
   )
