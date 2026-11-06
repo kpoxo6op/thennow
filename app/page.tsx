@@ -1,14 +1,12 @@
-import type { Viewport } from "next"
 import Form from "next/form"
 import Link from "next/link"
-import { ArrowRight, Search } from "lucide-react"
+import { Search } from "lucide-react"
 import type PostType from "@/interfaces/post"
 
 import { fetchPosts } from "@/lib/api"
-import { fontHomeSans, fontHomeSerif } from "@/lib/fonts"
-import { placesHref, STORIES_AREA, STORY_TRIM } from "@/lib/places"
-import { cn } from "@/lib/utils"
+import { placesHref, STORY_TRIM } from "@/lib/places"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
+import { CtaLink } from "@/components/cta-link"
 import { HomeHero } from "@/components/home-hero"
 import { SeamTile } from "@/components/seam-tile"
 import { SiteFooter } from "@/components/site-footer"
@@ -16,10 +14,6 @@ import { SiteHeader } from "@/components/site-header"
 
 const HERO_SLUG = "sheep"
 const LEAD_SLUG = "historic-post-office"
-
-export const viewport: Viewport = {
-  themeColor: "#13120f",
-}
 
 // Dated, written sections only: several stories are still "Coming soon...".
 function datedSections(story: PostType) {
@@ -69,10 +63,10 @@ export default async function IndexPage() {
   const nowYear = heroSections[heroSections.length - 1]?.year
   const leadSections = datedSections(lead)
   return (
-    <div className={cn("tn-home flex flex-1 flex-col font-sans", fontHomeSans.variable, fontHomeSerif.variable)}>
+    <>
       <SiteHeader />
       <main className="tn-enter flex-1">
-        <section className="relative">
+        <section>
           <HomeHero
             name={hero.name}
             thenSrc={hero.b_imageUrl}
@@ -80,38 +74,27 @@ export default async function IndexPage() {
             ratio={hero.w / hero.h}
             thenYear={thenYear}
             nowYear={nowYear}
-          >
-            <div className="space-y-3 px-4 pb-8 pt-4 md:space-y-3.5 md:pb-7 md:pl-8 md:pr-4 md:pt-20">
-              <h1 className="tn-hero-words text-balance font-serif text-[2.4rem] leading-[1.03] md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
-                <span className="md:block">The same corner, </span>
-                <span className="md:block">
-                  ninety<span className="mx-[-0.05em]">-</span>three years apart.
-                </span>
-              </h1>
-              <p className="tn-hero-words max-w-[34rem] text-[17px] leading-snug">
-                Old photographs of New Zealand places, each paired with a modern
-                retake. Drag the line to see what stayed and what disappeared.
-              </p>
-              <div className="pointer-events-auto flex flex-wrap items-center gap-x-6 gap-y-2">
-                <Link
-                  href="/places"
-                  className="inline-flex h-12 items-center gap-2 bg-foreground px-5 font-medium text-background transition-opacity hover:opacity-85"
-                >
-                  Explore the places
-                  <ArrowRight aria-hidden className="size-4" />
-                </Link>
-                <Link href={placesHref({ view: "map" })} className="tn-hero-map py-3 underline underline-offset-4">
-                  Open the map
-                </Link>
-              </div>
-              <Link
-                href={`/${hero.slug}`}
-                className="tn-hero-words pointer-events-auto inline-block py-1 text-sm underline underline-offset-4"
-              >
+            caption={
+              <Link href={`/${hero.slug}`} className="-my-1 py-1 underline underline-offset-4">
                 {hero.name}
               </Link>
-            </div>
+            }
+          >
+            <h1 className="text-balance px-4 pb-2 pt-3 font-serif text-[2.4rem] leading-[1.03] md:pb-6 md:pl-8 md:pt-16 md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
+              <span className="md:block">The same corner, </span>
+              <span className="md:block">
+                ninety<span className="mx-[-0.05em]">-</span>three years apart.
+              </span>
+            </h1>
           </HomeHero>
+          <div className="tn-home-band flex flex-col gap-4 px-4 pb-8 pt-3 md:flex-row md:items-center md:justify-between md:gap-10 md:border-t md:py-0">
+            <p className="max-w-[36rem] text-lg leading-snug text-muted-foreground md:text-xl">
+              Old photographs of New Zealand places, each paired with a modern retake.
+            </p>
+            <CtaLink href="/places" className="w-full md:w-auto">
+              Explore the places
+            </CtaLink>
+          </div>
         </section>
 
         <section className="space-y-12 px-4 pb-20 pt-12 md:space-y-20 md:pb-28 md:pt-24">
@@ -119,10 +102,7 @@ export default async function IndexPage() {
             <h2 className="font-serif text-5xl leading-none md:text-7xl">Photographed twice.</h2>
             <p className="max-w-xl text-[17px] leading-snug">
               With the corner above, these are the {originals.length} stories so far.{" "}
-              <Link
-                href={placesHref({ area: STORIES_AREA })}
-                className="whitespace-nowrap underline underline-offset-2"
-              >
+              <Link href="/places" className="whitespace-nowrap underline underline-offset-2">
                 All {originals.length} stories
               </Link>
             </p>
@@ -175,7 +155,7 @@ export default async function IndexPage() {
                 name="q"
                 aria-label="Search places"
                 placeholder="A street, a bay, a building"
-                className="h-14 w-full border border-input bg-popover pl-12 pr-5 text-lg placeholder:text-muted-foreground"
+                className="h-14 w-full rounded-full border border-input bg-popover pl-12 pr-5 text-lg placeholder:text-muted-foreground"
               />
             </Form>
             <div className="flex flex-wrap gap-x-6">
@@ -189,7 +169,7 @@ export default async function IndexPage() {
           </div>
         </section>
       </main>
-      <SiteFooter className="text-sm" />
-    </div>
+      <SiteFooter />
+    </>
   )
 }

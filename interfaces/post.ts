@@ -21,7 +21,7 @@ type PostType = {
 
 export type StorySummary = Pick<
   PostType,
-  "name" | "description" | "ba_imageUrl" | "w" | "h" | "slug" | "location" | "sample" | "area"
+  "name" | "description" | "b_imageUrl" | "a_imageUrl" | "ba_imageUrl" | "w" | "h" | "slug" | "location" | "sample" | "area"
 >
 
 export default PostType

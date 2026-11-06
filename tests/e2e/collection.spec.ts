@@ -265,9 +265,10 @@ test.describe("the homepage comparison", () => {
   test.describe("with reduced motion", () => {
     test.use({ contextOptions: { reducedMotion: "reduce" } })
 
-    test("the words clear for a drag and the ways onward are always there afterwards", async ({ page }) => {
+    // The ways onward no longer sit on the photograph, so they stay usable whatever the line does.
+    test("the headline clears for a drag and the way onward never leaves", async ({ page }) => {
       await page.goto("/")
-      const headline = page.getByRole("heading", { level: 1 })
+      const words = page.getByRole("heading", { level: 1 }).locator("xpath=..")
       const explore = page.getByRole("link", { name: "Explore the places" })
       const box = (await page.getByTestId("compare-stage").boundingBox())!
       const y = box.y + box.height / 2
@@ -275,17 +276,14 @@ test.describe("the homepage comparison", () => {
       await page.mouse.move(box.x + box.width / 2, y)
       await page.mouse.down()
       await page.mouse.move(box.x + box.width * 0.8, y, { steps: 6 })
-      await expect(explore).toHaveCSS("opacity", "1")
-      await expect.poll(() => explore.evaluate((link) => getComputedStyle(link.closest(".tn-hero-copy")!).opacity)).toBe("0")
+      await expect(words).toHaveCSS("opacity", "0")
+      await expect(explore).toBeInViewport()
 
       await page.mouse.up()
-      await expect.poll(() => explore.evaluate((link) => getComputedStyle(link.closest(".tn-hero-copy")!).opacity)).toBe("1")
-      await expect(headline).toHaveCSS("opacity", "0")
-      await explore.hover()
-      await expect(headline).toHaveCSS("opacity", "0")
+      await expect(words).toHaveCSS("opacity", "0")
 
-      await page.mouse.move(box.x + box.width / 2, box.y - 10)
-      await expect(headline).toHaveCSS("opacity", "1")
+      await explore.hover()
+      await expect(words).toHaveCSS("opacity", "1")
       await explore.click()
       await expect(page).toHaveURL(/\/places$/)
     })
@@ -336,4 +334,39 @@ test("About lists the story sources that exist in the content", async ({ page })
   await expect(sources.getByRole("link", { name: /kura\.aucklandlibraries/ })).toBeVisible()
   await sources.getByRole("link", { name: "Mill House, Auckland" }).click()
   await expect(page.getByRole("heading", { level: 1, name: "Mill House, Auckland" })).toBeVisible()
+})
+
+test("every public page hangs in one room, under one wordmark", async ({ page }) => {
+  const identity = () =>
+    page.evaluate(() => {
+      const logo = document.querySelector('[data-testid="site-header"] a[href="/"]')!
+      const stroke = logo.querySelector("span")!
+      return {
+        ground: getComputedStyle(document.body).backgroundColor,
+        logoFont: getComputedStyle(logo).fontFamily,
+        logoSize: getComputedStyle(logo).fontSize,
+        stroke: getComputedStyle(stroke).backgroundColor,
+      }
+    })
+
+  await page.goto("/")
+  const home = await identity()
+
+  for (const path of ["/places", "/places?view=map", "/about", "/mill-house", "/no-such-story"]) {
+    await page.goto(path)
+    expect(await identity(), path).toEqual(home)
+  }
+})
+
+test("the homepage has one way onward, and the map is one choice further in", async ({ page }) => {
+  await page.goto("/")
+  const hero = page.locator("main section").first()
+  await expect(hero.getByRole("link", { name: "Explore the places" })).toBeVisible()
+  await expect(hero.getByRole("link", { name: /map/i })).toHaveCount(0)
+
+  await hero.getByRole("link", { name: "Explore the places" }).click()
+  await expect(cards(page)).toHaveCount(posts.length)
+  await page.getByRole("button", { name: "Map" }).click()
+  await expect(page).toHaveURL(/view=map/)
+  await expect(markers(page).first()).toBeVisible()
 })

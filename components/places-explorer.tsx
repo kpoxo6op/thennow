@@ -16,7 +16,7 @@ import { ArrowRight, Grid2x2, Map as MapIcon, Search, X } from "lucide-react"
 import type { StorySummary } from "@/interfaces/post"
 
 import { cn } from "@/lib/utils"
-import { groupByArea, STORIES_AREA, type PlaceGroup } from "@/lib/places"
+import { groupByArea, storyArea, type PlaceGroup } from "@/lib/places"
 import {
   PlacesMap,
   type MapHighlight,
@@ -38,7 +38,7 @@ const VIEWPORT_LIMITS = {
 }
 
 const TILE_SIZES =
-  "(min-width: 1280px) 16vw, (min-width: 640px) 33vw, 50vw"
+  "(min-width: 1024px) 33vw, 50vw"
 
 function normalize(text: string) {
   return text
@@ -64,20 +64,20 @@ const PhotoGroups = memo(function PhotoGroups({
   onPrefetch?: (slug: string) => void
 }) {
   return (
-    <div className="space-y-10 px-3 pb-14 pt-3 sm:px-4 md:space-y-14">
+    <div className="space-y-10 px-4 pb-16 pt-5 md:space-y-16 md:pb-24 md:pt-6">
       {groups.map((group, groupIndex) => (
           <section key={group.id} className="tn-section">
-            <div className="mb-3 flex items-baseline justify-between gap-4 border-t pt-2 md:mb-4">
-              <h2 className="font-serif text-2xl tracking-tight md:text-3xl">
+            <div className="mb-4 flex items-baseline justify-between gap-4 border-t pt-3 md:mb-5">
+              <h2 className="font-serif text-3xl leading-none md:text-5xl">
                 {group.title}
               </h2>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-[15px] tabular-nums text-muted-foreground">
                 {group.stories.length}
               </span>
             </div>
             <ul
               data-testid="story-list"
-              className="grid grid-cols-2 gap-x-2 gap-y-5 sm:grid-cols-3 sm:gap-x-3 xl:grid-cols-6"
+              className="grid grid-cols-2 gap-x-3 gap-y-6 md:gap-x-6 md:gap-y-10 lg:grid-cols-3"
             >
               {group.stories.map((story, storyIndex) => (
                 <li key={story.slug}>
@@ -122,10 +122,21 @@ function StoryRow({
         sizes="96px"
         className="aspect-[3/2] w-24 shrink-0 bg-muted object-cover"
       />
-      <span className="line-clamp-2 font-serif text-base leading-snug">
+      <span className="line-clamp-2 text-[15px] font-medium leading-snug">
         {story.name}
       </span>
     </Link>
+  )
+}
+
+function PlacesTitle({ label, hidden }: { label: string; hidden?: boolean }) {
+  return (
+    <div className={hidden ? "sr-only" : "flex items-baseline justify-between gap-4 px-4 pb-3 pt-6 md:pb-4 md:pt-10"}>
+      <h1 className="font-serif text-6xl leading-none md:text-8xl">Places</h1>
+      <span role="status" data-testid="places-count" className="text-[15px] tabular-nums text-muted-foreground">
+        {label}
+      </span>
+    </div>
   )
 }
 
@@ -142,8 +153,10 @@ export function PlacesFallback({ stories }: Props) {
           __html: `if(/[?&](q|area|view)=/.test(location.search))document.documentElement.classList.add("tn-deep-link")`,
         }}
       />
+      <div className="tn-fallback-list">
+        <PlacesTitle label={`${stories.length} places`} />
+      </div>
       <div className="tn-toolbar bg-background" />
-      <h1 className="sr-only">Places</h1>
       <div className="tn-fallback-list">
         <PhotoGroups groups={groupByArea(stories)} />
       </div>
@@ -183,7 +196,7 @@ export function PlacesExplorer({ stories }: Props) {
 
     return stories.filter(
       (story) =>
-        (!area || (story.area ?? STORIES_AREA) === area) &&
+        (!area || storyArea(story) === area) &&
         matches(story, tokens)
     )
   }, [area, deferredQuery, stories])
@@ -317,10 +330,10 @@ export function PlacesExplorer({ stories }: Props) {
 
   return (
     <main className="flex-1">
-      <h1 className="sr-only">Places</h1>
+      <PlacesTitle label={resultLabel} hidden={view === "map"} />
       <div
         data-testid="places-toolbar"
-        className="tn-toolbar flex flex-col justify-center gap-2 bg-background px-3 pb-2.5 sm:px-4 md:flex-row md:items-center md:pb-3 md:pt-1"
+        className="tn-toolbar flex flex-col justify-center gap-2 bg-background px-4 pb-2.5 md:flex-row md:items-center md:pb-3 md:pt-1"
       >
         <div className="relative min-w-0 flex-1 md:max-w-md">
           <Search
@@ -364,13 +377,6 @@ export function PlacesExplorer({ stories }: Props) {
               </option>
             ))}
           </select>
-          <span
-            role="status"
-            data-testid="places-count"
-            className="hidden shrink-0 text-sm text-muted-foreground lg:inline"
-          >
-            {resultLabel}
-          </span>
           <div className="flex shrink-0 rounded-full border border-input bg-popover p-0.5 md:ml-auto">
             {(
               [
@@ -424,7 +430,7 @@ export function PlacesExplorer({ stories }: Props) {
                 ))}
               </ul>
             ) : (
-              <p className="p-4 font-serif text-lg text-muted-foreground">
+              <p className="p-4 text-[17px] text-muted-foreground">
                 {isEmpty ? "No places match." : "No places in this part of the map."}
               </p>
             )}
@@ -445,7 +451,7 @@ export function PlacesExplorer({ stories }: Props) {
               <p
                 role="alert"
                 data-testid="map-failure"
-                className="absolute inset-x-3 top-3 z-[2] mx-auto max-w-md rounded bg-popover px-4 py-3 pr-14 text-sm shadow-md"
+                className="absolute inset-x-3 top-3 z-[2] mx-auto max-w-md rounded-lg bg-popover px-4 py-3 pr-14 text-sm shadow-[0_6px_28px_rgb(0_0_0/0.5)]"
               >
                 The base map didn&apos;t load. The places still work here, or{" "}
                 <button
@@ -460,8 +466,8 @@ export function PlacesExplorer({ stories }: Props) {
             ) : null}
 
             {isEmpty ? (
-              <div className="absolute inset-x-3 top-3 z-[2] mx-auto max-w-sm rounded bg-popover px-4 py-3 text-center shadow-md">
-                <p className="font-serif text-lg">No places match.</p>
+              <div className="absolute inset-x-3 top-3 z-[2] mx-auto max-w-sm rounded-lg bg-popover px-4 py-3 text-center shadow-[0_6px_28px_rgb(0_0_0/0.5)]">
+                <p className="text-[17px]">No places match.</p>
                 <button
                   type="button"
                   className="py-1 text-sm underline underline-offset-2"
@@ -476,7 +482,7 @@ export function PlacesExplorer({ stories }: Props) {
               <div
                 ref={selectedRef}
                 data-testid="map-selection"
-                className="absolute inset-x-2 bottom-2 z-[2] max-h-[60%] overflow-y-auto rounded bg-popover shadow-[0_6px_28px_rgb(40_30_20/0.35)] sm:left-auto sm:right-3 sm:bottom-10 sm:w-[22rem]"
+                className="absolute inset-x-2 bottom-2 z-[2] max-h-[60%] overflow-y-auto rounded-lg bg-popover shadow-[0_6px_28px_rgb(0_0_0/0.55)] sm:left-auto sm:right-3 sm:bottom-10 sm:w-[22rem]"
               >
                 <button
                   type="button"
@@ -500,7 +506,7 @@ export function PlacesExplorer({ stories }: Props) {
                       sizes="144px"
                       className="aspect-[3/2] w-36 shrink-0 bg-muted object-cover"
                     />
-                    <span className="min-w-0 font-serif text-lg leading-snug underline-offset-4 group-hover:underline">
+                    <span className="min-w-0 text-[17px] font-medium leading-snug underline-offset-4 group-hover:underline">
                       {story.name}
                       <ArrowRight aria-hidden className="ml-1 inline size-4" />
                     </span>
@@ -526,7 +532,7 @@ function EmptyState({
 }) {
   return (
     <div data-testid="places-empty" className="px-4 py-20 text-center">
-      <p className="font-serif text-3xl tracking-tight">
+      <p className="font-serif text-4xl leading-tight md:text-5xl">
         {query.trim() ? `Nothing matches “${query.trim()}”.` : "Nothing here."}
       </p>
       {hasFilter ? (

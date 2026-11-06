@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { ChevronsLeftRight } from "lucide-react"
 
 import { CompareStage } from "@/components/compare-stage"
 
@@ -11,6 +12,9 @@ interface Props {
   ratio: number
   thenYear?: string
   nowYear?: string
+  // Belongs to the photograph: its own place, directly under it.
+  caption: React.ReactNode
+  // Belongs to the photograph too: the headline about this corner.
   children?: React.ReactNode
 }
 
@@ -28,7 +32,7 @@ function ease(t: number) {
 }
 
 // One slow pass of the line says what this site is before anything is read.
-export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, children }: Props) {
+export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, caption, children }: Props) {
   const [position, setPosition] = useState(50)
   // The words sit on the dark road in the "now" half, and step aside while someone is studying what is under them.
   const [dragging, setDragging] = useState(false)
@@ -82,7 +86,7 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
 
   return (
     <div
-      className="tn-home-hero"
+      className="tn-home-hero relative"
       onPointerEnter={(event) => setMouseOnPhoto(event.pointerType === "mouse")}
       onPointerLeave={() => setMouseOnPhoto(false)}
     >
@@ -106,7 +110,7 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
           onInteract={handleInteract}
           fit="cover"
           priority
-          className="h-[54svh] min-h-64 md:h-[calc(100svh-var(--header-h))] md:min-h-[36rem]"
+          className="h-[50svh] min-h-64 md:h-[calc(100svh-var(--header-h)-var(--hero-caption-h)-var(--hero-band-h))] md:min-h-[30rem]"
         />
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           {/* Each year stays beside the line, and inside the frame when the line nears an edge. */}
@@ -123,6 +127,13 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
             {nowYear}
           </span>
         </div>
+      </div>
+      <div className="flex items-start justify-between gap-4 px-4 py-2.5 text-sm md:h-[var(--hero-caption-h)] md:items-center md:py-0">
+        {caption}
+        <span data-testid="hero-drag-hint" className="flex shrink-0 items-center gap-1 text-muted-foreground">
+          <ChevronsLeftRight aria-hidden className="size-4" />
+          Drag the line
+        </span>
       </div>
       <div className="tn-hero-copy" data-clear={clear}>
         {children}
