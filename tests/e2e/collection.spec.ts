@@ -390,6 +390,99 @@ test.describe("on a phone", () => {
   });
 });
 
+test.describe("comparison ends on a phone", () => {
+  test.use({ hasTouch: true, isMobile: true });
+
+  for (const width of [390, 320]) {
+    test(`0 and 100 show one photograph whole at ${width}px, from a safe drag`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto("/mill-house");
+      const input = page.getByTestId("compare-slider-input");
+      await expect(input).toHaveValue("50");
+
+      const state = () =>
+        page.evaluate(() => {
+          const overlay = document.querySelector<HTMLElement>("[data-testid=compare-overlay]")!;
+          const stage = document.querySelector<HTMLElement>("[data-testid=compare-stage]")!.getBoundingClientRect();
+          const knob = document.querySelector<HTMLElement>("[data-testid=compare-slider-knob]")!.getBoundingClientRect();
+          const box = document.querySelector<HTMLElement>("[data-testid=compare-slider-input]")!.getBoundingClientRect();
+          const inset = overlay.style.clipPath.match(/inset\(0(?:px)?(?: ([0-9.]+)(?:px)? 0(?:px)? 0(?:px)?)?\)/);
+          return {
+            shownThen: inset ? stage.width - Number(inset[1] ?? 0) : NaN,
+            stageWidth: stage.width,
+            knobCenter: knob.left + knob.width / 2,
+            inputLeft: box.left,
+            inputRight: window.innerWidth - box.right,
+            scrollX: window.scrollX,
+          };
+        });
+
+      // A real touch drag, starting and ending inside the safe margins.
+      const client = await page.context().newCDPSession(page);
+      const stageBox = await page.getByTestId("compare-stage").boundingBox();
+      const y = stageBox!.y + stageBox!.height / 2;
+      const drag = async (from: number, to: number) => {
+        await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] });
+        for (let step = 1; step <= 6; step += 1) {
+          const x = from + ((to - from) * step) / 6;
+          await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] });
+        }
+        await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      };
+
+      await drag(width / 2, width - 40);
+      await expect(input).toHaveValue("100");
+      await expect(page).toHaveURL(/\?p=100$/);
+      let end = await state();
+      expect(end.shownThen).toBeCloseTo(end.stageWidth, 0);
+      expect(end.knobCenter).toBeCloseTo(width - 40, 0);
+
+      await drag(width - 60, 40);
+      await expect(input).toHaveValue("0");
+      await expect(page).toHaveURL(/\?p=0$/);
+      end = await state();
+      expect(end.shownThen).toBeCloseTo(0, 0);
+      expect(end.knobCenter).toBeCloseTo(40, 0);
+
+      // The control keeps its margins, and the page never moved sideways.
+      expect(end.inputLeft).toBeGreaterThanOrEqual(39);
+      expect(end.inputRight).toBeGreaterThanOrEqual(39);
+      expect(end.scrollX).toBe(0);
+
+      // A shared link and the keyboard reach the same ends.
+      await page.goto("/mill-house?p=100");
+      await expect(input).toHaveValue("100");
+      await expect.poll(async () => (await state()).shownThen).toBeCloseTo(width, 0);
+      await input.focus();
+      await page.keyboard.press("Home");
+      await expect(input).toHaveValue("0");
+      await expect.poll(async () => (await state()).shownThen).toBeCloseTo(0, 0);
+    });
+  }
+
+  test("partial positions stay where they were, with grip and line together", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    for (const position of [5, 30, 95]) {
+      await page.goto(`/mill-house?p=${position}`);
+      await expect(page.getByTestId("compare-slider-input")).toHaveValue(String(position));
+
+      const expected = 40 + (position / 100) * 310;
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const center = (id: string) => {
+              const box = document.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect();
+              return box.left + box.width / 2;
+            };
+            return [center("compare-slider-knob"), center("compare-divider")];
+          })
+        )
+        .toEqual([expect.closeTo(expected, 0), expect.closeTo(expected, 0)]);
+    }
+  });
+});
+
 test.describe("story page", () => {
   test("shows the whole photograph with nothing over its centre text", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -535,7 +628,7 @@ test.describe("keyboard on the map", () => {
 });
 
 test.describe("secondary pages", () => {
-  for (const route of ["/about", "/contact", "/links"]) {
+  for (const route of ["/about", "/links"]) {
     test(`${route} is reachable from the site and clears the header`, async ({ page }) => {
       await page.goto("/");
       const footerLink = page.locator(`footer a[href="${route}"], header a[href="${route}"]`).first();
@@ -547,6 +640,30 @@ test.describe("secondary pages", () => {
       expect(heading!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
     });
   }
+
+  test("sources lists what the captions cite, each with its story", async ({ page }) => {
+    await page.goto("/links");
+    const sources = page.getByTestId("source");
+    await expect(sources).toHaveCount(2);
+
+    const millHouse = sources.filter({ hasText: "kura.aucklandlibraries.govt.nz" });
+    await expect(millHouse.locator("a").first()).toHaveAttribute(
+      "href",
+      "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/47325/rec/38"
+    );
+    await millHouse.getByRole("link", { name: "Mill House, Auckland" }).click();
+    await expect(page).toHaveURL(/\/mill-house$/);
+  });
+
+  test("no empty destination is advertised, and the old contact address still lands", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("contentinfo").getByRole("link", { name: "Contact" })).toHaveCount(0);
+    await expect(page.getByText("Coming soon")).toHaveCount(0);
+
+    await page.goto("/contact");
+    await expect(page).toHaveURL(/\/about$/);
+    await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
+  });
 
   test("unknown routes offer the way back", async ({ page }) => {
     const response = await page.goto("/no-such-story");

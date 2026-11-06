@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, MapPin } from "lucide-react";
 
 import PostType from "@/interfaces/post"
+import { sourceHref, splitSources } from "@/lib/sources";
 import { cn } from "@/lib/utils"
 import { CompareFrame } from "@/components/compare-frame";
 import { PlaceRow, type PlaceSummary } from "@/components/place-row";
@@ -39,15 +40,14 @@ function parsePositionParam(positionParam: string | null) {
   return clampPosition(parsedPosition);
 }
 
-// Source addresses are written bare in the captions; the text stays as written.
 function linkSources(description: string) {
-  return description.split(/(\b[\w-]+(?:\.[\w-]+)*\.(?:nz|com|org|net)\b(?:\/\S*)?)/).map((part, index) =>
-    index % 2 === 1 ? (
-      <a key={index} href={`https://${part}`} className="underline underline-offset-2 hover:text-foreground">
-        {part}
+  return splitSources(description).map(({ text, isSource }, index) =>
+    isSource ? (
+      <a key={index} href={sourceHref(text)} className="underline underline-offset-2 hover:text-foreground">
+        {text}
       </a>
     ) : (
-      part
+      text
     )
   );
 }

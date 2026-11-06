@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useLayoutEffect, useRef, useState } from "react"
+import React, { useCallback, useRef } from "react"
 import Image from "next/image"
 
 import { cn } from "@/lib/utils"
@@ -14,41 +14,19 @@ type ComparePhotos = {
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   post: ComparePhotos
   position: number
+  // Where the line is, as a percentage of the slider range.
+  linePercent: number
+  // The stage and range in pixels, once measured; before that the clip is by share.
+  geometry: { stage: number; rangeLeft: number; rangeWidth: number } | null
   sizes: string
   onPositionChange?: (position: number) => void
 }
 
 const DRAG_TOLERANCE_PX = 4
 
-const ImageSplit = ({ post, position, sizes, className, onPositionChange, ...props }: Props) => {
-  const stageRef = useRef<HTMLDivElement>(null)
+const ImageSplit = ({ post, position, linePercent, geometry, sizes, className, onPositionChange, ...props }: Props) => {
   const rangeRef = useRef<HTMLDivElement>(null)
   const pressRef = useRef<{ x: number; moved: boolean } | null>(null)
-  const [geometry, setGeometry] = useState<{ stage: number; left: number; width: number } | null>(null)
-
-  useLayoutEffect(() => {
-    const measure = () => {
-      const stageRect = stageRef.current?.getBoundingClientRect()
-      const rangeRect = rangeRef.current?.getBoundingClientRect()
-
-      if (stageRect && rangeRect) {
-        setGeometry({
-          stage: stageRect.width,
-          left: rangeRect.left - stageRect.left,
-          width: rangeRect.width,
-        })
-      }
-    }
-
-    measure()
-    const observer = new ResizeObserver(measure)
-    if (stageRef.current) {
-      observer.observe(stageRef.current)
-    }
-
-    return () => observer.disconnect()
-  }, [])
-
   const updatePosition = useCallback((clientX: number) => {
     const rect = rangeRef.current?.getBoundingClientRect()
 
@@ -59,14 +37,16 @@ const ImageSplit = ({ post, position, sizes, className, onPositionChange, ...pro
     onPositionChange?.(Math.min(100, Math.max(0, ((clientX - rect.left) / rect.width) * 100)))
   }, [onPositionChange])
 
-  const boundedPosition = Math.min(100, Math.max(0, position))
-  const clipPath = geometry
-    ? `inset(0 ${Math.max(0, geometry.stage - (geometry.left + (boundedPosition / 100) * geometry.width))}px 0 0)`
-    : `inset(0 ${100 - boundedPosition}% 0 0)`
+  const clipRight = geometry
+    ? geometry.stage - (geometry.rangeLeft + (linePercent / 100) * geometry.rangeWidth)
+    : null
+  const clipPath =
+    clipRight === null
+      ? `inset(0 ${100 - position}% 0 0)`
+      : `inset(0 ${Math.max(0, Math.round(clipRight * 100) / 100)}px 0 0)`
 
   return (
     <div
-      ref={stageRef}
       data-testid="compare-stage"
       className={cn(
         "relative w-full cursor-ew-resize select-none overflow-hidden [touch-action:pan-y]",
@@ -146,7 +126,7 @@ const ImageSplit = ({ post, position, sizes, className, onPositionChange, ...pro
         <div
           data-testid="compare-divider"
           className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white shadow-[0_0_4px_rgb(0_0_0/0.5)]"
-          style={{ left: `${boundedPosition}%` }}
+          style={{ left: `${linePercent}%` }}
         />
       </div>
     </div>

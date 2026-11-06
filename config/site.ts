@@ -16,11 +16,7 @@ export const siteConfig = {
   ],
   footerNav: [
     {
-      title: "Contact",
-      href: "/contact",
-    },
-    {
-      title: "Links",
+      title: "Sources",
       href: "/links",
     },
     {

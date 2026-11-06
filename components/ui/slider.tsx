@@ -9,12 +9,14 @@ type SliderProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "
   value?: number[]
   defaultValue?: number[]
   onValueChange?: (value: number[]) => void
+  // Where the grip sits along the range, when that isn't simply the value.
+  gripPercent?: number
 }
 
 // The grip sits on the photo. Only the input takes pointer events, in a strip
 // along the photo's lower edge; the rest of the photo is the stage's to drag.
 const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
-  ({ className, value, defaultValue, min = 0, max = 100, step = 1, onValueChange, ...props }, ref) => {
+  ({ className, value, defaultValue, min = 0, max = 100, step = 1, onValueChange, gripPercent, ...props }, ref) => {
     const isControlled = value !== undefined
     const currentValue = Number((isControlled ? value?.[0] : defaultValue?.[0]) ?? min)
     const [internalValue, setInternalValue] = React.useState(currentValue)
@@ -62,7 +64,7 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
           data-testid="compare-slider-knob"
           className="absolute top-1/2 z-20 flex size-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-neutral-900 shadow-[0_1px_8px_rgb(0_0_0/0.45)] group-has-[input:focus-visible]:outline-2 group-has-[input:focus-visible]:outline-offset-2 group-has-[input:focus-visible]:outline-white"
           style={{
-            left: `${percent}%`,
+            left: `${gripPercent ?? percent}%`,
           }}
         >
           <ChevronLeft aria-hidden className="-mr-1 size-4" />
