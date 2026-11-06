@@ -9,6 +9,8 @@ interface Props {
   thenSrc: string
   nowSrc: string
   ratio: number
+  thenYear?: string
+  nowYear?: string
 }
 
 const SWEEP = [
@@ -18,13 +20,15 @@ const SWEEP = [
   { at: 3000, position: 50 },
 ]
 const SWEEP_DELAY_MS = 900
+// Past here a year would run off the photograph, so it steps aside.
+const YEAR_ROOM_PERCENT = 30
 
 function ease(t: number) {
   return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
 }
 
 // One slow pass of the line says what this site is before anything is read.
-export function HomeHero({ name, thenSrc, nowSrc, ratio }: Props) {
+export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear }: Props) {
   const [position, setPosition] = useState(50)
   const cancelRef = useRef<(() => void) | null>(null)
 
@@ -69,18 +73,39 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio }: Props) {
     cancelRef.current?.()
   }, [])
 
+  const yearClass =
+    "tn-seam-year absolute top-1/2 -translate-y-1/2 font-serif text-5xl leading-none text-white transition-opacity duration-200 md:text-[5.5rem]"
+
   return (
-    <CompareStage
-      name={name}
-      thenSrc={thenSrc}
-      nowSrc={nowSrc}
-      ratio={ratio}
-      position={position}
-      onPositionChange={setPosition}
-      onInteract={handleInteract}
-      fit="cover"
-      priority
-      className="h-[52svh] min-h-72 md:h-[min(calc(100svh-3.5rem-15rem),66vw)] md:min-h-72"
-    />
+    <div className="relative">
+      <CompareStage
+        name={name}
+        thenSrc={thenSrc}
+        nowSrc={nowSrc}
+        ratio={ratio}
+        position={position}
+        onPositionChange={setPosition}
+        onInteract={handleInteract}
+        fit="cover"
+        priority
+        className="h-[50svh] min-h-64 md:h-svh md:min-h-[38rem]"
+      />
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-y-0" style={{ left: `${position}%` }}>
+          <span
+            className={`${yearClass} right-9 md:right-12`}
+            style={{ opacity: position < YEAR_ROOM_PERCENT ? 0 : 1 }}
+          >
+            {thenYear}
+          </span>
+          <span
+            className={`${yearClass} left-9 md:left-12`}
+            style={{ opacity: position > 100 - YEAR_ROOM_PERCENT ? 0 : 1 }}
+          >
+            {nowYear}
+          </span>
+        </div>
+      </div>
+    </div>
   )
 }

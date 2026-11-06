@@ -71,6 +71,52 @@
   }
 }
 
+/* The homepage is a dark viewing room: the ground steps back and the photographs carry the page. */
+.tn-home {
+  --background: 36 10% 7%;
+  --foreground: 42 30% 92%;
+  --muted: 36 8% 15%;
+  --muted-foreground: 40 10% 68%;
+  --popover: 36 9% 11%;
+  --popover-foreground: 42 30% 92%;
+  --border: 38 8% 24%;
+  --input: 38 8% 38%;
+  --card: 36 10% 7%;
+  --card-foreground: 42 30% 92%;
+  --primary: 42 30% 92%;
+  --primary-foreground: 36 10% 7%;
+  --secondary: 36 8% 15%;
+  --secondary-foreground: 42 30% 92%;
+  --accent: 18 88% 60%;
+  --accent-foreground: 36 10% 7%;
+  --ring: 18 88% 60%;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+body:has(.tn-home) {
+  background: hsl(36 10% 7%);
+}
+
+.tn-seam-year {
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 0.55),
+    0 0 28px rgb(0 0 0 / 0.55);
+}
+
+/* Then over now, cut along a line that a mouse can move. */
+.tn-seam-tile {
+  --seam: 50%;
+}
+
+.tn-seam-then {
+  clip-path: inset(0 calc(100% - var(--seam)) 0 0);
+}
+
+.tn-seam-line {
+  left: var(--seam);
+}
+
 .tn-enter {
   animation: tn-enter 240ms ease-out backwards;
 }
