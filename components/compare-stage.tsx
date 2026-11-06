@@ -24,7 +24,9 @@ const TOUCH_SLOP_PX = 4
 
 // Where the photograph actually sits inside the stage.
 function getImageBounds(width: number, height: number, ratio: number, fit: Props["fit"]) {
-  const imageWidth = fit === "cover" ? width : Math.min(width, height * ratio)
+  const fitted = Math.min(width, height * ratio)
+  // Under a pixel of difference is rounding, not space beside the photograph.
+  const imageWidth = fit === "cover" || width - fitted < 1 ? width : fitted
 
   return { left: (width - imageWidth) / 2, width: imageWidth }
 }

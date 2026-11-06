@@ -10,7 +10,9 @@ async function readGeometry(page: Page) {
     const input = document.querySelector<HTMLInputElement>('[data-testid="compare-slider-input"]')!
     const image = document.querySelector<HTMLElement>('[data-testid="compare-overlay-image"]')!
     const stage = document.querySelector<HTMLElement>('[data-testid="compare-stage"]')!
-    const match = (overlay.getAttribute("style") ?? "").match(/inset\(0(?:px)?\s+([0-9.]+)px/)
+    // Browsers shorten an all-zero clip to inset(0px).
+    const insets = ((overlay.getAttribute("style") ?? "").match(/inset\(([^)]*)\)/)?.[1] ?? "").split(/\s+/)
+    const rightInset = parseFloat(insets[1] ?? insets[0])
     const stageBox = stage.getBoundingClientRect()
     const imageBox = image.getBoundingClientRect()
     const knobBox = knob.getBoundingClientRect()
@@ -18,7 +20,7 @@ async function readGeometry(page: Page) {
 
     return {
       value: Number(input.value),
-      divider: match ? stageBox.right - Number(match[1]) : Number.NaN,
+      divider: stageBox.right - rightInset,
       knobCenter: knobBox.left + knobBox.width / 2,
       imageLeft: imageBox.left,
       imageRight: imageBox.right,
