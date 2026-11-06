@@ -68,16 +68,6 @@ export default async function IndexPage() {
   const thenYear = heroSections[0]?.year
   const nowYear = heroSections[heroSections.length - 1]?.year
   const leadSections = datedSections(lead)
-  const areas = new Map<string, number>()
-
-  posts.forEach((post) => {
-    if (post.area) {
-      areas.set(post.area, (areas.get(post.area) ?? 0) + 1)
-    }
-  })
-
-  const sampleCount = posts.length - originals.length
-
   return (
     <div className={cn("tn-home flex flex-1 flex-col font-sans", fontHomeSans.variable, fontHomeSerif.variable)}>
       <SiteHeader />
@@ -128,12 +118,7 @@ export default async function IndexPage() {
           <div className="grid gap-4 md:grid-cols-2 md:items-end md:gap-10">
             <h2 className="font-serif text-5xl leading-none md:text-7xl">Photographed twice.</h2>
             <p className="max-w-xl text-[17px] leading-snug">
-              With the corner above, these are the {originals.length} original stories. The other{" "}
-              {sampleCount} places in this preview are{" "}
-              <Link href="/about" className="underline underline-offset-2">
-                fictional samples
-              </Link>{" "}
-              that reuse these photographs and do not show those places.{" "}
+              With the corner above, these are the {originals.length} stories so far.{" "}
               <Link
                 href={placesHref({ area: STORIES_AREA })}
                 className="whitespace-nowrap underline underline-offset-2"
@@ -201,24 +186,6 @@ export default async function IndexPage() {
                 Look around the map
               </Link>
             </div>
-          </div>
-          <div>
-            <h3 className="mb-3 text-[15px] text-muted-foreground">Sample areas</h3>
-            <ul>
-              {Array.from(areas).map(([area, count]) => (
-                <li key={area} className="border-b first:border-t">
-                  <Link
-                    href={placesHref({ area })}
-                    className="flex items-baseline justify-between gap-4 py-3 text-lg underline-offset-4 hover:underline"
-                  >
-                    {area}
-                    <span className="shrink-0 text-[15px] tabular-nums text-muted-foreground">
-                      {count} samples
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
           </div>
         </section>
       </main>

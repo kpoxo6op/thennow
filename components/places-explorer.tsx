@@ -63,10 +63,6 @@ const PhotoGroups = memo(function PhotoGroups({
   groups: PlaceGroup[]
   onPrefetch?: (slug: string) => void
 }) {
-  const firstSampleGroup = groups.findIndex(
-    (group) => group.id !== STORIES_AREA
-  )
-
   return (
     <div className="space-y-10 px-3 pb-14 pt-3 sm:px-4 md:space-y-14">
       {groups.map((group, groupIndex) => (
@@ -79,11 +75,6 @@ const PhotoGroups = memo(function PhotoGroups({
                 {group.stories.length}
               </span>
             </div>
-            {groupIndex === firstSampleGroup ? (
-              <p className="mb-4 text-sm text-muted-foreground">
-                Sample places, using repeated placeholder photographs.
-              </p>
-            ) : null}
             <ul
               data-testid="story-list"
               className="grid grid-cols-2 gap-x-2 gap-y-5 sm:grid-cols-3 sm:gap-x-3 xl:grid-cols-6"

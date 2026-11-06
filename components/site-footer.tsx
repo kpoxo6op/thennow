@@ -1,5 +1,4 @@
 import * as React from "react"
-import Link from "next/link"
 
 import { cn } from "@/lib/utils"
 import { appVersion } from "@/lib/version"
@@ -17,14 +16,7 @@ const SiteFooter = React.forwardRef<
       )}
       {...props}
     >
-      <span>
-        This preview includes{" "}
-        <Link href="/about" className="underline underline-offset-2">
-          sample places
-        </Link>
-        .
-      </span>
-      <span className="flex items-center gap-4">
+      <span className="ml-auto flex items-center gap-4">
         <a href="/feed.xml" className="-my-2 py-2 underline underline-offset-2">
           RSS
         </a>

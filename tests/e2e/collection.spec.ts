@@ -35,27 +35,21 @@ for (const viewport of [
   test.describe(`on ${viewport.name}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } })
 
-    test("/places lists all 306 without eager images or overflow", async ({ page }) => {
+    test("/places lists every story without overflow", async ({ page }) => {
       await page.goto("/places")
-      await expect(cards(page)).toHaveCount(306)
+      await expect(cards(page)).toHaveCount(posts.length)
 
-      const stats = await page.evaluate(() => ({
-        lazy: document.querySelectorAll('[data-testid="story-card"] img[loading="lazy"]').length,
-        overflow: document.documentElement.scrollWidth - window.innerWidth,
-      }))
-
-      expect(stats.lazy).toBeGreaterThan(296)
-      expect(stats.overflow).toBeLessThanOrEqual(0)
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      expect(overflow).toBeLessThanOrEqual(0)
     })
 
-    test("a card deep in the list opens at the top and Places returns to the same place", async ({ page }) => {
+    test("the last card opens at the top and Places returns to the same place", async ({ page }) => {
       await page.goto("/places")
       await expect(page.getByTestId("places-toolbar")).toBeVisible()
-      const card = cards(page).nth(200)
+      const card = cards(page).last()
       await card.scrollIntoViewIfNeeded()
       const name = (await card.textContent())?.trim() ?? ""
       const scrollBefore = await page.evaluate(() => window.scrollY)
-      expect(scrollBefore).toBeGreaterThan(1000)
 
       await card.click()
       await expect(page.getByRole("heading", { level: 1, name })).toBeVisible()
@@ -63,7 +57,7 @@ for (const viewport of [
       expect(await page.evaluate(() => window.scrollY)).toBe(0)
 
       await page.getByTestId("site-header").getByRole("link", { name: "Places" }).click()
-      await expect(cards(page)).toHaveCount(306)
+      await expect(cards(page)).toHaveCount(posts.length)
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollBefore - 60)
     })
 
@@ -108,35 +102,30 @@ test("search filters by name, survives reload, and has a way out when empty", as
   await search.fill("zzzz")
   await expect(page.getByTestId("places-empty")).toContainText("zzzz")
   await page.getByRole("button", { name: "Show all places" }).click()
-  await expect(cards(page)).toHaveCount(306)
+  await expect(cards(page)).toHaveCount(posts.length)
   await expect(search).toBeFocused()
 })
 
-test("the homepage search and area links arrive filtered", async ({ page }) => {
+test("the homepage search arrives filtered", async ({ page }) => {
   await page.goto("/")
   const search = page.getByRole("searchbox", { name: "Search places" })
   await search.fill("mission")
   await search.press("Enter")
   await expect(page).toHaveURL(/\/places\?q=mission/)
   await expect(cards(page)).toHaveCount(3)
-
-  await page.goto("/")
-  await page.getByRole("link", { name: /Upper harbour/ }).click()
-  await expect(cards(page)).toHaveCount(15)
-  await expect(page.getByRole("combobox", { name: "Area" })).toHaveValue("Upper harbour")
 })
 
 test("photos and map are real history entries and keep the filter", async ({ page }) => {
-  await page.goto("/places?area=North%20shore")
-  await expect(cards(page)).toHaveCount(40)
+  await page.goto("/places?q=mission")
+  await expect(cards(page)).toHaveCount(3)
 
   await page.getByRole("button", { name: "Map" }).click()
   await expect(page).toHaveURL(/view=map/)
-  await expect(page).toHaveURL(/area=North/)
+  await expect(page).toHaveURL(/q=mission/)
   await expect(markers(page).first()).toBeVisible()
 
   await page.goBack()
-  await expect(cards(page)).toHaveCount(40)
+  await expect(cards(page)).toHaveCount(3)
 })
 
 test("the map says so when its base map fails, and places stay reachable", async ({ page }) => {
@@ -146,7 +135,7 @@ test("the map says so when its base map fails, and places stay reachable", async
   await expect(page.getByTestId("map-failure")).toBeVisible()
   await expect(markers(page).first()).toBeVisible()
   await page.getByTestId("map-failure").getByRole("button", { name: "browse the photos" }).click()
-  await expect(cards(page)).toHaveCount(306)
+  await expect(cards(page)).toHaveCount(posts.length)
 })
 
 test("the collection is in the first server response", async ({ request }) => {
@@ -157,9 +146,8 @@ test("the collection is in the first server response", async ({ request }) => {
   }
 })
 
-test("all 306 routes resolve with their own title", async ({ request }) => {
-  test.setTimeout(180000)
-  expect(posts.length).toBe(306)
+test("every story route resolves with its own title", async ({ request }) => {
+  expect(posts.length).toBe(6)
 
   for (const post of posts) {
     const response = await request.get(`/${post.slug}`)
@@ -171,7 +159,7 @@ test("all 306 routes resolve with their own title", async ({ request }) => {
 })
 
 test("the original stories keep their photographs and full text", async ({ page }) => {
-  for (const post of posts.filter((candidate) => !candidate.folder.startsWith("demo-"))) {
+  for (const post of posts) {
     await page.goto(`/${post.slug}`)
     await expect(page.getByTestId("compare-overlay-image")).toHaveAttribute(
       "src",
@@ -189,11 +177,11 @@ test("the original stories keep their photographs and full text", async ({ page 
   }
 })
 
-test("sample stories say they are samples; original ones do not", async ({ page }) => {
-  await page.goto("/demo-001")
-  await expect(page.getByText("Sample place.")).toBeVisible()
-  await page.goto("/mill-house")
-  await expect(page.getByText("Sample place.")).toHaveCount(0)
+test("no story is labelled as a sample place", async ({ page }) => {
+  for (const post of posts) {
+    await page.goto(`/${post.slug}`)
+    await expect(page.getByText("Sample place.")).toHaveCount(0)
+  }
 })
 
 test("the photograph itself drags, and a click sets the line", async ({ page }) => {
@@ -320,12 +308,12 @@ test("the navigation only offers pages with something on them", async ({ page })
   await expect(page.getByText("Coming soon...")).toHaveCount(0)
 
   await header.getByRole("link", { name: "Places", exact: true }).click()
-  await expect(cards(page)).toHaveCount(306)
+  await expect(cards(page)).toHaveCount(posts.length)
 
   await page.goto("/no-such-story")
   await expect(page.getByRole("heading", { level: 1, name: "Not found" })).toBeVisible()
   await page.getByRole("link", { name: "See the places" }).click()
-  await expect(cards(page)).toHaveCount(306)
+  await expect(cards(page)).toHaveCount(posts.length)
 })
 
 test("the old Contact and Links addresses still lead somewhere useful", async ({ page }) => {

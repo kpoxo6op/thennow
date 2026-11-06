@@ -33,12 +33,6 @@ export default async function AboutPage() {
         story pairs an older image with a modern retake so visitors can see what
         stayed, what disappeared, and what the street looks like now.
       </p>
-      <p className="text-muted-foreground">
-        This preview holds six original stories and 300 sample places. The
-        sample places are fictional Auckland-area locations that repeat the
-        project&apos;s photographs as placeholders; those photographs do not
-        show them.
-      </p>
       <section id="sources" className="scroll-mt-20 space-y-3 border-t pt-4">
         <h2 className="font-serif text-3xl tracking-tight">Sources</h2>
         <ul className="space-y-4">

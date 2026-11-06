@@ -68,15 +68,6 @@ test.describe("a story page", () => {
     expect(new Set(seen).size).toBe(6)
     expect(slug).toBe("mill-house")
   })
-
-  test("a sample says so on the photograph and leads to the real story behind it", async ({ page }) => {
-    await page.goto("/demo-017")
-    await expect(page.getByText("Placeholder photographs")).toBeVisible()
-    await expect(page.getByText("Sample place.")).toBeInViewport()
-    await page.getByRole("link", { name: "Mission Bay Yacht Club, Auckland" }).last().click()
-    await expect(page).toHaveURL(/\/mission-bay-yacht-club$/)
-    await expect(page.getByText("Sample place.")).toHaveCount(0)
-  })
 })
 
 for (const width of [320, 390, 768]) {
