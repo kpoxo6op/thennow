@@ -49,8 +49,9 @@ function getGutter(imageLeft: number) {
   return Math.max(COMPARE_SIDE_GUTTER_PX, imageLeft)
 }
 
+// A line a drag parked at the limit must count as safe, whatever the rounding on the way back to a percentage.
 function isSafeForFinger(viewportX: number, viewportWidth: number) {
-  return viewportX >= COMPARE_LINE_SAFE_PX && viewportX <= viewportWidth - COMPARE_LINE_SAFE_PX
+  return viewportX >= COMPARE_LINE_SAFE_PX - 1 && viewportX <= viewportWidth - COMPARE_LINE_SAFE_PX + 1
 }
 
 function pointerDividerX(

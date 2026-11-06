@@ -120,6 +120,31 @@ for (const width of [320, 390, 768]) {
       expect(after.width).toBeCloseTo(before.width, 1)
     })
 
+    test("wherever a drag parks the line on a story, it stays visible and can be picked up", async ({ page, context }) => {
+      await page.goto("/mill-house")
+      const cdp = await context.newCDPSession(page)
+      const knob = page.getByTestId("compare-slider-knob")
+      const input = page.getByTestId("compare-slider-input")
+      const box = (await knob.boundingBox())!
+      const y = box.y + box.height / 2
+      const swipeTo = async (from: number, to: number) => {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] })
+        for (let i = 1; i <= 8; i += 1) {
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from + ((to - from) * i) / 8, y }] })
+        }
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      }
+
+      for (const [from, to] of [[width / 2, 1], [56, width - 1], [width - 56, width / 2]]) {
+        await swipeTo(from, to)
+        await expect.poll(() => knobOpacity(page)).toBe("1")
+        await page.waitForTimeout(50)
+        expect(Number(await input.inputValue())).toBeGreaterThan(0)
+        expect(Number(await input.inputValue())).toBeLessThan(100)
+      }
+      await expect(input).toHaveValue("50")
+    })
+
     test("addresses at the ends keep their meaning without a line at the edge", async ({ page }) => {
       for (const position of [0, 100]) {
         await page.goto(`/mill-house?p=${position}`)
@@ -156,8 +181,10 @@ for (const width of [320, 390, 768]) {
 
       await swipeTo(width / 2, width - 1)
       await expect.poll(center).toBeCloseTo(width - 56, 0)
+      await expect.poll(() => knobOpacity(page)).toBe("1")
       await swipeTo(width - 56, 1)
       await expect.poll(center).toBeCloseTo(56, 0)
+      await expect.poll(() => knobOpacity(page)).toBe("1")
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0)
     })
   })
