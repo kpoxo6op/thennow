@@ -4,8 +4,9 @@ export const COMPARE_SIDE_GUTTER_PX = 40
 // photo's edge. Between the end zones the line stays exactly under the slider.
 const END_ZONE_PERCENT = 5
 
-// The grip and its hit area stay inside the safe gutters, while the line has to
+// The slider's hit area stays inside the safe gutters, while the line has to
 // reach the edges of the photo so that 0 and 100 show one photograph whole.
+// The visible grip always sits on the line.
 // Returns the line's place as a percentage of the slider range; beyond 0 or 100
 // means it is out in a gutter. The overhangs are the gutters as the same share.
 export function compareLinePercent(

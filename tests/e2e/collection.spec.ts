@@ -435,14 +435,14 @@ test.describe("comparison ends on a phone", () => {
       await expect(page).toHaveURL(/\?p=100$/);
       let end = await state();
       expect(end.shownThen).toBeCloseTo(end.stageWidth, 0);
-      expect(end.knobCenter).toBeCloseTo(width - 40, 0);
+      expect(end.knobCenter).toBeCloseTo(width, 0);
 
       await drag(width - 60, 40);
       await expect(input).toHaveValue("0");
       await expect(page).toHaveURL(/\?p=0$/);
       end = await state();
       expect(end.shownThen).toBeCloseTo(0, 0);
-      expect(end.knobCenter).toBeCloseTo(40, 0);
+      expect(end.knobCenter).toBeCloseTo(0, 0);
 
       // The control keeps its margins, and the page never moved sideways.
       expect(end.inputLeft).toBeGreaterThanOrEqual(39);
@@ -457,6 +457,44 @@ test.describe("comparison ends on a phone", () => {
       await page.keyboard.press("Home");
       await expect(input).toHaveValue("0");
       await expect.poll(async () => (await state()).shownThen).toBeCloseTo(0, 0);
+    });
+  }
+
+  for (const width of [390, 320]) {
+    test(`the grip stays on the reveal line at the ends at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+
+      for (const position of [0, 2, 98, 100]) {
+        await page.goto(`/mill-house?p=${position}`);
+        const input = page.getByTestId("compare-slider-input");
+        await expect(input).toHaveValue(String(position));
+
+        const label = `p=${position} at ${width}px`;
+        // The line's x as the reveal mask draws it, the divider and the grip.
+        await expect
+          .poll(() =>
+            page.evaluate(() => {
+              const center = (id: string) => {
+                const box = document.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect();
+                return box.left + box.width / 2;
+              };
+              const overlay = document.querySelector<HTMLElement>("[data-testid=compare-overlay]")!;
+              const inset = overlay.style.clipPath.match(/inset\(0(?:px)?(?: ([0-9.]+)(?:px)? 0(?:px)? 0(?:px)?)?\)/);
+              const border = inset ? window.innerWidth - Number(inset[1] ?? 0) : NaN;
+              const knob = center("compare-slider-knob");
+              return Math.max(Math.abs(knob - border), Math.abs(knob - center("compare-divider")));
+            }),
+            { message: label }
+          )
+          .toBeLessThanOrEqual(1);
+
+        const margins = await input.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          return { left: box.left, right: window.innerWidth - box.right };
+        });
+        expect(margins.left, label).toBeGreaterThanOrEqual(39);
+        expect(margins.right, label).toBeGreaterThanOrEqual(39);
+      }
     });
   }
 

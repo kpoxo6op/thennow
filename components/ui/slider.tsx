@@ -10,6 +10,7 @@ type SliderProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "
   defaultValue?: number[]
   onValueChange?: (value: number[]) => void
   // Where the grip sits along the range, when that isn't simply the value.
+  // It may pass either end: the grip follows the line, the input stays inset.
   gripPercent?: number
 }
 

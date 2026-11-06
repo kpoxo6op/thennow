@@ -37,7 +37,7 @@ This site has had repeated regressions around the compare page. Agents must trea
 - URL param `?p=` controls compare position.
 - `?p=50` should normalize away; non-default values should remain in the URL.
 - Mobile compare controls must keep safe side margins to avoid OS edge-swipe conflicts.
-- `0` and `100` must show one photograph whole. The margins bound the slider and grip, not the reveal: in the last 5% of travel the line runs out to the photo's edge while the grip stays at the margin. From 5 to 95 the grip and line stay together, directly under the slider position.
+- `0` and `100` must show one photograph whole. The margins bound the slider's input and hit area, not the reveal or the visible grip: in the last 5% of travel the line runs out to the photo's edge. The visible grip stays on the line at every position, including where that takes it partly off the photo at `0` and `100`.
 - The top header/nav must reach the correct right-edge spacing on desktop.
 
 If a change touches compare behavior, header layout, or page geometry, agents should expect e2e tests to catch regressions and should verify carefully.

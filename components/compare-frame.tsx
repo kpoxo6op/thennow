@@ -193,7 +193,7 @@ export function CompareFrame({
                 aria-label={`Compare ${post.name}, then and now`}
                 className="absolute inset-0"
                 value={[position]}
-                gripPercent={Math.min(100, Math.max(0, linePercent))}
+                gripPercent={linePercent}
                 onValueChange={(value) => {
                   onPositionChange(value[0] ?? DEFAULT_POSITION)
                 }}
