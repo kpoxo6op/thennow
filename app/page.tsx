@@ -1,25 +1,18 @@
-import type { Viewport } from "next"
-import Form from "next/form"
 import Link from "next/link"
-import { ArrowRight, Search } from "lucide-react"
 import type PostType from "@/interfaces/post"
 
+import { ArrowRight } from "lucide-react"
+
 import { fetchPosts } from "@/lib/api"
-import { fontHomeSans, fontHomeSerif } from "@/lib/fonts"
-import { placesHref, STORIES_AREA, STORY_TRIM } from "@/lib/places"
-import { cn } from "@/lib/utils"
+import { placesHref } from "@/lib/places"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
+import { CtaLink } from "@/components/cta-link"
 import { HomeHero } from "@/components/home-hero"
-import { SeamTile } from "@/components/seam-tile"
+import { StoryTile } from "@/components/story-tile"
 import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 
 const HERO_SLUG = "sheep"
-const LEAD_SLUG = "historic-post-office"
-
-export const viewport: Viewport = {
-  themeColor: "#13120f",
-}
 
 // Dated, written sections only: several stories are still "Coming soon...".
 function datedSections(story: PostType) {
@@ -31,48 +24,19 @@ function datedSections(story: PostType) {
     }))
 }
 
-const STORY_TITLE = "block py-1 text-xl font-medium leading-snug underline-offset-4 hover:underline"
-
-function StoryRow({ stories }: { stories: PostType[] }) {
-  return (
-    <div className="flex flex-col gap-10 md:flex-row md:gap-6">
-      {stories.map((story) => (
-        <figure key={story.slug} className="min-w-0" style={{ flex: `${story.w / story.h} 1 0%` }}>
-          <SeamTile
-            href={`/${story.slug}`}
-            name={story.name}
-            thenSrc={story.b_imageUrl}
-            nowSrc={story.a_imageUrl}
-            ratio={story.w / story.h}
-            trim={STORY_TRIM[story.slug]}
-            sizes="(min-width: 768px) 50vw, 100vw"
-          />
-          <figcaption className="mt-2">
-            <Link href={`/${story.slug}`} className={STORY_TITLE}>
-              {story.name}
-            </Link>
-          </figcaption>
-        </figure>
-      ))}
-    </div>
-  )
-}
-
 export default async function IndexPage() {
   const posts = await fetchPosts()
   const hero = posts.find((post) => post.slug === HERO_SLUG) ?? posts[0]
   const originals = posts.filter((post) => !post.sample)
-  const lead = originals.find((post) => post.slug === LEAD_SLUG) ?? originals[0]
-  const rest = originals.filter((post) => post !== hero && post !== lead)
+  const rest = originals.filter((post) => post !== hero)
   const heroSections = datedSections(hero)
   const thenYear = heroSections[0]?.year
   const nowYear = heroSections[heroSections.length - 1]?.year
-  const leadSections = datedSections(lead)
   return (
-    <div className={cn("tn-home flex flex-1 flex-col font-sans", fontHomeSans.variable, fontHomeSerif.variable)}>
+    <>
       <SiteHeader />
       <main className="tn-enter flex-1">
-        <section className="relative">
+        <section>
           <HomeHero
             name={hero.name}
             thenSrc={hero.b_imageUrl}
@@ -80,116 +44,55 @@ export default async function IndexPage() {
             ratio={hero.w / hero.h}
             thenYear={thenYear}
             nowYear={nowYear}
-          >
-            <div className="space-y-3 px-4 pb-8 pt-4 md:space-y-3.5 md:pb-7 md:pl-8 md:pr-4 md:pt-20">
-              <h1 className="tn-hero-words text-balance font-serif text-[2.4rem] leading-[1.03] md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
-                <span className="md:block">The same corner, </span>
-                <span className="md:block">
-                  ninety<span className="mx-[-0.05em]">-</span>three years apart.
-                </span>
-              </h1>
-              <p className="tn-hero-words max-w-[34rem] text-[17px] leading-snug">
-                Old photographs of New Zealand places, each paired with a modern
-                retake. Drag the line to see what stayed and what disappeared.
-              </p>
-              <div className="pointer-events-auto flex flex-wrap items-center gap-x-6 gap-y-2">
-                <Link
-                  href="/places"
-                  className="inline-flex h-12 items-center gap-2 bg-foreground px-5 font-medium text-background transition-opacity hover:opacity-85"
-                >
-                  Explore the places
-                  <ArrowRight aria-hidden className="size-4" />
-                </Link>
-                <Link href={placesHref({ view: "map" })} className="tn-hero-map py-3 underline underline-offset-4">
-                  Open the map
-                </Link>
-              </div>
+            caption={
               <Link
                 href={`/${hero.slug}`}
-                className="tn-hero-words pointer-events-auto inline-block py-1 text-sm underline underline-offset-4"
+                className="block py-3 text-[15px] leading-snug md:py-2.5 md:text-base"
               >
-                {hero.name}
+                <span className="underline underline-offset-4">{hero.name}</span>
+                <ArrowRight aria-hidden className="ml-1.5 inline size-4 align-[-0.15em]" />
               </Link>
-            </div>
-          </HomeHero>
-        </section>
-
-        <section className="space-y-12 px-4 pb-20 pt-12 md:space-y-20 md:pb-28 md:pt-24">
-          <div className="grid gap-4 md:grid-cols-2 md:items-end md:gap-10">
-            <h2 className="font-serif text-5xl leading-none md:text-7xl">Photographed twice.</h2>
-            <p className="max-w-xl text-[17px] leading-snug">
-              With the corner above, these are the {originals.length} stories so far.{" "}
-              <Link
-                href={placesHref({ area: STORIES_AREA })}
-                className="whitespace-nowrap underline underline-offset-2"
-              >
-                All {originals.length} stories
-              </Link>
-            </p>
-          </div>
-
-          <figure>
-            <SeamTile
-              href={`/${lead.slug}`}
-              name={lead.name}
-              thenSrc={lead.b_imageUrl}
-              nowSrc={lead.a_imageUrl}
-              ratio={lead.w / lead.h}
-              sizes="100vw"
-              trim={1.06}
-              wide
-            />
-            <figcaption className="mt-2">
-              <Link href={`/${lead.slug}`} className={STORY_TITLE}>
-                {lead.name}
-              </Link>
-              <dl className="mt-2 grid gap-3 md:grid-cols-2 md:gap-0">
-                {leadSections.map((section) => (
-                  <div key={section.year} className="max-w-md md:pr-8">
-                    <dt className="font-medium tabular-nums">{section.year}</dt>
-                    <dd className="mt-0.5 space-y-1 leading-snug text-muted-foreground">
-                      {section.lines.map((line) => (
-                        <p key={line}>{line}</p>
-                      ))}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </figcaption>
-          </figure>
-
-          <StoryRow stories={rest.slice(0, 2)} />
-          <StoryRow stories={rest.slice(2, 4)} />
-        </section>
-
-        <section className="grid gap-10 border-t px-4 pb-20 pt-10 md:grid-cols-2 md:gap-10 md:pb-28">
-          <div className="space-y-5">
-            <h2 className="font-serif text-5xl leading-none md:text-7xl">Find a place</h2>
-            <Form action="/places" className="relative max-w-xl">
-              <Search
-                aria-hidden
-                className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
-              />
-              <input
-                type="search"
-                name="q"
-                aria-label="Search places"
-                placeholder="A street, a bay, a building"
-                className="h-14 w-full border border-input bg-popover pl-12 pr-5 text-lg placeholder:text-muted-foreground"
-              />
-            </Form>
-            <div className="flex flex-wrap gap-x-6">
-              <Link href="/places" className="inline-block py-2 underline underline-offset-4">
-                Browse all {posts.length} places
-              </Link>
-              <Link href={placesHref({ view: "map" })} className="inline-block py-2 underline underline-offset-4">
-                Look around the map
-              </Link>
+            }
+          />
+          <div className="flex flex-col gap-4 px-4 pb-6 pt-2 md:min-h-[var(--hero-band-h)] md:flex-row md:items-center md:gap-12 md:py-0">
+            <h1 className="text-balance font-serif text-[2.125rem] leading-[1.04] min-[360px]:text-[2.4rem] md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
+              <span className="md:block">The same corner, </span>
+              <span className="md:block">
+                ninety<span className="mx-[-0.05em]">-</span>three years apart.
+              </span>
+            </h1>
+            <div className="flex flex-col gap-3 md:w-[20rem] md:shrink-0 md:items-start lg:w-[26rem]">
+              <p className="text-[17px] leading-snug text-muted-foreground">
+                Old photographs of New Zealand places, each paired with a modern retake.
+              </p>
+              <CtaLink href="/places" className="w-full md:w-auto">
+                Explore the places
+              </CtaLink>
             </div>
           </div>
+        </section>
+
+        <section className="px-4 pb-20 md:pb-28">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2 border-t pt-4 md:pt-5">
+            <h2 className="font-serif text-3xl leading-none md:text-4xl">Photographed twice.</h2>
+            <Link href={placesHref({ view: "map" })} className="-my-1 py-1 underline underline-offset-4">
+              Look around the map
+            </Link>
+          </div>
+
+          <ul className="mt-5 grid grid-cols-1 gap-x-3 gap-y-8 sm:grid-cols-2 md:mt-6 md:gap-x-6 md:gap-y-12 lg:grid-cols-12">
+            {rest.map((story, index) => (
+              <li
+                key={story.slug}
+                className={index === 0 ? "sm:col-span-2 lg:col-span-6" : index === 1 ? "lg:col-span-6" : "lg:col-span-4"}
+              >
+                <StoryTile story={story} sizes={index < 2 ? "(min-width: 640px) 50vw, 100vw" : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"} />
+              </li>
+            ))}
+          </ul>
         </section>
       </main>
-      <SiteFooter className="text-sm" />
-    </div>
+      <SiteFooter />
+    </>
   )
 }

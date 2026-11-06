@@ -11,7 +11,7 @@ const SiteFooter = React.forwardRef<
     <footer
       ref={ref}
       className={cn(
-        "mt-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t px-4 py-5 text-xs text-muted-foreground",
+        "mt-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t px-4 py-5 text-sm text-muted-foreground",
         className
       )}
       {...props}

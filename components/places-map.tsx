@@ -19,6 +19,10 @@ type StoryCluster = {
 }
 
 const MAX_ZOOM = 16
+// Close enough to find it, far enough to see where it is.
+const FOCUS_ZOOM = 13
+// Clear of the controls, so no marker hugs an edge.
+const FIT_PADDING = { top: 96, bottom: 96, left: 72, right: 72 }
 const CLUSTER_RADIUS_PX = 34
 // At full zoom only near-identical spots still share a marker.
 const MAX_ZOOM_CLUSTER_RADIUS_PX = 12
@@ -64,6 +68,21 @@ function clusterStories(stories: StorySummary[], zoom: number): StoryCluster[] {
   }))
 }
 
+// The first level at which a story has its own pin rather than a share of a cluster.
+function zoomShowingAlone(slug: string, stories: StorySummary[], from: number) {
+  for (let zoom = Math.ceil(from); zoom <= MAX_ZOOM; zoom += 1) {
+    const cluster = clusterStories(stories, zoom).find((group) =>
+      group.stories.some((story) => story.slug === slug)
+    )
+
+    if (!cluster || cluster.stories.length === 1) {
+      return zoom
+    }
+  }
+
+  return MAX_ZOOM
+}
+
 type Props = {
   stories: StorySummary[]
   selected?: StorySummary[] | null
@@ -72,6 +91,8 @@ type Props = {
   onSelect?: (stories: StorySummary[] | null) => void
   onFail?: (failed: boolean) => void
   highlightRef?: RefObject<MapHighlight | null>
+  focusRef?: RefObject<((story: StorySummary) => void) | null>
+  fitAllRef?: RefObject<(() => void) | null>
   viewport?: MapViewport | null
 }
 
@@ -83,6 +104,8 @@ export function PlacesMap({
   onSelect,
   onFail,
   highlightRef,
+  focusRef,
+  fitAllRef,
   viewport,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -90,7 +113,8 @@ export function PlacesMap({
   const viewportRef = useRef(viewport)
   const callbacksRef = useRef({ onVisibleSlugsChange, onViewportChange, onSelect, onFail })
   const refreshRef = useRef<((fit: boolean) => void) | null>(null)
-  const selectRef = useRef<((key: string | null) => void) | null>(null)
+  const selectedSlugsRef = useRef<string[]>([])
+  const applyActiveRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     callbacksRef.current = { onVisibleSlugsChange, onViewportChange, onSelect, onFail }
@@ -141,12 +165,18 @@ export function PlacesMap({
           ...(initialViewport
             ? {
                 center: [initialViewport.lng, initialViewport.lat] as [number, number],
-                zoom: initialViewport.z,
+                // A story chosen on arrival is shown as itself, not inside a cluster.
+                zoom: selectedSlugsRef.current[0]
+                  ? Math.max(
+                      initialViewport.z,
+                      zoomShowingAlone(selectedSlugsRef.current[0], initialStories, initialViewport.z)
+                    )
+                  : initialViewport.z,
               }
             : initialStories.length > 0
               ? {
                   bounds: boundsOf(initialStories),
-                  fitBoundsOptions: { padding: 56, maxZoom: 15 },
+                  fitBoundsOptions: { padding: FIT_PADDING, maxZoom: 15 },
                 }
               : { center: [174.76, -36.85] as [number, number], zoom: 10 }),
         })
@@ -203,14 +233,14 @@ export function PlacesMap({
         { element: HTMLElement; marker: import("maplibre-gl").Marker }
       >()
       let highlighted: string | null = null
-      let selectedKey: string | null = null
 
       const applyActive = () => {
         liveMarkers.forEach(({ element }, key) => {
           element.classList.toggle(
             "is-active",
-            key === selectedKey ||
-              (highlighted !== null && key.split(",").includes(highlighted))
+            key.split(",").some(
+              (slug) => slug === highlighted || selectedSlugsRef.current.includes(slug)
+            )
           )
         })
       }
@@ -222,9 +252,23 @@ export function PlacesMap({
         }
       }
 
-      selectRef.current = (key) => {
-        selectedKey = key
-        applyActive()
+      applyActiveRef.current = applyActive
+
+      if (fitAllRef) {
+        fitAllRef.current = () => refreshRef.current?.(true)
+      }
+
+      if (focusRef) {
+        focusRef.current = (story) => {
+          activeMap.easeTo({
+            center: [story.location.lng, story.location.lat],
+            zoom: Math.max(
+              activeMap.getZoom(),
+              zoomShowingAlone(story.slug, storiesRef.current, FOCUS_ZOOM)
+            ),
+            duration: 600,
+          })
+        }
       }
 
       const createMarker = (cluster: StoryCluster) => {
@@ -235,6 +279,7 @@ export function PlacesMap({
         element.ariaLabel = isSingle
           ? cluster.stories[0].name
           : `${cluster.stories.length} places`
+        element.title = cluster.stories.map((story) => story.name).join(", ")
         element.dataset.testid = "home-map-marker"
         element.dataset.count = String(cluster.stories.length)
 
@@ -251,8 +296,6 @@ export function PlacesMap({
           event.stopPropagation()
 
           if (isSingle || activeMap.getZoom() >= MAX_ZOOM) {
-            selectedKey = cluster.key
-            applyActive()
             callbacksRef.current.onSelect?.(cluster.stories)
           } else {
             callbacksRef.current.onSelect?.(null)
@@ -341,7 +384,7 @@ export function PlacesMap({
 
         if (fit && storiesRef.current.length > 0) {
           activeMap.fitBounds(boundsOf(storiesRef.current), {
-            padding: 56,
+            padding: FIT_PADDING,
             maxZoom: 15,
             duration: 500,
           })
@@ -360,13 +403,19 @@ export function PlacesMap({
     return () => {
       isMounted = false
       refreshRef.current = null
-      selectRef.current = null
+      applyActiveRef.current = null
+      if (focusRef) {
+        focusRef.current = null
+      }
+      if (fitAllRef) {
+        fitAllRef.current = null
+      }
       if (highlightRef) {
         highlightRef.current = null
       }
       map?.remove()
     }
-  }, [highlightRef])
+  }, [fitAllRef, focusRef, highlightRef])
 
   // A new search or area re-frames the map on what it found.
   useEffect(() => {
@@ -379,9 +428,8 @@ export function PlacesMap({
   }, [storiesKey])
 
   useEffect(() => {
-    if (!selected) {
-      selectRef.current?.(null)
-    }
+    selectedSlugsRef.current = selected?.map((story) => story.slug) ?? []
+    applyActiveRef.current?.()
   }, [selected])
 
   return (

@@ -16,6 +16,8 @@ interface Props {
   onPositionChange: (position: number) => void
   onInteract?: () => void
   onLineStepsAside?: (hidden: boolean) => void
+  // A page's one main comparison keeps the default; any other on the page names itself.
+  testIdPrefix?: string
   fit?: "contain" | "cover"
   priority?: boolean
   className?: string
@@ -87,6 +89,7 @@ export function CompareStage({
   onPositionChange,
   onInteract,
   onLineStepsAside,
+  testIdPrefix = "compare",
   fit = "contain",
   priority = false,
   className,
@@ -187,7 +190,7 @@ export function CompareStage({
   return (
     <div
       ref={stageRef}
-      data-testid="compare-stage"
+      data-testid={`${testIdPrefix}-stage`}
       className={cn(
         "relative w-full cursor-ew-resize touch-pan-y select-none overflow-hidden",
         className
@@ -269,7 +272,7 @@ export function CompareStage({
         <Image
           src={nowSrc}
           alt={`${name}, now`}
-          data-testid="compare-base-image"
+          data-testid={`${testIdPrefix}-base-image`}
           fill
           priority={priority}
           sizes={sizes}
@@ -278,7 +281,7 @@ export function CompareStage({
         />
       </div>
       <div
-        data-testid="compare-overlay"
+        data-testid={`${testIdPrefix}-overlay`}
         className="pointer-events-none absolute inset-0 overflow-hidden"
         style={{
           clipPath: measured
@@ -290,7 +293,7 @@ export function CompareStage({
           <Image
             src={thenSrc}
             alt={`${name}, then`}
-            data-testid="compare-overlay-image"
+            data-testid={`${testIdPrefix}-overlay-image`}
             fill
             priority={priority}
             sizes={sizes}
@@ -302,7 +305,7 @@ export function CompareStage({
 
       <input
         type="range"
-        data-testid="compare-slider-input"
+        data-testid={`${testIdPrefix}-slider-input`}
         aria-label={`Compare ${name} then and now`}
         aria-valuetext={`${Math.round(bounded)}% then`}
         min={0}
@@ -325,7 +328,7 @@ export function CompareStage({
         style={{ left: lineLeft }}
       />
       <div
-        data-testid="compare-slider-knob"
+        data-testid={`${testIdPrefix}-slider-knob`}
         aria-hidden
         className={cn(
           "pointer-events-none absolute top-1/2 flex size-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black shadow-[0_2px_12px_rgb(0_0_0/0.45)] transition-opacity duration-150 peer-focus-visible:opacity-100 peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-white",

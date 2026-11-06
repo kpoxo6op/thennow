@@ -3,7 +3,7 @@ import "@/styles/globals.css"
 import { Metadata, Viewport } from "next"
 
 import { siteConfig } from "@/config/site"
-import { fontSans, fontSerif } from "@/lib/fonts"
+import { fontReading, fontSans, fontSerif } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#f4f1ea",
+  themeColor: "#141210",
 }
 
 interface RootLayoutProps {
@@ -35,10 +35,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
         className={cn(
           "flex min-h-screen flex-col bg-background font-sans antialiased",
           fontSans.variable,
-          fontSerif.variable
+          fontSerif.variable,
+          fontReading.variable
         )}
       >
-        <ThemeProvider attribute="class" forcedTheme="light">
+        <ThemeProvider attribute="class" forcedTheme="dark">
           {children}
           <TailwindIndicator />
         </ThemeProvider>

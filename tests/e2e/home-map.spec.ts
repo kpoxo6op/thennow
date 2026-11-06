@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 // links to it, so this follows that real journey and still requires canvas and markers.
 test("the homepage leads to the OpenFreeMap map with story markers", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "Open the map" }).click();
+  await page.getByRole("link", { name: "Look around the map" }).click();
 
   await expect(page).toHaveURL(/\/places\?.*view=map/);
   await expect(page.getByTestId("home-map")).toBeVisible();

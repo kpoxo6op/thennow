@@ -41,6 +41,8 @@ export async function fetchPosts(): Promise<PostType[]> {
 export function toSummary({
   name,
   description,
+  b_imageUrl,
+  a_imageUrl,
   ba_imageUrl,
   w,
   h,
@@ -49,5 +51,5 @@ export function toSummary({
   sample,
   area,
 }: PostType): StorySummary {
-  return { name, description, ba_imageUrl, w, h, slug, location, sample, area }
+  return { name, description, b_imageUrl, a_imageUrl, ba_imageUrl, w, h, slug, location, sample, area }
 }

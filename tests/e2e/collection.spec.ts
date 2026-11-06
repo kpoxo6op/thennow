@@ -106,12 +106,10 @@ test("search filters by name, survives reload, and has a way out when empty", as
   await expect(search).toBeFocused()
 })
 
-test("the homepage search arrives filtered", async ({ page }) => {
-  await page.goto("/")
-  const search = page.getByRole("searchbox", { name: "Search places" })
-  await search.fill("mission")
-  await search.press("Enter")
-  await expect(page).toHaveURL(/\/places\?q=mission/)
+// The homepage search box is gone: its stories are already on screen. An address with a search still works.
+test("an address with a search arrives filtered", async ({ page }) => {
+  await page.goto("/places?q=mission")
+  await expect(page.getByRole("searchbox", { name: "Search places" })).toHaveValue("mission")
   await expect(cards(page)).toHaveCount(3)
 })
 
@@ -265,27 +263,23 @@ test.describe("the homepage comparison", () => {
   test.describe("with reduced motion", () => {
     test.use({ contextOptions: { reducedMotion: "reduce" } })
 
-    test("the words clear for a drag and the ways onward are always there afterwards", async ({ page }) => {
+    // The words moved off the photograph, so nothing has to step aside for it any more.
+    test("the headline and the way onward stay clear of the photograph through a drag", async ({ page }) => {
       await page.goto("/")
-      const headline = page.getByRole("heading", { level: 1 })
+      const stage = page.getByTestId("compare-stage")
+      const box = (await stage.boundingBox())!
+      const headline = (await page.getByRole("heading", { level: 1 }).boundingBox())!
       const explore = page.getByRole("link", { name: "Explore the places" })
-      const box = (await page.getByTestId("compare-stage").boundingBox())!
       const y = box.y + box.height / 2
+      expect(headline.y).toBeGreaterThanOrEqual(box.y + box.height)
+      await expect(page.getByTestId("hero-drag-hint")).toBeVisible()
 
       await page.mouse.move(box.x + box.width / 2, y)
       await page.mouse.down()
       await page.mouse.move(box.x + box.width * 0.8, y, { steps: 6 })
-      await expect(explore).toHaveCSS("opacity", "1")
-      await expect.poll(() => explore.evaluate((link) => getComputedStyle(link.closest(".tn-hero-copy")!).opacity)).toBe("0")
-
       await page.mouse.up()
-      await expect.poll(() => explore.evaluate((link) => getComputedStyle(link.closest(".tn-hero-copy")!).opacity)).toBe("1")
-      await expect(headline).toHaveCSS("opacity", "0")
-      await explore.hover()
-      await expect(headline).toHaveCSS("opacity", "0")
-
-      await page.mouse.move(box.x + box.width / 2, box.y - 10)
-      await expect(headline).toHaveCSS("opacity", "1")
+      await expect(page.getByTestId("hero-drag-hint")).toHaveCount(0)
+      await expect(explore).toBeInViewport()
       await explore.click()
       await expect(page).toHaveURL(/\/places$/)
     })
@@ -312,7 +306,7 @@ test("the navigation only offers pages with something on them", async ({ page })
 
   await page.goto("/no-such-story")
   await expect(page.getByRole("heading", { level: 1, name: "Not found" })).toBeVisible()
-  await page.getByRole("link", { name: "See the places" }).click()
+  await page.getByRole("link", { name: "Explore the places" }).click()
   await expect(cards(page)).toHaveCount(posts.length)
 })
 
@@ -336,4 +330,175 @@ test("About lists the story sources that exist in the content", async ({ page })
   await expect(sources.getByRole("link", { name: /kura\.aucklandlibraries/ })).toBeVisible()
   await sources.getByRole("link", { name: "Mill House, Auckland" }).click()
   await expect(page.getByRole("heading", { level: 1, name: "Mill House, Auckland" })).toBeVisible()
+})
+
+test("every public page hangs in one room, under one wordmark", async ({ page }) => {
+  const identity = () =>
+    page.evaluate(() => {
+      const logo = document.querySelector('[data-testid="site-header"] a[href="/"]')!
+      const stroke = logo.querySelector("span")!
+      return {
+        ground: getComputedStyle(document.body).backgroundColor,
+        logoFont: getComputedStyle(logo).fontFamily,
+        logoSize: getComputedStyle(logo).fontSize,
+        stroke: getComputedStyle(stroke).backgroundColor,
+      }
+    })
+
+  await page.goto("/")
+  const home = await identity()
+
+  for (const path of ["/places", "/places?view=map", "/about", "/mill-house", "/no-such-story"]) {
+    await page.goto(path)
+    expect(await identity(), path).toEqual(home)
+  }
+})
+
+test("the homepage has one way onward, and the map is one choice further in", async ({ page }) => {
+  await page.goto("/")
+  const hero = page.locator("main section").first()
+  await expect(hero.getByRole("link", { name: "Explore the places" })).toBeVisible()
+  await expect(hero.getByRole("link", { name: /map/i })).toHaveCount(0)
+
+  await hero.getByRole("link", { name: "Explore the places" }).click()
+  await expect(cards(page)).toHaveCount(posts.length)
+  await page.getByRole("button", { name: "Map" }).click()
+  await expect(page).toHaveURL(/view=map/)
+  await expect(markers(page).first()).toBeVisible()
+})
+
+test("a story's map link arrives with that story chosen, and every story still listed", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto("/mill-house")
+  await page.getByRole("link", { name: "See it on the map" }).click()
+  const selection = page.getByTestId("map-selection")
+  await expect(selection).toContainText("Mill House")
+  await expect(page.locator(".tn-map-marker.is-active")).toHaveCount(1)
+  await expect(page.getByTestId("map-list-item")).toHaveCount(posts.length)
+
+  await selection.getByRole("button", { name: "Close" }).click()
+  await expect(selection).toHaveCount(0)
+  await expect(page).not.toHaveURL(/story=/)
+})
+
+test("search and the view switch stay put between photos and map", async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    await page.goto("/places")
+    const search = page.getByRole("searchbox", { name: "Search places" })
+    const map = page.getByRole("button", { name: "Map" })
+    const before = [(await search.boundingBox())!, (await map.boundingBox())!]
+    await map.click()
+    await expect(page).toHaveURL(/view=map/)
+    const after = [(await search.boundingBox())!, (await map.boundingBox())!]
+    expect(after[0].y).toBeCloseTo(before[0].y, 0)
+    expect(after[1].y).toBeCloseTo(before[1].y, 0)
+    await expect(page.getByTestId("places-count")).toBeVisible()
+  }
+})
+
+test("About's large pair is a real comparison, with its own years", async ({ page }) => {
+  await page.goto("/about")
+  const input = page.getByTestId("inline-slider-input")
+  await input.focus()
+  await page.keyboard.press("ArrowLeft")
+  await expect(input).toHaveValue("49")
+  await expect(page.getByText("1920", { exact: true })).toBeVisible()
+  await expect(page.getByText("2023", { exact: true })).toBeVisible()
+})
+
+test("the homepage reaches every story", async ({ page }) => {
+  await page.goto("/")
+  await page.waitForLoadState("load")
+  for (const post of posts) {
+    await expect(page.locator(`main a[href="/${post.slug}"]`).first()).toBeAttached()
+  }
+})
+
+test("a place chosen on the map is still chosen after visiting its story", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto("/mill-house")
+  await page.getByRole("link", { name: "See it on the map" }).click()
+  const selection = page.getByTestId("map-selection")
+  await expect(page.getByTestId("map-list-item").filter({ hasText: "Mill House" })).toHaveAttribute("aria-pressed", "true")
+  await selection.getByRole("link").click()
+  await expect(page.getByRole("heading", { level: 1, name: "Mill House, Auckland" })).toBeVisible()
+  await page.goBack()
+  await expect(selection).toContainText("Mill House")
+})
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`at ${viewport.width}px a list row chooses its place on the map, and the card leads to the story`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.goto("/places?view=map")
+    await expect(markers(page).first()).toBeVisible()
+    await page.getByTestId("map-list-item").filter({ hasText: "Mission House" }).click()
+    await expect(page).toHaveURL(/\/places\?.*story=mission-house/)
+    await expect(page.locator(".tn-map-marker.is-active")).toHaveCount(1)
+    const selection = page.getByTestId("map-selection")
+    await expect(selection).toBeInViewport()
+    await selection.getByRole("link").click()
+    await expect(page.getByRole("heading", { level: 1, name: "Mission House, Auckland" })).toBeVisible()
+  })
+}
+
+test("changing the filter frames what was found, not the old camera", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto("/mill-house")
+  await page.getByRole("link", { name: "See it on the map" }).click()
+  await expect(page).toHaveURL(/z=13/)
+  await page.getByRole("button", { name: "Photos" }).click()
+  await page.getByRole("combobox", { name: "Area" }).selectOption("Helensville")
+  await expect(page).not.toHaveURL(/lat=/)
+  await page.getByRole("button", { name: "Map" }).click()
+
+  await expect.poll(() =>
+    page.evaluate(() => {
+      const map = document.querySelector('[data-testid="home-map"]')!.getBoundingClientRect()
+      return Array.from(document.querySelectorAll('[data-testid="home-map-marker"]')).some((marker) => {
+        const box = marker.getBoundingClientRect()
+        return box.left >= map.left && box.right <= map.right && box.top >= map.top && box.bottom <= map.bottom
+      })
+    })
+  ).toBe(true)
+})
+
+test("a map that has moved in offers the way back to every place", async ({ page }) => {
+  await page.goto("/places?view=map")
+  await expect(markers(page).first()).toBeVisible()
+  const back = page.getByTestId("map-show-all")
+  await expect(back).toHaveCount(0)
+
+  await page.getByTestId("map-list-item").filter({ hasText: "Mill House" }).click()
+  await expect(back).toBeVisible()
+  await back.click()
+  await expect(back).toHaveCount(0)
+  await expect(page.getByTestId("map-selection")).toHaveCount(0)
+})
+
+test("the phone map has real height and draws", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto("/places?view=map")
+  await expect(markers(page).first()).toBeInViewport()
+  const canvas = (await page.locator(".maplibregl-canvas").boundingBox())!
+  expect(canvas.height).toBeGreaterThan(350)
+  expect(canvas.width).toBeGreaterThan(380)
+})
+
+test("choosing any story shows its own pin, from the list and from its map link", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const active = page.locator(".tn-map-marker.is-active")
+
+  for (const post of posts) {
+    await page.goto("/places?view=map")
+    await expect(markers(page).first()).toBeVisible()
+    await page.getByTestId("map-list-item").filter({ hasText: post.name }).click()
+    await expect(active, post.slug).toHaveAttribute("data-count", "1")
+    await expect(active, post.slug).toHaveAttribute("aria-label", post.name)
+
+    await page.goto(`/${post.slug}`)
+    await page.getByRole("link", { name: "See it on the map" }).click()
+    await expect(active, post.slug).toHaveAttribute("data-count", "1")
+    await expect(active, post.slug).toHaveAttribute("aria-label", post.name)
+  }
 })

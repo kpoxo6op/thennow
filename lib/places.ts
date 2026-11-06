@@ -1,7 +1,5 @@
 import type { StorySummary } from "@/interfaces/post"
 
-export const STORIES_AREA = "stories"
-
 // The fountain's negative has a heavy black border and notched corners.
 export const STORY_TRIM: Record<string, number> = { "mission-bay-fountain": 1.16 }
 
@@ -11,17 +9,22 @@ export type PlaceGroup = {
   stories: StorySummary[]
 }
 
+// A story's area is the town its own name ends with: "Mill House, Auckland".
+export function storyArea(story: Pick<StorySummary, "name" | "area">) {
+  return story.area ?? story.name.split(",").pop()?.trim() ?? story.name
+}
+
 export function groupByArea(stories: StorySummary[]): PlaceGroup[] {
   const groups = new Map<string, PlaceGroup>()
 
   stories.forEach((story) => {
-    const id = story.area ?? STORIES_AREA
+    const id = storyArea(story)
     const group = groups.get(id)
 
     if (group) {
       group.stories.push(story)
     } else {
-      groups.set(id, { id, title: story.area ?? "Stories", stories: [story] })
+      groups.set(id, { id, title: id, stories: [story] })
     }
   })
 

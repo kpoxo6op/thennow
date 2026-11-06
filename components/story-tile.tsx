@@ -1,6 +1,6 @@
-import Image from "next/image"
-import Link from "next/link"
 import type { StorySummary } from "@/interfaces/post"
+import { STORY_TRIM } from "@/lib/places"
+import { SeamTile } from "@/components/seam-tile"
 
 interface Props {
   story: StorySummary
@@ -11,25 +11,23 @@ interface Props {
 
 export function StoryTile({ story, sizes, priority, onPointerEnter }: Props) {
   return (
-    <Link
+    <SeamTile
       href={`/${story.slug}`}
+      name={story.name}
+      thenSrc={story.b_imageUrl}
+      nowSrc={story.a_imageUrl}
+      ratio={3 / 2}
+      trim={STORY_TRIM[story.slug]}
+      sizes={sizes}
+      priority={priority}
       prefetch={false}
-      data-testid="story-card"
-      className="group block"
+      testId="story-card"
       onPointerEnter={onPointerEnter}
-    >
-      <Image
-        src={story.ba_imageUrl}
-        alt=""
-        width={story.w}
-        height={story.h}
-        priority={priority}
-        sizes={sizes}
-        className="aspect-[3/2] w-full bg-muted object-cover transition-opacity duration-200 group-hover:opacity-85"
-      />
-      <span className="mt-1.5 line-clamp-2 block font-serif text-[15px] leading-snug underline-offset-4 group-hover:underline sm:text-base">
-        {story.name}
-      </span>
-    </Link>
+      caption={
+        <span className="mt-2 block text-[15px] font-medium leading-snug underline-offset-4 group-hover:underline md:text-lg">
+          {story.name}
+        </span>
+      }
+    />
   )
 }

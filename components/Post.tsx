@@ -213,7 +213,7 @@ export default function Post({ post, next, nearby }: PostProps) {
   const thenYear = dated[0]?.year
   const nowYear = dated.length > 1 ? dated[dated.length - 1]?.year : undefined
   const yearsApart = thenYear && nowYear ? Number(nowYear) - Number(thenYear) : undefined
-  const mapHref = `/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=15`
+  const mapHref = `/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=13&story=${post.slug}`
   const rounded = Math.round(position)
   const wholeShown = rounded === ALL_THEN || rounded === ALL_NOW
 
