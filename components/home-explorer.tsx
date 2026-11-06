@@ -1,155 +1,162 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import {
+  memo,
+  startTransition,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import type PostType from "@/interfaces/post"
+import { useRouter } from "next/navigation"
+import { X } from "lucide-react"
 
-import { HomeMap, type MapViewport } from "@/components/home-map"
+import {
+  rememberStoryOrigin,
+  restoreListScroll,
+  SHOW_ALL_STORIES_EVENT,
+} from "@/lib/story-return"
+import { HomeMap, type HomeMapHandle, type MapSpot } from "@/components/home-map"
 
 type Props = {
-  posts: PostType[]
+  spots: MapSpot[]
+  hasSampleContent: boolean
 }
 
-const VIEWPORT_LIMITS = {
-  minLat: -37.2,
-  maxLat: -36.55,
-  minLng: 174.25,
-  maxLng: 175.05,
-  minZoom: 9,
-  maxZoom: 16,
-}
+// The first row is what a visitor sees on arrival.
+const EAGER_CARDS = 3
 
-function clampViewport(viewport: MapViewport): MapViewport {
-  return {
-    lat: Math.min(
-      VIEWPORT_LIMITS.maxLat,
-      Math.max(VIEWPORT_LIMITS.minLat, viewport.lat)
-    ),
-    lng: Math.min(
-      VIEWPORT_LIMITS.maxLng,
-      Math.max(VIEWPORT_LIMITS.minLng, viewport.lng)
-    ),
-    z: Math.min(
-      VIEWPORT_LIMITS.maxZoom,
-      Math.max(VIEWPORT_LIMITS.minZoom, viewport.z)
-    ),
-  }
-}
-
-function getSnippet(description: string) {
-  return description.split("\n").filter(Boolean).slice(0, 3).join(" ")
-}
-
-export function HomeExplorer({ posts }: Props) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [visibleSlugs, setVisibleSlugs] = useState<string[]>(
-    posts.map((post) => post.slug)
+const StoryCard = memo(function StoryCard({
+  spot,
+  hidden,
+  priority,
+}: {
+  spot: MapSpot
+  hidden: boolean
+  priority: boolean
+}) {
+  return (
+    <li hidden={hidden} data-testid="story-card">
+      <Link
+        href={`/${spot.slug}`}
+        onClick={() => rememberStoryOrigin(spot.slug)}
+        className="group block rounded-sm"
+      >
+        <span className="relative block aspect-[3/2] overflow-hidden rounded-sm bg-muted">
+          <Image
+            src={spot.ba_imageUrl}
+            alt=""
+            fill
+            priority={priority}
+            sizes="(min-width: 1536px) 15vw, (min-width: 1280px) 20vw, (min-width: 1024px) 28vw, (min-width: 640px) 33vw, 50vw"
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.025]"
+          />
+        </span>
+        <span className="mt-2 line-clamp-2 font-serif text-[0.9375rem] leading-snug text-foreground/90 group-hover:text-foreground sm:text-base">
+          {spot.name}
+        </span>
+      </Link>
+    </li>
   )
+})
 
-  const viewport = useMemo(() => {
-    const lat = Number(searchParams.get("lat"))
-    const lng = Number(searchParams.get("lng"))
-    const z = Number(searchParams.get("z"))
+export function HomeExplorer({ spots, hasSampleContent }: Props) {
+  const router = useRouter()
+  const mapRef = useRef<HomeMapHandle>(null)
+  const listRef = useRef<HTMLUListElement>(null)
+  const [visibleSlugs, setVisibleSlugs] = useState<Set<string> | null>(null)
 
-    if (
-      Number.isFinite(lat) &&
-      Number.isFinite(lng) &&
-      Number.isFinite(z) &&
-      lat >= VIEWPORT_LIMITS.minLat &&
-      lat <= VIEWPORT_LIMITS.maxLat &&
-      lng >= VIEWPORT_LIMITS.minLng &&
-      lng <= VIEWPORT_LIMITS.maxLng &&
-      z >= VIEWPORT_LIMITS.minZoom &&
-      z <= VIEWPORT_LIMITS.maxZoom
-    ) {
-      return { lat, lng, z }
-    }
-
-    return null
-  }, [searchParams])
-
-  const handleVisibleSlugsChange = useCallback((slugs: string[]) => {
-    setVisibleSlugs(slugs)
+  useLayoutEffect(() => {
+    restoreListScroll()
   }, [])
 
-  const handleViewportChange = useCallback(
-    (nextViewport: MapViewport) => {
-      const safeViewport = clampViewport(nextViewport)
-      const params = new URLSearchParams(searchParams.toString())
-      const nextLat = String(safeViewport.lat)
-      const nextLng = String(safeViewport.lng)
-      const nextZoom = String(safeViewport.z)
+  useEffect(() => {
+    const showAll = () => {
+      mapRef.current?.showAll()
+      window.scrollTo(0, 0)
+    }
 
-      if (
-        params.get("lat") === nextLat &&
-        params.get("lng") === nextLng &&
-        params.get("z") === nextZoom
-      ) {
-        return
+    window.addEventListener(SHOW_ALL_STORIES_EVENT, showAll)
+    return () => window.removeEventListener(SHOW_ALL_STORIES_EVENT, showAll)
+  }, [])
+
+  const handleVisibleSlugsChange = useCallback(
+    (slugs: string[], total: number, movedByVisitor: boolean) => {
+      // A sticky map can move while the list is scrolled far down.
+      const listTop = listRef.current?.getBoundingClientRect().top ?? 0
+      if (movedByVisitor && listTop < 0) {
+        window.scrollBy({ top: listTop - 72 })
       }
 
-      params.set("lat", nextLat)
-      params.set("lng", nextLng)
-      params.set("z", nextZoom)
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+      startTransition(() => {
+        setVisibleSlugs(slugs.length === total ? null : new Set(slugs))
+      })
     },
-    [pathname, router, searchParams]
+    []
   )
 
-  const visiblePosts = useMemo(() => {
-    const slugSet = new Set(visibleSlugs)
-    const inView = posts.filter((post) => slugSet.has(post.slug))
-
-    return inView.length > 0 ? inView : posts
-  }, [posts, visibleSlugs])
+  const handleSelect = useCallback(
+    (slug: string) => {
+      rememberStoryOrigin(slug)
+      router.push(`/${slug}`)
+    },
+    [router]
+  )
 
   return (
-    <>
-      <section className="container mt-10 px-4 sm:px-6">
-        <HomeMap
-          posts={posts}
-          onVisibleSlugsChange={handleVisibleSlugsChange}
-          onViewportChange={handleViewportChange}
-          viewport={viewport}
-        />
-      </section>
+    <div className="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:grid-rows-[auto_1fr]">
+      <header className="px-4 pb-5 pt-5 sm:px-6 lg:col-start-2 lg:px-8 lg:pb-8 lg:pt-10">
+        <h1 className="text-balance font-serif text-3xl leading-tight tracking-tight sm:text-4xl lg:text-5xl">
+          New Zealand Then and Now
+        </h1>
+        {hasSampleContent && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            This preview includes sample content.
+          </p>
+        )}
+      </header>
 
-      <section className="container mt-10 px-4 sm:px-6">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold tracking-tight">
-            Stories in view
-          </h2>
-        </div>
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-          {visiblePosts.map((post) => (
-            <Link
-              key={post.slug}
-              href={`/${post.slug}`}
-              className="overflow-hidden rounded-[2rem] border border-border/70 bg-card shadow-sm transition-transform hover:-translate-y-1"
-            >
-              <Image
-                src={post.ba_imageUrl}
-                alt={post.name}
-                width={post.w}
-                height={post.h}
-                className="aspect-[4/3] w-full object-cover"
-              />
-              <div className="space-y-2 p-5">
-                <h2 className="text-xl font-semibold tracking-tight">
-                  {post.name}
-                </h2>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  {getSnippet(post.description)}
-                </p>
-              </div>
-            </Link>
+      <div className="relative h-[46svh] min-h-64 bg-muted lg:sticky lg:top-14 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:h-[calc(100svh-3.5rem)]">
+        <HomeMap
+          ref={mapRef}
+          spots={spots}
+          onVisibleSlugsChange={handleVisibleSlugsChange}
+          onSelect={handleSelect}
+        />
+        {visibleSlugs && (
+          <button
+            type="button"
+            data-testid="map-show-all"
+            aria-label={`Show all ${spots.length} stories`}
+            onClick={() => mapRef.current?.showAll()}
+            className="absolute bottom-3 left-3 z-10 flex h-11 items-center gap-2 rounded-sm bg-background px-3 text-sm font-medium tabular-nums shadow-md transition-colors hover:bg-muted"
+          >
+            {visibleSlugs.size} / {spots.length}
+            <X aria-hidden className="size-4" />
+          </button>
+        )}
+      </div>
+
+      <section className="px-4 pb-16 pt-6 sm:px-6 lg:col-start-2 lg:px-8 lg:pt-0">
+        <h2 className="sr-only">Stories</h2>
+        <ul
+          ref={listRef}
+          data-testid="story-list"
+          className="grid grid-cols-2 [overflow-anchor:none] gap-x-3 gap-y-6 sm:grid-cols-3 sm:gap-x-4 lg:grid-cols-2 lg:gap-y-7 xl:grid-cols-3 2xl:grid-cols-4"
+        >
+          {spots.map((spot, index) => (
+            <StoryCard
+              key={spot.slug}
+              spot={spot}
+              priority={index < EAGER_CARDS}
+              hidden={visibleSlugs !== null && !visibleSlugs.has(spot.slug)}
+            />
           ))}
-        </div>
+        </ul>
       </section>
-    </>
+    </div>
   )
 }

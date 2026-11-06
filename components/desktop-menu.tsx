@@ -13,18 +13,25 @@ import { cn } from "@/lib/utils"
 interface DesktopMenuProps {
   items?: NavItem[]
   className?: string
+  pathname?: string
 }
 
 const DesktopMenu = React.forwardRef<HTMLDivElement, DesktopMenuProps>(
-  ({ items, className }, ref) => {
+  ({ items, className, pathname }, ref) => {
     if (!items?.length) return null
     return (
       <NavigationMenu ref={ref} className={cn("hidden md:block", className)}>
-        <NavigationMenuList className="flex gap-6">
+        <NavigationMenuList className="flex gap-7">
           {items.map((item) => (
             <NavigationMenuItem key={item.href}>
-              <NavigationMenuLink asChild className="px-2 py-1 text-sm font-medium hover:text-foreground/80">
-                <Link href={item.href}>{item.title}</Link>
+              <NavigationMenuLink asChild>
+                <Link
+                  href={item.href}
+                  aria-current={pathname === item.href ? "page" : undefined}
+                  className="flex h-11 items-center rounded-sm text-sm text-foreground/75 transition-colors hover:text-foreground aria-[current=page]:text-foreground"
+                >
+                  {item.title}
+                </Link>
               </NavigationMenuLink>
             </NavigationMenuItem>
           ))}

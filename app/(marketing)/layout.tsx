@@ -1,17 +1,7 @@
 // Marketing layout in (marketing) route group
 
-
-// import "@/styles/globals.css"
-import { Metadata } from "next"
-
-import { siteConfig } from "@/config/site"
-import { fontSans } from "@/lib/fonts"
-import { cn } from "@/lib/utils"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { TailwindIndicator } from "@/components/tailwind-indicator"
-import { ThemeProvider } from "@/components/theme-provider"
-
 
 export default function MarketingLayout({
   children,
@@ -21,10 +11,9 @@ export default function MarketingLayout({
   return (
     <>
       <SiteHeader />
-      <section
-        className="">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16 pt-24 sm:px-6 sm:pt-28">
         {children}
-      </section>
+      </main>
       <SiteFooter />
     </>
   )

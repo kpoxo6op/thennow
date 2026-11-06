@@ -1,10 +1,8 @@
 import * as React from "react"
-import Link from "next/link"
 
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
 import { appVersion } from "@/lib/version"
-import { MainNav } from "@/components/main-nav"
 
 const SiteFooter = React.forwardRef<
   HTMLElement,
@@ -14,17 +12,13 @@ const SiteFooter = React.forwardRef<
     <footer
       ref={ref}
       className={cn(
-        "container flex flex-col items-center gap-4 text-left",
+        "flex items-center justify-between gap-4 border-t border-border/70 px-4 py-5 text-sm text-muted-foreground",
         className
       )}
       {...props}
     >
-      <div className="flex h-16 flex-col items-center justify-center gap-1 text-center sm:justify-between sm:space-x-0">
-        <div>{siteConfig.name}</div>
-        <div className="text-sm font-medium tracking-wide text-muted-foreground">
-          Version {appVersion}
-        </div>
-      </div>
+      <span>{siteConfig.name}</span>
+      <span>Version {appVersion}</span>
     </footer>
   )
 })

@@ -4,51 +4,37 @@ import Link from "next/link"
 import { NavItem } from "@/types/nav"
 import { cn } from "@/lib/utils"
 
-// Define props for MainNav
-interface MainNavProps {
+interface MobileMenuProps extends React.HTMLAttributes<HTMLElement> {
   items?: NavItem[]
+  pathname?: string
 }
 
-// Extend MainNavProps to define props for MobileMenu
-interface MobileMenuProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    MainNavProps {}
-
-// Define MobileMenu component
-const MobileMenu = React.forwardRef<HTMLDivElement, MobileMenuProps>(
-  ({ className, items, ...props }, ref) => {
+const MobileMenu = React.forwardRef<HTMLElement, MobileMenuProps>(
+  ({ className, items, pathname, ...props }, ref) => {
     return (
-      <div
+      <nav
         ref={ref}
         className={cn(
-          "fixed left-0 top-16 h-full w-full bg-background",
+          "fixed inset-x-0 bottom-0 top-14 overflow-y-auto bg-background px-4 pt-4 md:hidden",
           className
         )}
         {...props}
       >
-        {items?.length
-          ? items.map(
-              (
-                item,
-                index // map through 'items' and display each one
-              ) => (
-                <div key={index}>
-                  <div className="flex h-16 items-center justify-start ">
-                    <div className="px-2 py-10 text-lg">
-                      <Link className="hover:text-foreground/80" href={item.href}>{item.title}</Link>
-                    </div>
-                  </div>
-                  <hr className="mx-2 border-secondary-foreground" />
-                </div>
-              )
-            )
-          : null}
-      </div>
+        {items?.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={pathname === item.href ? "page" : undefined}
+            className="flex h-14 items-center rounded-sm font-serif text-2xl aria-[current=page]:text-muted-foreground"
+          >
+            {item.title}
+          </Link>
+        ))}
+      </nav>
     )
   }
 )
 
 MobileMenu.displayName = "MobileMenu"
 
-// Export the MobileMenu component
 export { MobileMenu }

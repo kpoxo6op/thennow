@@ -51,22 +51,29 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
     }
 
     const renderedValue = isControlled ? currentValue : internalValue
+    const percent = ((renderedValue - Number(min)) / (Number(max) - Number(min))) * 100
 
     return (
-      <div data-testid="compare-slider-root" className={cn("relative flex w-full items-center", className)}>
-        <div className="pointer-events-none absolute inset-x-0 h-2 rounded-full bg-secondary" />
+      <div data-testid="compare-slider-root" className={cn("group relative flex w-full items-center", className)}>
+        <div className="pointer-events-none absolute inset-x-0 h-0.5 rounded-full bg-border" />
         <div
           data-testid="compare-slider-progress"
-          className="pointer-events-none absolute left-0 h-2 rounded-full bg-primary"
+          className="pointer-events-none absolute left-0 h-0.5 rounded-full bg-foreground/60"
           style={{
-            width: `${((renderedValue - Number(min)) / (Number(max) - Number(min))) * 100}%`,
+            width: `${percent}%`,
+          }}
+        />
+        <div
+          className="pointer-events-none absolute top-0 h-1/2 w-0.5 -translate-x-1/2 bg-foreground"
+          style={{
+            left: `${percent}%`,
           }}
         />
         <div
           data-testid="compare-slider-knob"
-          className="pointer-events-none absolute top-1/2 z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-background"
+          className="pointer-events-none absolute top-1/2 z-20 size-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground shadow-sm transition-[scale] group-active:scale-110 group-has-[input:focus-visible]:outline-2 group-has-[input:focus-visible]:outline-offset-2 group-has-[input:focus-visible]:outline-foreground"
           style={{
-            left: `${((renderedValue - Number(min)) / (Number(max) - Number(min))) * 100}%`,
+            left: `${percent}%`,
           }}
         />
         <input
@@ -79,7 +86,7 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
           value={renderedValue}
           onChange={handleValueChange}
           onInput={handleInput}
-          className="tn-slider relative z-10 h-5 w-full appearance-none bg-transparent"
+          className="tn-slider relative z-10 h-11 w-full appearance-none bg-transparent outline-none"
           {...props}
         />
       </div>

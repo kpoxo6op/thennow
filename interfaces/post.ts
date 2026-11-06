@@ -13,6 +13,7 @@ type PostType = {
   h: number
   slug: string
   location: PostLocation
+  isSample?: boolean
 }
 
 export default PostType

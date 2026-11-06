@@ -7,69 +7,67 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
+    --background: 40 22% 95%;
+    --foreground: 30 10% 10%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 38 14% 88%;
+    --muted-foreground: 30 6% 36%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
+    --popover: 40 22% 98%;
+    --popover-foreground: 30 10% 10%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 36 10% 82%;
+    --input: 36 10% 82%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
+    --card: 40 22% 98%;
+    --card-foreground: 30 10% 10%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 30 10% 10%;
+    --primary-foreground: 40 22% 95%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 38 14% 88%;
+    --secondary-foreground: 30 10% 10%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 38 14% 88%;
+    --accent-foreground: 30 10% 10%;
 
-    --destructive: 0 100% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 40 22% 95%;
 
-    --ring: 215 20.2% 65.1%;
+    --ring: 30 10% 10%;
 
-    --radius: 0.5rem;
+    --radius: 0.25rem;
   }
 
   .dark {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
+    --background: 30 6% 7%;
+    --foreground: 40 18% 92%;
 
-    --muted: 223 47% 11%;
-    --muted-foreground: 215.4 16.3% 56.9%;
+    --muted: 30 5% 14%;
+    --muted-foreground: 35 7% 64%;
 
-    --accent: 216 34% 17%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 30 5% 16%;
+    --accent-foreground: 40 18% 92%;
 
-    --popover: 224 71% 4%;
-    --popover-foreground: 215 20.2% 65.1%;
+    --popover: 30 6% 10%;
+    --popover-foreground: 40 18% 92%;
 
-    --border: 216 34% 17%;
-    --input: 216 34% 17%;
+    --border: 30 5% 20%;
+    --input: 30 5% 20%;
 
-    --card: 224 71% 4%;
-    --card-foreground: 213 31% 91%;
+    --card: 30 6% 10%;
+    --card-foreground: 40 18% 92%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 1.2%;
+    --primary: 40 18% 92%;
+    --primary-foreground: 30 6% 7%;
 
-    --secondary: 222.2 47.4% 11.2%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 30 5% 14%;
+    --secondary-foreground: 40 18% 92%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 63% 40%;
+    --destructive-foreground: 40 18% 92%;
 
-    --ring: 216 34% 17%;
-
-    --radius: 0.5rem;
+    --ring: 40 18% 92%;
   }
 }
 
@@ -77,12 +75,61 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
+    overflow-x: clip;
   }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Compare: the frame takes the photo's own shape and the slider spans the frame. */
+.tn-compare {
+  --compare-chrome: 10.5rem;
+  --compare-frame-width: min(
+    100cqw,
+    calc((100svh - var(--compare-chrome)) * var(--compare-ratio))
+  );
+  --compare-gutter: max(
+    var(--compare-min-gutter),
+    calc((100cqw - var(--compare-frame-width)) / 2)
+  );
+}
+
+@media (max-height: 500px) {
+  .tn-compare {
+    --compare-chrome: 6.75rem;
+  }
+}
+
+.tn-compare[data-focus="true"] {
+  --compare-chrome: 0px;
+}
+
+.tn-compare-frame {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: var(--compare-frame-width);
+  transform: translateX(-50%);
 }
 
 .tn-slider::-webkit-slider-runnable-track {
@@ -153,23 +200,131 @@
   filter: grayscale(0.82) brightness(1.08) contrast(0.88);
 }
 
-.tn-map-marker {
+/* Map: quiet the basemap so the markers and photographs lead. */
+.tn-map .maplibregl-canvas {
+  filter: saturate(0.45) contrast(0.96);
+}
+
+.dark .tn-map .maplibregl-canvas {
+  filter: invert(1) hue-rotate(180deg) saturate(0.35) brightness(0.92)
+    contrast(0.92);
+}
+
+.tn-map-marker,
+.tn-map-cluster {
   display: block;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: box-shadow 150ms ease;
+}
+
+.tn-map-marker::after,
+.tn-map-cluster::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 9999px;
+}
+
+.tn-map-marker {
   width: 18px;
   height: 18px;
-  border: 3px solid white;
-  border-radius: 9999px;
+  border: 3px solid hsl(var(--background));
   background: hsl(var(--foreground));
-  box-shadow: 0 2px 10px rgb(15 23 42 / 0.28);
-  cursor: pointer;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.35);
 }
 
-.tn-map-marker:focus-visible {
-  outline: 3px solid hsl(var(--ring));
-  outline-offset: 3px;
+.tn-map-cluster {
+  min-width: 36px;
+  height: 36px;
+  padding-inline: 8px;
+  border: 2px solid hsl(var(--background));
+  background: hsl(var(--foreground));
+  box-shadow: 0 1px 8px rgb(0 0 0 / 0.35);
+  color: hsl(var(--background));
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 32px;
+  text-align: center;
 }
 
-.maplibregl-popup-content {
-  border-radius: 0.5rem;
-  box-shadow: 0 12px 32px rgb(15 23 42 / 0.18);
+/* No transform or scale here: maplibre positions markers with transform. */
+.tn-map-marker:hover,
+.tn-map-cluster:hover {
+  box-shadow:
+    0 0 0 3px hsl(var(--foreground)),
+    0 1px 8px rgb(0 0 0 / 0.35);
+}
+
+.tn-map-marker:focus-visible,
+.tn-map-cluster:focus-visible {
+  outline: 2px solid hsl(var(--foreground));
+  outline-offset: 2px;
+}
+
+.tn-map .maplibregl-ctrl-group {
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.3);
+}
+
+.tn-map .maplibregl-ctrl-group button {
+  width: 36px;
+  height: 36px;
+}
+
+.tn-map .maplibregl-ctrl-group button + button {
+  border-color: hsl(var(--border));
+}
+
+.dark .tn-map .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+.tn-map .maplibregl-ctrl-attrib.maplibregl-compact {
+  background: hsl(var(--background) / 0.8);
+  color: hsl(var(--foreground));
+}
+
+.tn-map .maplibregl-ctrl-attrib a {
+  color: inherit;
+}
+
+.dark .tn-map .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+
+.tn-map .maplibregl-popup-content {
+  overflow: hidden;
+  padding: 0;
+  border-radius: var(--radius);
+  background: hsl(var(--popover));
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.35);
+  color: hsl(var(--popover-foreground));
+  font: inherit;
+}
+
+.tn-map .maplibregl-popup-tip {
+  display: none;
+}
+
+.tn-map-card {
+  display: block;
+  width: 208px;
+}
+
+.tn-map-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  background: hsl(var(--muted));
+  object-fit: cover;
+}
+
+.tn-map-card span {
+  display: block;
+  padding: 8px 10px 10px;
+  font-size: 13px;
+  line-height: 1.35;
 }

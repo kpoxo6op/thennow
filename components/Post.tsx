@@ -5,10 +5,7 @@ import PostType from "@/interfaces/post"
 import { cn } from "@/lib/utils"
 import { COMPARE_SIDE_GUTTER_PX } from "@/lib/compare";
 import ImageSplit from "@/components/ImageSplit";
-import Desc from "@/components/Desc";
 import { Slider } from "@/components/ui/slider";
-
-
 
 interface PostProps extends React.HTMLAttributes<HTMLDivElement> {
   post: PostType;
@@ -36,8 +33,7 @@ function parsePositionParam(positionParam: string | null) {
 
 const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props }, ref) => {
   const [position, setPosition] = useState(DEFAULT_POSITION);
-  const [showOverlay, setShowOverlay] = useState(false);
-  const [mouseDownPosition, setMouseDownPosition] = useState<{ x: number; y: number } | null>(null);
+  const [photoOnly, setPhotoOnly] = useState(false);
 
   const applyPosition = useCallback((position: number) => {
     setPosition(clampPosition(position));
@@ -83,56 +79,75 @@ const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props 
     }
   }, [position]);
 
-  // Function to handle mouse down event
-  const handleMouseDown = (event: React.MouseEvent) => {
-    setMouseDownPosition({ x: event.clientX, y: event.clientY });
-  }
-
-  // Function to handle mouse up event
-  const handleImageSplitClick = (event: React.MouseEvent) => {
-    // Get the mouse up position
-    const mouseUpPosition = { x: event.clientX, y: event.clientY };
-
-    // Check if mouse down position is set and if there was a significant movement
-    if (mouseDownPosition &&
-        Math.abs(mouseDownPosition.x - mouseUpPosition.x) < 5 &&
-        Math.abs(mouseDownPosition.y - mouseUpPosition.y) < 5) {
-      // If no significant movement, consider it a click and toggle the overlay
-      setShowOverlay(!showOverlay);
+  useEffect(() => {
+    if (!photoOnly) {
+      return;
     }
 
-    // Reset the mouse down position
-    setMouseDownPosition(null);
-  }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPhotoOnly(false);
+      }
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.body.style.overflow = "";
+    };
+  }, [photoOnly]);
+
+  const togglePhotoOnly = useCallback(() => {
+    setPhotoOnly((current) => !current);
+  }, []);
 
   return (
-    <>
-      <section
-        ref={ref}
-        className={cn(
-          "max-w-screen flex max-h-screen flex-1 flex-col",
-          className
-        )}
-        {...props}
+    <main
+      ref={ref}
+      className={cn(
+        "flex-1 pt-14",
+        // A container could trap the fixed photo view; viewport units take over.
+        !photoOnly && "[container-type:inline-size]",
+        className
+      )}
+      {...props}
+    >
+      <div
+        className="tn-compare"
+        data-focus={photoOnly}
+        style={
+          {
+            "--compare-ratio": post.w / post.h,
+            "--compare-min-gutter": `${COMPARE_SIDE_GUTTER_PX}px`,
+          } as React.CSSProperties
+        }
       >
-        <ImageSplit
-          post={post}
-          position={position}
-          onPositionChange={applyPosition}
-          className={showOverlay ? "z-30" : ""}
-          onMouseDown={handleMouseDown} // Handle mouse down
-          onMouseUp={handleImageSplitClick} // Handle mouse up
-        />
-
-        <Desc description={post.description} className="fixed inset-x-0 bottom-24 mx-auto flex max-w-prose whitespace-pre-line bg-background/50 px-2" />
-
         <div
-          className="fixed inset-x-0 bottom-0 z-10 flex h-24 bg-background/50"
-          style={{ paddingInline: `${COMPARE_SIDE_GUTTER_PX}px` }}
+          className={cn(
+            photoOnly &&
+              "fixed inset-0 z-40 flex items-center bg-black animate-in fade-in duration-200"
+          )}
+          onClick={(event) => {
+            if (photoOnly && event.target === event.currentTarget) {
+              setPhotoOnly(false);
+            }
+          }}
         >
+          <ImageSplit
+            post={post}
+            position={position}
+            onPositionChange={applyPosition}
+            onTap={togglePhotoOnly}
+            className={photoOnly ? "[touch-action:none]" : undefined}
+          />
+        </div>
+
+        <div style={{ paddingInline: "var(--compare-gutter)" }}>
           <Slider
             aria-label="Compare slider"
-            className="cursor-ew-resize"
+            className="h-13 cursor-ew-resize"
             value={[position]}
             onValueChange={(value) => {
               applyPosition(value[0] ?? DEFAULT_POSITION);
@@ -140,14 +155,22 @@ const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props 
           />
         </div>
 
-        {showOverlay && (
-          <div
-            className="absolute inset-0 z-20 h-screen bg-background animate-in fade-in"
-            onClick={handleImageSplitClick}
-          />
-        )}
-      </section>
-    </>
+        <div
+          className="pb-12 pt-2"
+          style={{
+            paddingLeft: "max(1rem, calc((100cqw - var(--compare-frame-width)) / 2))",
+            paddingRight: "max(1rem, calc((100cqw - var(--compare-frame-width)) / 2))",
+          }}
+        >
+          <h1 className="max-w-3xl text-balance font-serif text-2xl leading-tight tracking-tight lg:text-3xl">
+            {post.name}
+          </h1>
+          <p className="mt-3 max-w-prose whitespace-pre-line leading-relaxed text-foreground/75">
+            {post.description}
+          </p>
+        </div>
+      </div>
+    </main>
   )
 }) as React.ForwardRefExoticComponent<PostProps>
 

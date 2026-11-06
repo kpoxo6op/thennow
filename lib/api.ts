@@ -4,7 +4,7 @@ import PostType from "@/interfaces/post"
 
 export async function fetchPosts(): Promise<PostType[]> {
   const postsDirectory = path.join(process.cwd(), "public", "posts")
-  const postFolders = fs.readdirSync(postsDirectory)
+  const postFolders = fs.readdirSync(postsDirectory).sort()
 
   const posts = postFolders.map((postFolder) => {
     const fullPath = path.join(postsDirectory, postFolder, `${postFolder}.json`)
@@ -21,6 +21,7 @@ export async function fetchPosts(): Promise<PostType[]> {
       h: jsonContent.h,
       slug: jsonContent.slug,
       location: jsonContent.location,
+      isSample: Boolean(jsonContent._preview_fixture),
     }
   })
 
