@@ -16,7 +16,7 @@ type Section = {
 const YEAR_LINE = /^\d{4}$/
 const SOURCE_LINE = /^[\w-]+(\.[\w-]+)+(\/\S*)?$/
 
-function toSections(description: string) {
+export function toSections(description: string) {
   const sections: Section[] = []
 
   description
@@ -53,7 +53,7 @@ const Desc: React.FC<DescProps> = ({ description, className }) => {
       {sections.map((section, index) => (
         <section key={index} className="max-w-prose space-y-3">
           {section.year ? (
-            <h2 className="font-serif text-xl text-muted-foreground">
+            <h2 className="font-serif text-2xl text-muted-foreground">
               {section.year}
             </h2>
           ) : null}
@@ -69,7 +69,7 @@ const Desc: React.FC<DescProps> = ({ description, className }) => {
                 {line}
               </a>
             ) : (
-              <p key={lineIndex} className="leading-relaxed text-foreground/85">
+              <p key={lineIndex} className="font-serif text-lg leading-relaxed sm:text-xl">
                 {line}
               </p>
             )

@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 
 interface RootLayoutProps {
@@ -9,6 +10,7 @@ export default function PostLayout({ children }: RootLayoutProps) {
     <>
       <SiteHeader />
       {children}
+      <SiteFooter />
     </>
   )
 }

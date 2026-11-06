@@ -7,69 +7,47 @@
 
 @layer base {
   :root {
-    --background: 40 22% 96%;
-    --foreground: 30 8% 11%;
+    --background: 42 30% 94%;
+    --foreground: 36 14% 8%;
 
-    --muted: 38 14% 90%;
-    --muted-foreground: 30 5% 38%;
+    --muted: 40 18% 87%;
+    --muted-foreground: 36 7% 33%;
 
-    --popover: 40 22% 98%;
-    --popover-foreground: 30 8% 11%;
+    --popover: 42 40% 97%;
+    --popover-foreground: 36 14% 8%;
 
-    --border: 35 10% 82%;
-    --input: 35 10% 82%;
+    --border: 38 12% 76%;
+    --input: 38 12% 62%;
 
-    --card: 40 22% 96%;
-    --card-foreground: 30 8% 11%;
+    --card: 42 30% 94%;
+    --card-foreground: 36 14% 8%;
 
-    --primary: 30 8% 11%;
-    --primary-foreground: 40 22% 96%;
+    --primary: 36 14% 8%;
+    --primary-foreground: 42 30% 94%;
 
-    --secondary: 38 14% 90%;
-    --secondary-foreground: 30 8% 11%;
+    --secondary: 40 18% 87%;
+    --secondary-foreground: 36 14% 8%;
 
-    --accent: 38 14% 90%;
-    --accent-foreground: 30 8% 11%;
+    --accent: 14 72% 36%;
+    --accent-foreground: 42 40% 97%;
 
-    --destructive: 0 100% 50%;
-    --destructive-foreground: 40 22% 96%;
+    --destructive: 0 70% 40%;
+    --destructive-foreground: 42 40% 97%;
 
-    --ring: 30 8% 11%;
+    --ring: 14 72% 36%;
 
     --radius: 0.25rem;
+
+    --header-h: 3.5rem;
+    --sticky-top: 0rem;
+    --toolbar-h: 6.75rem;
   }
 
-  .dark {
-    --background: 30 5% 6%;
-    --foreground: 40 18% 91%;
-
-    --muted: 30 4% 12%;
-    --muted-foreground: 35 6% 64%;
-
-    --popover: 30 4% 10%;
-    --popover-foreground: 40 18% 91%;
-
-    --border: 30 4% 19%;
-    --input: 30 4% 19%;
-
-    --card: 30 5% 6%;
-    --card-foreground: 40 18% 91%;
-
-    --primary: 40 18% 91%;
-    --primary-foreground: 30 5% 6%;
-
-    --secondary: 30 4% 12%;
-    --secondary-foreground: 40 18% 91%;
-
-    --accent: 30 4% 12%;
-    --accent-foreground: 40 18% 91%;
-
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 40 18% 91%;
-
-    --ring: 40 18% 91%;
-
-    --radius: 0.25rem;
+  @media (min-width: 768px) {
+    :root {
+      --sticky-top: var(--header-h);
+      --toolbar-h: 4rem;
+    }
   }
 }
 
@@ -94,7 +72,7 @@
 }
 
 .tn-enter {
-  animation: tn-enter 220ms ease-out backwards;
+  animation: tn-enter 240ms ease-out backwards;
 }
 
 @keyframes tn-enter {
@@ -103,16 +81,23 @@
   }
 }
 
-/* One column of story at any size: the whole photograph, its slider, its words. */
+/* A hidden range keeps keyboard and screen reader access; the pointer drives the stage. */
+.tn-compare-input {
+  appearance: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Story: the whole photograph, its legend, then its words. */
 .tn-story {
-  --header-h: 3.5rem;
-  --slider-h: 3.5rem;
-  --peek: 6.5rem;
+  --legend-h: 2.25rem;
+  --peek: 5rem;
   --stage-h: min(
     calc(100cqw / var(--ratio)),
-    calc(100svh - var(--header-h) - var(--slider-h) - var(--peek))
+    calc(100svh - var(--header-h) - var(--legend-h) - var(--peek))
   );
   --image-w: min(100cqw, calc(var(--stage-h) * var(--ratio)));
+  --edge: max(1.25rem, calc((100cqw - var(--image-w)) / 2));
   container-type: inline-size;
 }
 
@@ -122,29 +107,12 @@
   }
 }
 
-/* Containment would trap the fixed stage; the sticky pin would trap its z-index. */
-.tn-story[data-immersive="true"] {
-  container-type: normal;
-}
-
-.tn-story[data-immersive="true"] .tn-story-pin {
-  position: static;
-}
-
 .tn-story-stage {
   container-type: size;
   height: var(--stage-h);
 }
 
-.tn-story-stage[data-immersive="true"] {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  height: 100dvh;
-  background: black;
-}
-
-.tn-story-image {
+.tn-compare-image {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -153,161 +121,62 @@
   transform: translate(-50%, -50%);
 }
 
-.tn-story-slider {
-  height: var(--slider-h);
-  padding-inline: max(var(--compare-gutter), calc((100cqw - var(--image-w)) / 2));
-}
-
-.tn-story-text {
-  padding-inline: max(1.25rem, calc((100cqw - var(--image-w)) / 2));
+.tn-story-edge {
+  padding-inline: var(--edge);
 }
 
 @media (orientation: portrait) {
   .tn-story-pin {
     position: sticky;
-    top: var(--header-h);
+    top: var(--sticky-top);
     z-index: 5;
     background: hsl(var(--background));
   }
 }
 
-.tn-slider::-webkit-slider-runnable-track {
-  height: 0.5rem;
-  border-radius: 9999px;
-  background: transparent;
-}
-
-.tn-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  margin-top: 0;
-  height: 0;
-  width: 0;
-  border: 0;
-  border-radius: 9999px;
-  background: transparent;
-  cursor: ew-resize;
-  opacity: 0;
-  box-shadow: none;
-}
-
-.tn-slider::-moz-range-track {
-  height: 0.5rem;
-  border: 0;
-  border-radius: 9999px;
-  background: transparent;
-}
-
-.tn-slider::-moz-range-progress {
-  height: 0.5rem;
-  border-radius: 9999px;
-  background: transparent;
-}
-
-.tn-slider::-moz-range-thumb {
-  height: 0;
-  width: 0;
-  border: 0;
-  border-radius: 9999px;
-  background: transparent;
-  cursor: ew-resize;
-  opacity: 0;
-  box-shadow: none;
-}
-
-.leaflet-container {
-  background: hsl(var(--muted));
-}
-
-.leaflet-tile {
-  filter: saturate(0.7) brightness(1.04) contrast(0.9);
-}
-
-.tn-osm-variant--default .leaflet-tile {
-  filter: none;
-}
-
-.tn-osm-variant--muted .leaflet-tile {
-  filter: saturate(0.58) brightness(1.06) contrast(0.9);
-}
-
-.tn-osm-variant--paper .leaflet-tile {
-  filter: grayscale(0.35) saturate(0.5) brightness(1.12) contrast(0.84);
-}
-
-.tn-osm-variant--mono .leaflet-tile {
-  filter: grayscale(0.82) brightness(1.08) contrast(0.88);
-}
-
-/* Stacked with a pinned map on phones, side by side once there is width for both. */
-.tn-home {
-  display: grid;
-  flex: 1;
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.tn-home-map {
+/* Places */
+.tn-toolbar {
   position: sticky;
-  top: 3.5rem;
-  z-index: 5;
-  height: 34svh;
-  min-height: 13rem;
+  top: var(--sticky-top);
+  z-index: 6;
+  min-height: var(--toolbar-h);
 }
 
-@media (min-width: 1024px), (orientation: landscape) and (min-width: 640px) {
-  .tn-home {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  }
-
-  .tn-home-map {
-    order: 2;
-    height: calc(100svh - 3.5rem);
-  }
+.tn-section {
+  scroll-margin-top: calc(var(--sticky-top) + var(--toolbar-h) + 0.75rem);
 }
 
-.dark .tn-home-map .maplibregl-canvas {
-  filter: invert(1) hue-rotate(180deg) grayscale(0.92) brightness(0.92) contrast(0.92);
+.tn-deep-link .tn-fallback-list {
+  visibility: hidden;
 }
 
-.tn-home-map .maplibregl-canvas {
-  filter: grayscale(0.75) contrast(0.95);
+.tn-map-view {
+  height: calc(100dvh - var(--header-h) - var(--toolbar-h));
+  min-height: 22rem;
 }
 
-.tn-home-map .maplibregl-map {
+.tn-map .maplibregl-canvas {
+  filter: grayscale(1) sepia(0.18) contrast(0.94) brightness(1.03);
+}
+
+.tn-map .maplibregl-map {
   background: hsl(var(--muted));
 }
 
-.tn-home-map .maplibregl-ctrl-group {
+.tn-map .maplibregl-ctrl-group {
   overflow: hidden;
   border-radius: var(--radius);
-  background: hsl(var(--background) / 0.9);
-  box-shadow: 0 1px 8px rgb(0 0 0 / 0.3);
+  background: hsl(var(--popover));
+  box-shadow: 0 1px 6px rgb(40 30 20 / 0.28);
 }
 
-.tn-home-map .maplibregl-ctrl-group button {
-  width: 2.25rem;
-  height: 2.25rem;
+.tn-map .maplibregl-ctrl-group button {
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
-.tn-home-map .maplibregl-ctrl-group button + button {
+.tn-map .maplibregl-ctrl-group button + button {
   border-top-color: hsl(var(--border));
-}
-
-.dark .tn-home-map .maplibregl-ctrl-icon {
-  filter: invert(1);
-}
-
-.dark .tn-home-map .maplibregl-ctrl-attrib {
-  background: hsl(var(--background) / 0.8);
-  color: hsl(var(--muted-foreground));
-}
-
-.dark .tn-home-map .maplibregl-ctrl-attrib a {
-  color: inherit;
-}
-
-.dark .tn-home-map .maplibregl-ctrl-attrib-button {
-  filter: invert(1);
 }
 
 /* The anchor is the touch target; its child is what you see. */
@@ -333,24 +202,27 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
   box-shadow:
-    0 0 0 2px hsl(var(--background)),
-    0 1px 8px rgb(0 0 0 / 0.45);
-  transition: transform 140ms ease-out;
+    0 0 0 2px hsl(var(--popover)),
+    0 1px 6px rgb(40 30 20 / 0.4);
+  transition:
+    transform 140ms ease-out,
+    background-color 140ms ease-out;
 }
 
 .tn-map-marker--point > span {
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 .tn-map-marker--cluster > span {
-  width: 1.875rem;
-  height: 1.875rem;
+  width: 2rem;
+  height: 2rem;
 }
 
 .tn-map-marker:hover > span,
 .tn-map-marker.is-active > span {
-  transform: scale(1.3);
+  transform: scale(1.25);
+  background: hsl(var(--accent));
 }
 
 .tn-map-marker:hover,
@@ -365,55 +237,7 @@
 
 .tn-map-marker:focus-visible > span {
   outline: 2px solid hsl(var(--ring));
-  outline-offset: 4px;
-}
-
-.tn-popup .maplibregl-popup-content {
-  padding: 0;
-  overflow: hidden;
-  border-radius: var(--radius);
-  background: hsl(var(--popover));
-  color: hsl(var(--popover-foreground));
-  box-shadow: 0 8px 28px rgb(0 0 0 / 0.45);
-}
-
-.tn-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip {
-  border-bottom-color: hsl(var(--popover));
-}
-
-.tn-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
-  border-top-color: hsl(var(--popover));
-}
-
-.tn-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
-  border-right-color: hsl(var(--popover));
-}
-
-.tn-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
-  border-left-color: hsl(var(--popover));
-}
-
-.tn-popup-story {
-  display: block;
-  width: 13rem;
-  color: inherit;
-  text-decoration: none;
-  font-family: var(--font-serif), serif;
-  font-size: 0.9375rem;
-  line-height: 1.3;
-}
-
-.tn-popup-story img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 3 / 2;
-  object-fit: cover;
-  background: hsl(var(--muted));
-}
-
-.tn-popup-story span {
-  display: block;
-  padding: 0.625rem 0.75rem 0.75rem;
+  outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -6,6 +6,10 @@ export const siteConfig = {
     "New Zealand photos then and now",
   mainNav: [
     {
+      title: "Places",
+      href: "/places",
+    },
+    {
       title: "About",
       href: "/about",
     },

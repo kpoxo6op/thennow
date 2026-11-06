@@ -11,7 +11,7 @@ export default function MarketingLayout({
   return (
     <>
       <SiteHeader />
-      <main className="tn-enter flex flex-1 items-center">{children}</main>
+      <main className="tn-enter flex-1">{children}</main>
       <SiteFooter />
     </>
   )

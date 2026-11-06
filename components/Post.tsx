@@ -1,151 +1,151 @@
-'use client';
+"use client"
 
-import React, { useCallback, useEffect, useState, forwardRef } from "react";
-import PostType from "@/interfaces/post"
-import { cn } from "@/lib/utils"
-import { COMPARE_SIDE_GUTTER_PX } from "@/lib/compare";
-import ImageSplit from "@/components/ImageSplit";
-import Desc from "@/components/Desc";
-import { ResetScroll } from "@/components/reset-scroll";
-import { Slider } from "@/components/ui/slider";
+import React, { useCallback, useEffect, useState } from "react"
+import Link from "next/link"
 
+import PostType, { type StorySummary } from "@/interfaces/post"
+import { CompareStage } from "@/components/compare-stage"
+import Desc, { toSections } from "@/components/Desc"
+import { ResetScroll } from "@/components/reset-scroll"
+import { StoryTile } from "@/components/story-tile"
 
-
-interface PostProps extends React.HTMLAttributes<HTMLDivElement> {
-  post: PostType;
+interface PostProps {
+  post: PostType
+  nearby: StorySummary[]
 }
 
-const DEFAULT_POSITION = 50;
+const DEFAULT_POSITION = 50
 
 function clampPosition(position: number) {
-  return Math.min(100, Math.max(0, position));
+  return Math.min(100, Math.max(0, position))
 }
 
 function parsePositionParam(positionParam: string | null) {
   if (!positionParam) {
-    return DEFAULT_POSITION;
+    return DEFAULT_POSITION
   }
 
-  const parsedPosition = Number(positionParam);
+  const parsedPosition = Number(positionParam)
 
   if (!Number.isFinite(parsedPosition)) {
-    return DEFAULT_POSITION;
+    return DEFAULT_POSITION
   }
 
-  return clampPosition(parsedPosition);
+  return clampPosition(parsedPosition)
 }
 
-const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props }, ref) => {
-  const [position, setPosition] = useState(DEFAULT_POSITION);
-  const [showOverlay, setShowOverlay] = useState(false);
+export default function Post({ post, nearby }: PostProps) {
+  const [position, setPosition] = useState(DEFAULT_POSITION)
 
-  const applyPosition = useCallback((position: number) => {
-    setPosition(clampPosition(position));
-  }, []);
+  const applyPosition = useCallback((next: number) => {
+    setPosition(clampPosition(next))
+  }, [])
 
   useEffect(() => {
     const syncPositionFromUrl = () => {
-      const url = new URL(window.location.href);
-      const nextPosition = parsePositionParam(url.searchParams.get("p"));
+      const url = new URL(window.location.href)
+      const nextPosition = parsePositionParam(url.searchParams.get("p"))
 
       setPosition((currentPosition) => {
         if (Math.abs(currentPosition - nextPosition) < 0.01) {
-          return currentPosition;
+          return currentPosition
         }
 
-        return nextPosition;
-      });
-    };
+        return nextPosition
+      })
+    }
 
-    syncPositionFromUrl();
-    window.addEventListener("popstate", syncPositionFromUrl);
+    syncPositionFromUrl()
+    window.addEventListener("popstate", syncPositionFromUrl)
 
     return () => {
-      window.removeEventListener("popstate", syncPositionFromUrl);
-    };
-  }, []);
+      window.removeEventListener("popstate", syncPositionFromUrl)
+    }
+  }, [])
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const roundedPosition = Math.round(position);
+    const url = new URL(window.location.href)
+    const roundedPosition = Math.round(position)
 
     if (roundedPosition === DEFAULT_POSITION) {
-      url.searchParams.delete("p");
+      url.searchParams.delete("p")
     } else {
-      url.searchParams.set("p", String(roundedPosition));
+      url.searchParams.set("p", String(roundedPosition))
     }
 
-    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
 
     if (nextUrl !== currentUrl) {
-      window.history.replaceState(null, "", nextUrl);
+      window.history.replaceState(null, "", nextUrl)
     }
-  }, [position]);
+  }, [position])
 
-  useEffect(() => {
-    if (!showOverlay) {
-      return;
-    }
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setShowOverlay(false);
-      }
-    };
-
-    window.addEventListener("keydown", closeOnEscape);
-
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [showOverlay]);
+  const sections = toSections(post.description)
+  const thenYear = sections[0]?.year
+  const nowYear = sections.length > 1 ? sections[sections.length - 1]?.year : undefined
+  const mapHref = `/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=15`
 
   return (
     <main
-      ref={ref}
-      data-immersive={showOverlay}
-      className={cn("tn-story tn-enter flex-1", className)}
-      style={
-        {
-          "--ratio": post.w / post.h,
-          "--compare-gutter": `${COMPARE_SIDE_GUTTER_PX}px`,
-        } as React.CSSProperties
-      }
-      {...props}
+      className="tn-story tn-enter flex-1"
+      style={{ "--ratio": post.w / post.h } as React.CSSProperties}
     >
       <ResetScroll />
-      <div className="tn-story-pin">
-        <ImageSplit
-          post={post}
-          position={position}
-          immersive={showOverlay}
-          onPositionChange={applyPosition}
-          onTap={() => setShowOverlay((current) => !current)}
-        />
-
-        <div className="tn-story-slider flex">
-          <Slider
-            aria-label="Compare slider"
-            className="cursor-ew-resize"
-            value={[position]}
-            onValueChange={(value) => {
-              applyPosition(value[0] ?? DEFAULT_POSITION);
-            }}
+      <div>
+        <div className="tn-story-pin">
+          <CompareStage
+            name={post.name}
+            thenSrc={post.b_imageUrl}
+            nowSrc={post.a_imageUrl}
+            ratio={post.w / post.h}
+            position={position}
+            onPositionChange={applyPosition}
+            priority
+            className="tn-story-stage"
           />
+          <div className="tn-story-edge flex h-9 items-center justify-between font-serif text-sm italic text-muted-foreground">
+            <span>then{thenYear ? ` ${thenYear}` : ""}</span>
+            <span>now{nowYear ? ` ${nowYear}` : ""}</span>
+          </div>
         </div>
+
+        <article className="tn-story-edge space-y-6 pb-14 pt-3">
+          <h1 className="font-serif text-3xl leading-tight tracking-tight sm:text-4xl">
+            {post.name}
+          </h1>
+          <Desc description={post.description} />
+          {post.sample ? (
+            <p className="text-sm text-muted-foreground">
+              Sample place. The photographs are repeated placeholders and do not
+              show this location.
+            </p>
+          ) : null}
+        </article>
       </div>
 
-      <article className="tn-story-text space-y-6 pb-16 pt-2">
-        <h1 className="font-serif text-2xl leading-tight tracking-tight sm:text-3xl">
-          {post.name}
-        </h1>
-        <Desc description={post.description} />
-      </article>
+      <section className="tn-story-edge border-t py-8">
+        <div className="mb-4 flex items-baseline justify-between gap-4">
+          <h2 className="font-serif text-2xl">Nearby</h2>
+          <div className="flex gap-4 text-sm">
+            <Link href={mapHref} className="-my-2 py-2 underline underline-offset-4">
+              Map
+            </Link>
+            <Link href="/places" className="-my-2 py-2 underline underline-offset-4">
+              All places
+            </Link>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-6 md:grid-cols-4">
+          {nearby.map((story) => (
+            <StoryTile
+              key={story.slug}
+              story={story}
+              sizes="(min-width: 768px) 22vw, 50vw"
+            />
+          ))}
+        </div>
+      </section>
     </main>
   )
-}) as React.ForwardRefExoticComponent<PostProps>
-
-Post.displayName = "Post";
-
-export default Post;
+}

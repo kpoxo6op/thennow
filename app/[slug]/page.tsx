@@ -1,6 +1,6 @@
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { fetchPosts } from "@/lib/api"
+import { fetchPosts, toSummary } from "@/lib/api"
 import Post from "@/components/Post"
 
 interface PostProps {
@@ -52,5 +52,18 @@ export default async function PostPage({ params }: PostProps) {
     notFound()
   }
 
-  return <Post post={post} />
+  const posts = await fetchPosts()
+  const scale = Math.cos((post.location.lat * Math.PI) / 180)
+  const distance = (other: (typeof posts)[number]) =>
+    Math.hypot(
+      other.location.lat - post.location.lat,
+      (other.location.lng - post.location.lng) * scale
+    )
+  const nearby = posts
+    .filter((other) => other.slug !== post.slug)
+    .sort((a, b) => distance(a) - distance(b))
+    .slice(0, 4)
+    .map(toSummary)
+
+  return <Post post={post} nearby={nearby} />
 }

@@ -26,39 +26,44 @@ export function MainNav({ items }: MainNavProps) {
     }
   }, [pathname])
 
+  // Heading back to the page just left should land where it was left:
+  // same filters, same map, same scroll.
+  const returnIfJustLeft =
+    (href: string) => (event: React.MouseEvent<HTMLAnchorElement>) => {
+      if (
+        previousPath === href &&
+        pathname !== href &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.shiftKey
+      ) {
+        event.preventDefault()
+        router.back()
+      }
+    }
+
   const [before, after] = siteConfig.name.split("|")
 
   return (
     <>
       <Link
         href="/"
-        className="-my-2 flex items-center py-2 font-serif text-xl tracking-tight"
+        className="-my-2 flex items-center py-2 font-serif text-[1.375rem] tracking-tight"
         aria-label={siteConfig.name}
-        onClick={(event) => {
-          // Returning to the collection should land exactly where it was left.
-          if (
-            previousPath === "/" &&
-            pathname !== "/" &&
-            !event.metaKey &&
-            !event.ctrlKey &&
-            !event.shiftKey
-          ) {
-            event.preventDefault()
-            router.back()
-          }
-        }}
+        onClick={returnIfJustLeft("/")}
       >
         {before}
-        <span aria-hidden className="mx-[0.2em] h-[1.05em] w-px bg-current" />
+        <span aria-hidden className="mx-[0.2em] h-[1.05em] w-0.5 bg-accent" />
         {after}
       </Link>
-      <nav className="flex items-center gap-5 sm:gap-7">
+      <nav className="flex items-center gap-3 sm:gap-6">
         {items?.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             aria-current={pathname === item.href ? "page" : undefined}
-            className="-my-3 py-3 text-[13px] text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:text-foreground sm:text-sm"
+            onClick={returnIfJustLeft(item.href)}
+            className="-my-3 py-3 text-[13px] text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:text-foreground aria-[current=page]:underline aria-[current=page]:decoration-accent aria-[current=page]:decoration-2 aria-[current=page]:underline-offset-[6px] sm:text-sm"
           >
             {item.title}
           </Link>

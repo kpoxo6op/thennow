@@ -17,16 +17,11 @@ export const metadata: Metadata = {
   description: siteConfig.description,
   icons: {
     icon: "/favicon.ico",
-    shortcut: "/favicon-16x16.png",
-    apple: "/apple-touch-icon.png",
   },
 }
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f4f0" },
-    { media: "(prefers-color-scheme: dark)", color: "#100f0e" },
-  ],
+  themeColor: "#f4f1ea",
 }
 
 interface RootLayoutProps {
@@ -43,7 +38,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           fontSerif.variable
         )}
       >
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+        <ThemeProvider attribute="class" forcedTheme="light">
           {children}
           <TailwindIndicator />
         </ThemeProvider>

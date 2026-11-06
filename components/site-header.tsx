@@ -14,7 +14,7 @@ const SiteHeader = React.forwardRef<
       ref={ref}
       data-testid="site-header"
       className={cn(
-        "sticky inset-x-0 top-0 z-10 bg-background text-left",
+        "inset-x-0 top-0 z-10 bg-background text-left md:sticky",
         className
       )}
       {...props}
