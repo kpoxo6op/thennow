@@ -19,8 +19,8 @@ type StoryCluster = {
 }
 
 const MAX_ZOOM = 16
-// Close enough that neighbouring stories have come apart.
-const FOCUS_ZOOM = 15
+// Close enough to find it, far enough to see where it is.
+const FOCUS_ZOOM = 13
 // Clear of the controls, so no marker hugs an edge.
 const FIT_PADDING = { top: 96, bottom: 96, left: 72, right: 72 }
 const CLUSTER_RADIUS_PX = 34
@@ -77,6 +77,7 @@ type Props = {
   onFail?: (failed: boolean) => void
   highlightRef?: RefObject<MapHighlight | null>
   focusRef?: RefObject<((story: StorySummary) => void) | null>
+  fitAllRef?: RefObject<(() => void) | null>
   viewport?: MapViewport | null
 }
 
@@ -89,6 +90,7 @@ export function PlacesMap({
   onFail,
   highlightRef,
   focusRef,
+  fitAllRef,
   viewport,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -230,6 +232,10 @@ export function PlacesMap({
       }
 
       applyActiveRef.current = applyActive
+
+      if (fitAllRef) {
+        fitAllRef.current = () => refreshRef.current?.(true)
+      }
 
       if (focusRef) {
         focusRef.current = (story) => {
@@ -377,12 +383,15 @@ export function PlacesMap({
       if (focusRef) {
         focusRef.current = null
       }
+      if (fitAllRef) {
+        fitAllRef.current = null
+      }
       if (highlightRef) {
         highlightRef.current = null
       }
       map?.remove()
     }
-  }, [focusRef, highlightRef])
+  }, [fitAllRef, focusRef, highlightRef])
 
   // A new search or area re-frames the map on what it found.
   useEffect(() => {

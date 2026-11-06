@@ -12,7 +12,7 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ArrowRight, Grid2x2, Map as MapIcon, Search, X } from "lucide-react"
+import { ArrowRight, ChevronDown, Grid2x2, Map as MapIcon, Search, X } from "lucide-react"
 import type { StorySummary } from "@/interfaces/post"
 
 import { cn } from "@/lib/utils"
@@ -166,6 +166,8 @@ export function PlacesExplorer({ stories }: Props) {
   const [mapFailed, setMapFailed] = useState(false)
   const highlightRef = useRef<MapHighlight | null>(null)
   const focusRef = useRef<((story: StorySummary) => void) | null>(null)
+  const fitAllRef = useRef<(() => void) | null>(null)
+  const [visibleCount, setVisibleCount] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const selectedRef = useRef<HTMLDivElement | null>(null)
 
@@ -197,12 +199,21 @@ export function PlacesExplorer({ stories }: Props) {
     [pathname]
   )
 
+  // A different set of places has no use for the old camera: the map frames what was found.
+  const forgetCamera = (params: URLSearchParams) => {
+    ;["lat", "lng", "z", "story"].forEach((key) => params.delete(key))
+  }
+
   const setParam = (key: string, value: string, method: "push" | "replace") => {
     writeParams((params) => {
       if (value) {
         params.set(key, value)
       } else {
         params.delete(key)
+      }
+
+      if (key !== "view") {
+        forgetCamera(params)
       }
     }, method)
   }
@@ -212,6 +223,7 @@ export function PlacesExplorer({ stories }: Props) {
     writeParams((params) => {
       params.delete("q")
       params.delete("area")
+      forgetCamera(params)
     }, "replace")
     inputRef.current?.focus()
   }
@@ -361,10 +373,11 @@ export function PlacesExplorer({ stories }: Props) {
           />
         </div>
         <div className="flex min-w-0 items-center gap-2 md:contents">
+          <div className="relative min-w-0 flex-1 md:flex-none">
           <select
             value={area}
             aria-label="Area"
-            className={cn(controlClass, "min-w-0 flex-1 px-3 md:w-auto md:flex-none")}
+            className={cn(controlClass, "w-full appearance-none pl-4 pr-9")}
             onChange={(event) => {
               setSelected(null)
               setParam("area", event.target.value, "replace")
@@ -378,6 +391,11 @@ export function PlacesExplorer({ stories }: Props) {
               </option>
             ))}
           </select>
+            <ChevronDown
+              aria-hidden
+              className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+          </div>
           <div className="flex shrink-0 rounded-full border border-input bg-popover p-0.5 md:order-last md:ml-auto">
             {(
               [
@@ -437,17 +455,33 @@ export function PlacesExplorer({ stories }: Props) {
               </ul>
             ) : null}
           </aside>
-          <div className="tn-map relative h-[62svh] min-h-[22rem] min-w-0 shrink-0 lg:h-auto lg:flex-1 lg:shrink">
+          <div className="tn-map relative h-[50svh] min-h-[20rem] min-w-0 shrink-0 lg:h-auto lg:flex-1 lg:shrink">
             <PlacesMap
               stories={filtered}
               viewport={viewport}
               selected={selected}
               highlightRef={highlightRef}
               focusRef={focusRef}
+              fitAllRef={fitAllRef}
+              onVisibleSlugsChange={(slugs) => setVisibleCount(slugs.length)}
               onViewportChange={handleViewportChange}
               onSelect={setSelected}
               onFail={setMapFailed}
             />
+
+            {!isEmpty && visibleCount !== null && visibleCount < filtered.length ? (
+              <button
+                type="button"
+                data-testid="map-show-all"
+                className="absolute left-3 top-3 z-[2] inline-flex h-11 items-center rounded-full bg-popover px-4 text-[15px] shadow-[0_1px_6px_rgb(0_0_0/0.5)] transition-colors hover:bg-muted"
+                onClick={() => {
+                  setSelected(null)
+                  fitAllRef.current?.()
+                }}
+              >
+                All {filtered.length} places
+              </button>
+            ) : null}
 
             {mapFailed ? (
               <p

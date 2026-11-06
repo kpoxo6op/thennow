@@ -442,11 +442,45 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
   })
 }
 
+test("changing the filter frames what was found, not the old camera", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto("/mill-house")
+  await page.getByRole("link", { name: "See it on the map" }).click()
+  await expect(page).toHaveURL(/z=13/)
+  await page.getByRole("button", { name: "Photos" }).click()
+  await page.getByRole("combobox", { name: "Area" }).selectOption("Helensville")
+  await expect(page).not.toHaveURL(/lat=/)
+  await page.getByRole("button", { name: "Map" }).click()
+
+  await expect.poll(() =>
+    page.evaluate(() => {
+      const map = document.querySelector('[data-testid="home-map"]')!.getBoundingClientRect()
+      return Array.from(document.querySelectorAll('[data-testid="home-map-marker"]')).some((marker) => {
+        const box = marker.getBoundingClientRect()
+        return box.left >= map.left && box.right <= map.right && box.top >= map.top && box.bottom <= map.bottom
+      })
+    })
+  ).toBe(true)
+})
+
+test("a map that has moved in offers the way back to every place", async ({ page }) => {
+  await page.goto("/places?view=map")
+  await expect(markers(page).first()).toBeVisible()
+  const back = page.getByTestId("map-show-all")
+  await expect(back).toHaveCount(0)
+
+  await page.getByTestId("map-list-item").filter({ hasText: "Mill House" }).click()
+  await expect(back).toBeVisible()
+  await back.click()
+  await expect(back).toHaveCount(0)
+  await expect(page.getByTestId("map-selection")).toHaveCount(0)
+})
+
 test("the phone map has real height and draws", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto("/places?view=map")
   await expect(markers(page).first()).toBeInViewport()
   const canvas = (await page.locator(".maplibregl-canvas").boundingBox())!
-  expect(canvas.height).toBeGreaterThan(400)
+  expect(canvas.height).toBeGreaterThan(350)
   expect(canvas.width).toBeGreaterThan(380)
 })

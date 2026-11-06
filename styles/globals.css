@@ -44,10 +44,10 @@
     --header-h: 3.5rem;
     --sticky-top: 0rem;
     --toolbar-h: 10rem;
-    --hero-caption-h: 2.5rem;
-    --hero-band-h: 9.5rem;
+    --hero-caption-h: 2.75rem;
+    --hero-band-h: 8.75rem;
     /* Enough of the next section shows that the page plainly goes on. */
-    --hero-peek: 5.5rem;
+    --hero-peek: 7rem;
     --footer-h: 3.8125rem;
   }
 

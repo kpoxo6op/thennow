@@ -1,6 +1,8 @@
 import Link from "next/link"
 import type PostType from "@/interfaces/post"
 
+import { ArrowRight } from "lucide-react"
+
 import { fetchPosts } from "@/lib/api"
 import { placesHref } from "@/lib/places"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
@@ -11,7 +13,6 @@ import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 
 const HERO_SLUG = "sheep"
-const LEAD_SLUG = "historic-post-office"
 
 // Dated, written sections only: several stories are still "Coming soon...".
 function datedSections(story: PostType) {
@@ -27,8 +28,6 @@ export default async function IndexPage() {
   const posts = await fetchPosts()
   const hero = posts.find((post) => post.slug === HERO_SLUG) ?? posts[0]
   const originals = posts.filter((post) => !post.sample)
-  const lead = originals.find((post) => post.slug === LEAD_SLUG) ?? originals[0]
-  const rest = originals.filter((post) => post !== hero && post !== lead)
   const heroSections = datedSections(hero)
   const thenYear = heroSections[0]?.year
   const nowYear = heroSections[heroSections.length - 1]?.year
@@ -45,8 +44,12 @@ export default async function IndexPage() {
             thenYear={thenYear}
             nowYear={nowYear}
             caption={
-              <Link href={`/${hero.slug}`} className="-my-1 py-1 underline underline-offset-4">
+              <Link
+                href={`/${hero.slug}`}
+                className="inline-flex min-h-11 items-center gap-2 text-[15px] underline underline-offset-4 md:text-base"
+              >
                 {hero.name}
+                <ArrowRight aria-hidden className="size-4 shrink-0" />
               </Link>
             }
           />
@@ -70,19 +73,19 @@ export default async function IndexPage() {
 
         <section className="px-4 pb-20 md:pb-28">
           <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2 border-t pt-4 md:pt-5">
-            <h2 className="font-serif text-4xl leading-none md:text-5xl">Photographed twice.</h2>
+            <h2 className="font-serif text-3xl leading-none md:text-4xl">Photographed twice.</h2>
             <Link href={placesHref({ view: "map" })} className="-my-1 py-1 underline underline-offset-4">
               Look around the map
             </Link>
           </div>
 
-          <ul className="mt-5 grid grid-cols-1 gap-x-3 gap-y-8 sm:grid-cols-2 md:mt-8 md:gap-x-6 md:gap-y-12 lg:grid-cols-6">
-            {[lead, ...rest].map((story, index) => (
+          <ul className="mt-5 grid grid-cols-1 gap-x-3 gap-y-8 sm:grid-cols-2 md:mt-6 md:gap-x-6 md:gap-y-12 lg:grid-cols-12">
+            {originals.map((story, index) => (
               <li
                 key={story.slug}
-                className={index === 0 ? "sm:col-span-2 lg:col-span-3" : index === 1 ? "lg:col-span-3" : "lg:col-span-2"}
+                className={index < 2 ? "lg:col-span-6" : "lg:col-span-3"}
               >
-                <StoryTile story={story} sizes={index < 2 ? "(min-width: 1024px) 50vw, 100vw" : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"} />
+                <StoryTile story={story} sizes={index < 2 ? "(min-width: 640px) 50vw, 100vw" : "(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"} />
               </li>
             ))}
           </ul>
