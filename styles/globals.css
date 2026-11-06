@@ -98,10 +98,11 @@ body:has(.tn-home) {
   background: hsl(36 10% 7%);
 }
 
-/* The same small zoom on both layers trims the scan's torn edge and keeps them registered. */
+/* A little extra height on both layers trims the scan's torn top edge.
+   Their left and right stay on the stage, so the line still maps exactly onto the photograph. */
 .tn-home [data-testid="compare-stage"] img {
-  transform: scale(1.04);
-  transform-origin: 50% 100%;
+  top: -4% !important;
+  height: 104% !important;
 }
 
 .tn-hero-copy {
