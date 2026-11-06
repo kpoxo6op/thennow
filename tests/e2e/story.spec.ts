@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 
 test.describe("a story page", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } })
@@ -78,3 +78,87 @@ test.describe("a story page", () => {
     await expect(page.getByText("Sample place.")).toHaveCount(0)
   })
 })
+
+for (const width of [320, 390, 768]) {
+  test.describe(`on a ${width}px touch screen`, () => {
+    test.use({ viewport: { width, height: 1000 }, hasTouch: true, isMobile: true, contextOptions: { reducedMotion: "reduce" } })
+
+    const knobOpacity = (page: Page) =>
+      page.getByTestId("compare-slider-knob").evaluate((knob) => getComputedStyle(knob).opacity)
+
+    test("a whole photograph shows no line to grab at the edge, and a tap brings it back safely", async ({ page, context }) => {
+      await page.goto("/mill-house")
+      const input = page.getByTestId("compare-slider-input")
+      await page.getByTestId("story-show-then").tap()
+      await expect(input).toHaveValue("100")
+      await expect(page).toHaveURL(/p=100$/)
+      await expect.poll(() => knobOpacity(page)).toBe("0")
+
+      const before = (await page.getByTestId("compare-overlay-image").boundingBox())!
+      const box = (await page.getByTestId("compare-stage").boundingBox())!
+      const cdp = await context.newCDPSession(page)
+      const tapAt = async (x: number) => {
+        const y = box.y + box.height / 2
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      }
+
+      // A touch inside the margin stays the system's.
+      await tapAt(10)
+      await tapAt(width - 10)
+      await page.waitForTimeout(150)
+      await expect(input).toHaveValue("100")
+
+      // Just past the margin, the line comes back and stops short of the edge zone.
+      await tapAt(44)
+      await expect.poll(() => knobOpacity(page)).toBe("1")
+      const knob = (await page.getByTestId("compare-slider-knob").boundingBox())!
+      expect(knob.x + knob.width / 2).toBeCloseTo(56, 0)
+
+      const after = (await page.getByTestId("compare-overlay-image").boundingBox())!
+      expect(after.x).toBeCloseTo(before.x, 1)
+      expect(after.width).toBeCloseTo(before.width, 1)
+    })
+
+    test("addresses at the ends keep their meaning without a line at the edge", async ({ page }) => {
+      for (const position of [0, 100]) {
+        await page.goto(`/mill-house?p=${position}`)
+        await expect(page.getByTestId("compare-slider-input")).toHaveValue(String(position))
+        await expect.poll(() => knobOpacity(page)).toBe("0")
+      }
+
+      await page.goto("/mill-house?p=30")
+      await expect(page.getByTestId("compare-slider-input")).toHaveValue("30")
+      await expect.poll(() => knobOpacity(page)).toBe("1")
+
+      await page.goto("/mill-house?p=50")
+      await expect(page).toHaveURL(/mill-house$/)
+      await expect.poll(() => knobOpacity(page)).toBe("1")
+    })
+
+    test("the homepage line also waits short of both screen edges", async ({ page, context }) => {
+      await page.goto("/")
+      const cdp = await context.newCDPSession(page)
+      const knob = page.getByTestId("compare-slider-knob")
+      const box = (await knob.boundingBox())!
+      const y = box.y + box.height / 2
+      const swipeTo = async (from: number, to: number) => {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] })
+        for (let i = 1; i <= 8; i += 1) {
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from + ((to - from) * i) / 8, y }] })
+        }
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      }
+      const center = async () => {
+        const now = (await knob.boundingBox())!
+        return now.x + now.width / 2
+      }
+
+      await swipeTo(width / 2, width - 1)
+      await expect.poll(center).toBeCloseTo(width - 56, 0)
+      await swipeTo(width - 56, 1)
+      await expect.poll(center).toBeCloseTo(56, 0)
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0)
+    })
+  })
+}

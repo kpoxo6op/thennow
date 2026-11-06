@@ -140,20 +140,25 @@ for (const width of PHONE_WIDTHS) {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
     }
 
-    test("a drag from the safe area reaches both ends, and vertical swipes still scroll", async ({ page, context }) => {
+    // Formerly asserted that a touch drag reaches 0 and 100. It measured where the slider input
+    // sat and where touches began, never where the line ended up relative to the screen edge.
+    test("a drag from the safe area stops clear of both screen edges, and vertical swipes still scroll", async ({ page, context }) => {
       await page.goto(STORY)
       await imagesLoaded(page)
       const cdp = await context.newCDPSession(page)
       const box = (await page.getByTestId("compare-stage").boundingBox())!
       const y = box.y + box.height * 0.4
 
+      const input = page.getByTestId("compare-slider-input")
+      const lineAt = async () => (await readGeometry(page)).divider
+
       await swipe(cdp, width / 2, y, width - 2, y)
-      await expectAlignedAt(page, 100)
-      await expect(page).toHaveURL(/\?p=100$/)
+      await expect.poll(lineAt).toBeCloseTo(width - 56, 0)
+      expect(Number(await input.inputValue())).toBeLessThan(100)
 
       await swipe(cdp, width / 2, y, 2, y)
-      await expectAlignedAt(page, 0)
-      await expect(page).toHaveURL(/\?p=0$/)
+      await expect.poll(lineAt).toBeCloseTo(56, 0)
+      expect(Number(await input.inputValue())).toBeGreaterThan(0)
 
       await swipe(cdp, 60, y, width - 60, y)
       const interior = Number(await page.getByTestId("compare-slider-input").inputValue())

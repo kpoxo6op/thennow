@@ -1,6 +1,7 @@
 import { expect, test, type CDPSession, type Page } from "@playwright/test"
 
 const STORY = "/mill-house"
+const SAFE_LINE_PX = 56
 
 async function read(page: Page) {
   return page.evaluate(() => {
@@ -121,7 +122,9 @@ for (const width of [390, 320]) {
       expect((await read(page)).value).toBe(30)
     })
 
-    test("the finger carries the grip, and a drag starting inside reaches both edges", async ({ page, context }) => {
+    // This used to require the line to reach 0 and 100 under a finger, which is what parked it
+    // inside Android's back-gesture zone. Whole photographs are now asked for by button.
+    test("the finger carries the grip, and the line waits short of both screen edges", async ({ page, context }) => {
       const start = await open(page, 30)
       const cdp = await context.newCDPSession(page)
 
@@ -131,17 +134,26 @@ for (const width of [390, 320]) {
         await expectUnderPointer(page, start.grip + distance)
       }
 
-      for (const x of [width - 30, width - 10, width - 1]) {
+      for (const x of [width - 70, width - 30, width - 10, width - 1]) {
         await moveFinger(cdp, x, start.gripY)
       }
-      await expect(page.getByTestId("compare-slider-input")).toHaveValue("100")
+      await expect.poll(async () => (await read(page)).divider).toBeCloseTo(width - SAFE_LINE_PX, 0)
+      expect((await read(page)).grip).toBeCloseTo(width - SAFE_LINE_PX, 0)
 
-      for (const x of [width / 2, 30, 10, 1]) {
+      for (const x of [width / 2, 70, 30, 10, 1]) {
         await moveFinger(cdp, x, start.gripY)
       }
-      await expect(page.getByTestId("compare-slider-input")).toHaveValue("0")
+      await expect.poll(async () => (await read(page)).divider).toBeCloseTo(SAFE_LINE_PX, 0)
       await end(cdp)
-      await expect(page).toHaveURL(/p=0$/)
+      expect((await read(page)).grip).toBeCloseTo(SAFE_LINE_PX, 0)
+      await expect(page).not.toHaveURL(/p=0$/)
+
+      // Where it waits, it can be picked up again by a finger clear of the edge margin.
+      const parked = await read(page)
+      await begin(cdp, parked.grip, parked.gripY)
+      await moveFinger(cdp, parked.grip + 40, parked.gripY)
+      await expectUnderPointer(page, parked.grip + 40)
+      await end(cdp)
     })
 
     test("near the end, a grab inside the safe area follows the finger", async ({ page, context }) => {

@@ -286,7 +286,9 @@ export default function Post({ post, next, nearby }: PostProps) {
                 ? "Press the highlighted button, or drag the line, to compare"
                 : "Drag the line, or choose then or now to see a whole photograph"}
             </p>
-            <p className="tn-hint-short px-2 text-center text-sm text-muted-foreground">Drag the line</p>
+            <p className="tn-hint-short px-2 text-center text-sm text-muted-foreground">
+              {wholeShown ? "Tap to compare" : "Drag the line"}
+            </p>
             <button
               type="button"
               data-testid="story-show-now"
