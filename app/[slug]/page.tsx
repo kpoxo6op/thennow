@@ -1,8 +1,10 @@
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 import type PostType from "@/interfaces/post"
-import { fetchPosts } from "@/lib/api"
+import type { PendingPost as PendingPostType } from "@/interfaces/post"
+import { fetchPending, fetchPosts } from "@/lib/api"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
+import { PendingPost } from "@/components/pending-post"
 import Post, { type StoryLink } from "@/components/Post"
 
 function isWritten(story: PostType) {
@@ -27,14 +29,9 @@ type StaticParams = Array<{
 
 async function getPostFromParams(params: PostProps["params"]) {
   const { slug } = await params
-  const posts = await fetchPosts()
-  const post = posts.find((post) => post.slug === slug)
+  const posts = [...(await fetchPosts()), ...(await fetchPending())]
 
-  if (!post) {
-    return null
-  }
-
-  return post
+  return posts.find((post) => post.slug === slug) ?? null
 }
 
 export async function generateMetadata({ params }: PostProps): Promise<Metadata> {
@@ -54,7 +51,7 @@ export async function generateMetadata({ params }: PostProps): Promise<Metadata>
 }
 
 export async function generateStaticParams(): Promise<StaticParams> {
-  const posts = await fetchPosts()
+  const posts = [...(await fetchPosts()), ...(await fetchPending())]
   return posts.map((post) => ({
     slug: post.slug,
   }))
@@ -72,7 +69,7 @@ function storyLoop(originals: PostType[]) {
   )
 }
 
-function kilometres(a: PostType, b: PostType) {
+function kilometres(a: PostType | PendingPostType, b: PostType | PendingPostType) {
   const radians = Math.PI / 180
   const midLat = ((a.location.lat + b.location.lat) / 2) * radians
   const x = (b.location.lng - a.location.lng) * radians * Math.cos(midLat)
@@ -89,6 +86,23 @@ export default async function PostPage({ params }: PostProps) {
   }
 
   const posts = await fetchPosts()
+
+  if (post.status === "pending") {
+    const near = <T extends PostType | PendingPostType>(list: T[]) =>
+      list
+        .filter((other) => other.slug !== post.slug)
+        .map(({ name, slug, ...place }) => ({ name, slug, km: kilometres(post, { name, slug, ...place } as T) }))
+        .sort((a, b) => a.km - b.km)
+
+    return (
+      <PendingPost
+        post={post}
+        stories={near(posts.filter((other) => !other.sample)).slice(0, 4)}
+        pending={near(await fetchPending())}
+      />
+    )
+  }
+
   const originals = posts.filter((other) => !other.sample)
   const byDistance = (candidates: PostType[]) =>
     candidates

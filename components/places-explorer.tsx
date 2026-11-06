@@ -14,7 +14,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { ArrowRight, ChevronDown, Grid2x2, Map as MapIcon, Search } from "lucide-react"
-import type { StorySummary } from "@/interfaces/post"
+import type { Place } from "@/interfaces/post"
 
 import { cn } from "@/lib/utils"
 import { groupByArea, storyArea } from "@/lib/places"
@@ -23,10 +23,11 @@ import {
   type MapHighlight,
   type MapViewport,
 } from "@/components/places-map"
+import { PendingTile } from "@/components/pending-tile"
 import { StoryTile } from "@/components/story-tile"
 
 type Props = {
-  stories: StorySummary[]
+  stories: Place[]
 }
 
 const VIEWPORT_LIMITS = {
@@ -48,7 +49,7 @@ function normalize(text: string) {
     .toLowerCase()
 }
 
-function matches(story: StorySummary, tokens: string[]) {
+function matches(story: Place, tokens: string[]) {
   const haystack = ` ${normalize(
     `${story.name} ${story.area ?? ""} ${story.description}`
   )}`
@@ -57,29 +58,50 @@ function matches(story: StorySummary, tokens: string[]) {
   return tokens.every((token) => haystack.includes(` ${token}`))
 }
 
+const GRID_CLASS = "grid grid-cols-1 gap-x-3 gap-y-6 px-4 sm:grid-cols-2 md:gap-x-6 md:gap-y-10 lg:grid-cols-3"
+
 const PhotoGrid = memo(function PhotoGrid({
   stories,
   onPrefetch,
 }: {
-  stories: StorySummary[]
+  stories: Place[]
   onPrefetch?: (slug: string) => void
 }) {
+  const finished = stories.filter((story) => story.status === "complete")
+  const pending = stories.filter((story) => story.status === "pending")
+
   return (
-    <ul
-      data-testid="story-list"
-      className="grid grid-cols-1 gap-x-3 gap-y-6 px-4 pb-16 pt-3 sm:grid-cols-2 md:gap-x-6 md:gap-y-10 md:pb-24 lg:grid-cols-3"
-    >
-      {stories.map((story, index) => (
-        <li key={story.slug}>
-          <StoryTile
-            story={story}
-            sizes={TILE_SIZES}
-            priority={index < 4}
-            onPointerEnter={() => onPrefetch?.(story.slug)}
-          />
-        </li>
-      ))}
-    </ul>
+    <div className="pb-16 pt-3 md:pb-24">
+      {finished.length > 0 ? (
+        <ul data-testid="story-list" className={GRID_CLASS}>
+          {finished.map((story, index) => (
+            <li key={story.slug}>
+              <StoryTile
+                story={story}
+                sizes={TILE_SIZES}
+                priority={index < 4}
+                onPointerEnter={() => onPrefetch?.(story.slug)}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {pending.length > 0 ? (
+        <section data-testid="places-pending" className={finished.length > 0 ? "mt-12 md:mt-16" : undefined}>
+          <div className="mx-4 mb-5 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1 border-t pt-4">
+            <h2 className="font-serif text-3xl leading-none md:text-4xl">Photographed once, so far.</h2>
+            <p className="text-muted-foreground">Archive photographs whose modern photographs are pending.</p>
+          </div>
+          <ul className={`${GRID_CLASS} lg:grid-cols-4`}>
+            {pending.map((place) => (
+              <li key={place.slug}>
+                <PendingTile place={place} sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
   )
 })
 
@@ -92,14 +114,14 @@ function StoryRow({
   onChoose,
   onHighlight,
 }: {
-  story: StorySummary
+  story: Place
   chosen?: boolean
-  onChoose: (story: StorySummary) => void
+  onChoose: (story: Place) => void
   onHighlight?: (slug: string | null) => void
 }) {
   const picture = (
     <Image
-      src={story.ba_imageUrl}
+      src={story.status === "pending" ? story.b_imageUrl : story.ba_imageUrl}
       alt=""
       width={story.w}
       height={story.h}
@@ -126,7 +148,7 @@ function StoryRow({
               {story.name}
             </span>
             <span className="mt-0.5 inline-flex items-center gap-1 text-[15px] text-muted-foreground underline-offset-4 group-hover:underline">
-              Open story
+              {story.status === "pending" ? "Modern photograph pending" : "Open story"}
               <ArrowRight aria-hidden className="size-4" />
             </span>
           </span>
@@ -140,7 +162,10 @@ function StoryRow({
           onBlur={() => onHighlight?.(null)}
         >
           {picture}
-          <span className="line-clamp-2 text-[15px] font-medium leading-snug">{story.name}</span>
+          <span className="min-w-0">
+            <span className="line-clamp-2 text-[15px] font-medium leading-snug">{story.name}</span>
+            {story.status === "pending" ? <span className="block text-[15px] text-muted-foreground">Pending</span> : null}
+          </span>
         </button>
       )}
     </div>
@@ -188,13 +213,13 @@ export function PlacesExplorer({ stories }: Props) {
 
   const deferredQuery = useDeferredValue(query)
   // An address can name a chosen place, so coming back from its story finds it still chosen.
-  const [selected, setSelected] = useState<StorySummary[] | null>(() => {
+  const [selected, setSelected] = useState<Place[] | null>(() => {
     const arrived = stories.find((story) => story.slug === searchParams.get("story"))
     return arrived ? [arrived] : null
   })
   const [mapFailed, setMapFailed] = useState(false)
   const highlightRef = useRef<MapHighlight | null>(null)
-  const focusRef = useRef<((story: StorySummary) => void) | null>(null)
+  const focusRef = useRef<((story: Place) => void) | null>(null)
   const fitAllRef = useRef<(() => void) | null>(null)
   const [visibleCount, setVisibleCount] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -302,7 +327,7 @@ export function PlacesExplorer({ stories }: Props) {
   }, [])
 
   // A row chooses its place on the map; the card that opens is the way into the story.
-  const handleChoose = useCallback((story: StorySummary) => {
+  const handleChoose = useCallback((story: Place) => {
     setSelected([story])
     focusRef.current?.(story)
 
@@ -385,7 +410,9 @@ export function PlacesExplorer({ stories }: Props) {
 
   const hasFilter = Boolean(deferredQuery.trim() || area)
   const isEmpty = filtered.length === 0
-  const resultLabel = `${filtered.length} ${filtered.length === 1 ? "place" : "places"}`
+  const finishedCount = filtered.filter((story) => story.status === "complete").length
+  const pendingCount = filtered.length - finishedCount
+  const resultLabel = `${finishedCount} ${finishedCount === 1 ? "story" : "stories"}${pendingCount ? `, ${pendingCount} pending` : ""}`
 
   return (
     <main className="flex-1">
@@ -505,6 +532,22 @@ export function PlacesExplorer({ stories }: Props) {
               onSelect={setSelected}
               onFail={setMapFailed}
             />
+
+            {pendingCount > 0 && finishedCount > 0 ? (
+              <p
+                data-testid="map-key"
+                className="pointer-events-none absolute bottom-2 left-2 z-[2] flex gap-3 rounded-full bg-black/75 px-3 py-1.5 text-[13px] text-white"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className="size-2.5 rounded-full bg-white" />
+                  Then and now
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className="size-2.5 rounded-full border-2 border-white" />
+                  Pending
+                </span>
+              </p>
+            ) : null}
 
             {!isEmpty && visibleCount !== null && visibleCount < filtered.length ? (
               <button

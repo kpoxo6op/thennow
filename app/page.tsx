@@ -3,11 +3,12 @@ import type PostType from "@/interfaces/post"
 
 import { ArrowRight } from "lucide-react"
 
-import { fetchPosts } from "@/lib/api"
+import { fetchPending, fetchPosts, toPendingSummary } from "@/lib/api"
 import { placesHref } from "@/lib/places"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
 import { CtaLink } from "@/components/cta-link"
 import { HomeHero } from "@/components/home-hero"
+import { PendingTile } from "@/components/pending-tile"
 import { StoryTile } from "@/components/story-tile"
 import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
@@ -26,6 +27,7 @@ function datedSections(story: PostType) {
 
 export default async function IndexPage() {
   const posts = await fetchPosts()
+  const pending = await fetchPending()
   const hero = posts.find((post) => post.slug === HERO_SLUG) ?? posts[0]
   const originals = posts.filter((post) => !post.sample)
   const rest = originals.filter((post) => post !== hero)
@@ -90,6 +92,22 @@ export default async function IndexPage() {
               </li>
             ))}
           </ul>
+
+          {pending.length > 0 ? (
+            <div data-testid="home-pending" className="mt-14 border-t pt-4 md:mt-20 md:pt-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
+                <h2 className="font-serif text-3xl leading-none md:text-4xl">Photographed once, so far.</h2>
+                <p className="text-muted-foreground">Archive photographs whose modern photographs are pending.</p>
+              </div>
+              <ul className="mt-5 grid grid-cols-2 gap-x-3 gap-y-6 md:mt-6 md:gap-x-6 lg:grid-cols-4">
+                {pending.map((place) => (
+                  <li key={place.slug}>
+                    <PendingTile place={toPendingSummary(place)} sizes="(min-width: 1024px) 25vw, 50vw" />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       </main>
       <SiteFooter />

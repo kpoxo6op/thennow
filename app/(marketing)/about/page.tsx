@@ -1,7 +1,7 @@
 import { Metadata } from "next"
 import Link from "next/link"
 
-import { fetchPosts } from "@/lib/api"
+import { fetchPending, fetchPosts } from "@/lib/api"
 import { CtaLink } from "@/components/cta-link"
 import { InlineCompare } from "@/components/inline-compare"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
@@ -23,6 +23,15 @@ export default async function AboutPage() {
       .map((line) => line.trim())
       .filter((line) => SOURCE_LINE.test(line))
       .map((source) => ({ source, slug: post.slug, name: post.name }))
+  )
+  const pending = await fetchPending()
+  // Their records are addressed in full, and each photograph's source is listed the same way.
+  sources.push(
+    ...pending.map((post) => ({
+      source: post.archive.sourceUrl.replace(/^https:\/\//, ""),
+      slug: post.slug,
+      name: post.name,
+    }))
   )
 
   return (

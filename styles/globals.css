@@ -238,6 +238,11 @@
   font-family: var(--font-reading), Georgia, serif;
 }
 
+/* Nothing to drag, so a pending photograph needs no room for controls beyond its status line. */
+.tn-story--pending .tn-compare-image {
+  background: hsl(var(--muted));
+}
+
 .tn-story-stage {
   container-type: size;
   height: var(--stage-h);
@@ -379,6 +384,13 @@
 .tn-map-marker--cluster > span {
   width: 2rem;
   height: 2rem;
+}
+
+/* Pending: an open ring, where a finished story is a solid dot. */
+.tn-map-marker--pending > span {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border: 2px solid hsl(var(--foreground));
 }
 
 .tn-map-marker:hover > span,

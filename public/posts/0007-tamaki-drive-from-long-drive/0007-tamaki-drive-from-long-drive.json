@@ -1,0 +1,21 @@
+{
+  "status": "pending",
+  "name": "Tāmaki Drive from Long Drive, St Heliers",
+  "slug": "tamaki-drive-from-long-drive",
+  "description": "Looking east along Tāmaki Drive from Long Drive, showing the junction with Auckland Road, the Strand Service Station and Vellenoweth Green.",
+  "b_imageUrl": "/posts/0007-tamaki-drive-from-long-drive/then-tamaki-drive-from-long-drive.jpg",
+  "w": 2000,
+  "h": 1502,
+  "location": {
+    "lat": -36.85052,
+    "lng": 174.85222
+  },
+  "archive": {
+    "date": "1930s",
+    "photographer": "R. S. Lediard",
+    "credit": "Auckland Libraries Heritage Collections 589-0260",
+    "rights": "No known copyright restrictions",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/320025",
+    "sourceId": "589-0260"
+  }
+}

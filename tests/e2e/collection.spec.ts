@@ -4,10 +4,12 @@ import path from "path"
 import { expect, test, type CDPSession, type Page } from "@playwright/test"
 
 const postsDir = path.join(process.cwd(), "public", "posts")
-const posts = readdirSync(postsDir).map((folder) => ({
+const entries = readdirSync(postsDir).map((folder) => ({
   folder,
   ...JSON.parse(readFileSync(path.join(postsDir, folder, `${folder}.json`), "utf8")),
 }))
+const posts = entries.filter((entry) => entry.a_imageUrl)
+const pendingEntries = entries.filter((entry) => !entry.a_imageUrl)
 
 const cards = (page: Page) => page.getByTestId("story-card")
 const markers = (page: Page) => page.getByTestId("home-map-marker")
@@ -327,7 +329,8 @@ test("About lists the story sources that exist in the content", async ({ page })
     "href",
     "https://helensvillemuseum.org.nz"
   )
-  await expect(sources.getByRole("link", { name: /kura\.aucklandlibraries/ })).toBeVisible()
+  // Pending photographs' records are listed here too, so there is more than one Kura link now.
+  await expect(sources.getByRole("link", { name: /kura\.aucklandlibraries/ }).first()).toBeVisible()
   await sources.getByRole("link", { name: "Mill House, Auckland" }).click()
   await expect(page.getByRole("heading", { level: 1, name: "Mill House, Auckland" })).toBeVisible()
 })
@@ -376,7 +379,7 @@ test("an address naming a place arrives with it chosen, once, and every story st
   const selection = page.getByTestId("map-selection")
   await expect(selection).toContainText("Mill House")
   await expect(page.locator(".tn-map-marker.is-active")).toHaveCount(1)
-  await expect(page.getByTestId("map-list-item")).toHaveCount(posts.length)
+  await expect(page.getByTestId("map-list-item")).toHaveCount(entries.length)
   await expect(page.getByText("Mill House, Auckland")).toHaveCount(1)
 
   await page.keyboard.press("Escape")
@@ -554,4 +557,82 @@ test("a story's onward links reach the wider map with that story chosen", async 
   await page.getByRole("link", { name: "Map", exact: true }).click()
   await expect(page).toHaveURL(/view=map/)
   await expect(page.getByTestId("map-selection")).toContainText("Mill House")
+})
+
+test.describe("a place whose modern photograph is pending", () => {
+  test.use({ contextOptions: { reducedMotion: "reduce" } })
+
+  test("there are between three and five, and each is backed by an archive record", () => {
+    expect(pendingEntries.length).toBeGreaterThanOrEqual(3)
+    expect(pendingEntries.length).toBeLessThanOrEqual(5)
+    for (const entry of pendingEntries) {
+      expect(entry.status, entry.slug).toBe("pending")
+      expect(entry.ba_imageUrl, entry.slug).toBeUndefined()
+      expect(entry.archive.sourceUrl, entry.slug).toMatch(/^https:\/\/kura\.aucklandlibraries\.govt\.nz\//)
+      expect(entry.archive.credit, entry.slug).toContain(entry.archive.sourceId)
+    }
+  })
+
+  for (const entry of pendingEntries) {
+    test(`${entry.slug} offers no comparison and says what it is`, async ({ page }) => {
+      const response = await page.goto(`/${entry.slug}`)
+      expect(response?.status()).toBe(200)
+      await expect(page.getByRole("heading", { level: 1, name: entry.name })).toBeVisible()
+      await expect(page.getByTestId("pending-status")).toHaveText("Modern photograph pending")
+      await expect(page.getByTestId("pending-photograph")).toHaveAttribute("src", new RegExp(encodeURIComponent(entry.b_imageUrl)))
+
+      await expect(page.getByTestId("compare-stage")).toHaveCount(0)
+      await expect(page.getByTestId("compare-slider-input")).toHaveCount(0)
+      await expect(page.getByRole("slider")).toHaveCount(0)
+      await expect(page.locator('img[alt$=", now"]')).toHaveCount(0)
+
+      await expect(page.getByRole("link", { name: "View the record" })).toHaveAttribute("href", entry.archive.sourceUrl)
+      await expect(page.getByText(entry.archive.credit, { exact: false })).toBeVisible()
+    })
+  }
+
+  test("is counted apart, listed apart, and never served as a finished story", async ({ page, request }) => {
+    await page.goto("/places")
+    await expect(cards(page)).toHaveCount(posts.length)
+    await expect(page.getByTestId("places-count")).toHaveText(`${posts.length} stories, ${pendingEntries.length} pending`)
+    const pendingCards = page.getByTestId("places-pending").getByTestId("pending-card")
+    await expect(pendingCards).toHaveCount(pendingEntries.length)
+    await pendingCards.first().click()
+    await expect(page.getByTestId("pending-status")).toBeVisible()
+
+    const feed = await (await request.get("/feed.xml")).text()
+    for (const entry of pendingEntries) {
+      expect(feed, entry.slug).not.toContain(entry.slug)
+    }
+  })
+
+  test("search finds it, and an area of only pending places says so plainly", async ({ page }) => {
+    await page.goto("/places?area=St%20Heliers")
+    await expect(cards(page)).toHaveCount(0)
+    await expect(page.getByTestId("pending-card")).toHaveCount(pendingEntries.length)
+    await expect(page.getByTestId("places-count")).toHaveText(`0 stories, ${pendingEntries.length} pending`)
+  })
+
+  test("a finished story never leads to one as its next story", async ({ page }) => {
+    for (const post of posts) {
+      await page.goto(`/${post.slug}`)
+      for (const entry of pendingEntries) {
+        await expect(page.locator(`a[href="/${entry.slug}"]`), `${post.slug} to ${entry.slug}`).toHaveCount(0)
+      }
+    }
+  })
+
+  test("on the map it is its own kind of pin, chosen once, leading to its page", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/places?view=map")
+    await expect(markers(page).first()).toBeVisible()
+    const entry = pendingEntries[0]
+    await page.getByTestId("map-list-item").filter({ hasText: entry.name }).click()
+    const active = page.locator(".tn-map-marker.is-active")
+    await expect(active).toHaveAttribute("aria-label", `${entry.name}, modern photograph pending`)
+    await expect(page.getByTestId("map-selection")).toContainText("Modern photograph pending")
+    await expect(page.getByText(entry.name)).toHaveCount(1)
+    await page.getByTestId("map-selection").click()
+    await expect(page.getByTestId("pending-status")).toBeVisible()
+  })
 })
