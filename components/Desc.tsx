@@ -14,7 +14,7 @@ type Section = {
 }
 
 const YEAR_LINE = /^\d{4}$/
-const SOURCE_LINE = /^[\w-]+(\.[\w-]+)+(\/\S*)?$/
+export const SOURCE_LINE = /^[\w-]+(\.[\w-]+)+(\/\S*)?$/
 
 export function toSections(description: string) {
   const sections: Section[] = []

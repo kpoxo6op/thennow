@@ -1,9 +1,20 @@
 import Image from "next/image"
 import Link from "next/link"
 
+import { fetchPosts } from "@/lib/api"
+import { SOURCE_LINE } from "@/components/Desc"
 import { ResetScroll } from "@/components/reset-scroll"
 
 export default async function AboutPage() {
+  const posts = await fetchPosts()
+  const sources = posts.flatMap((post) =>
+    post.description
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => SOURCE_LINE.test(line))
+      .map((source) => ({ source, slug: post.slug, name: post.name }))
+  )
+
   return (
     <article className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 sm:py-14">
       <ResetScroll />
@@ -28,6 +39,26 @@ export default async function AboutPage() {
         project&apos;s photographs as placeholders; those photographs do not
         show them.
       </p>
+      <section id="sources" className="scroll-mt-20 space-y-3 border-t pt-4">
+        <h2 className="font-serif text-3xl tracking-tight">Sources</h2>
+        <ul className="space-y-4">
+          {sources.map(({ source, slug, name }) => (
+            <li key={source}>
+              <Link href={`/${slug}`} className="font-serif text-xl underline-offset-4 hover:underline">
+                {name}
+              </Link>
+              <a
+                href={`https://${source}`}
+                target="_blank"
+                rel="noreferrer"
+                className="block break-words py-1 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              >
+                {source}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
       <Link href="/places" className="inline-block py-2 font-serif text-xl underline underline-offset-4">
         See the places
       </Link>

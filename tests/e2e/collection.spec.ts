@@ -284,14 +284,42 @@ test.describe("the homepage comparison", () => {
   })
 })
 
-test("every navigation link leads to a real page", async ({ page }) => {
-  for (const [title, heading] of [["Places", "Places"], ["About", "About"], ["Contact", "Contact"], ["Links", "Links"]]) {
-    await page.goto("/")
-    await page.getByTestId("site-header").getByRole("link", { name: title, exact: true }).click()
-    await expect(page.getByRole("heading", { level: 1, name: heading })).toBeAttached()
-  }
+test("the navigation only offers pages with something on them", async ({ page }) => {
+  const header = page.getByTestId("site-header")
+  await page.goto("/")
+  await expect(header.locator("nav a")).toHaveText(["Places", "About"])
+
+  await header.getByRole("link", { name: "About", exact: true }).click()
+  await expect(page.getByRole("heading", { level: 1, name: "About" })).toBeVisible()
+  await expect(page.getByText("Coming soon...")).toHaveCount(0)
+
+  await header.getByRole("link", { name: "Places", exact: true }).click()
+  await expect(cards(page)).toHaveCount(306)
+
   await page.goto("/no-such-story")
   await expect(page.getByRole("heading", { level: 1, name: "Not found" })).toBeVisible()
   await page.getByRole("link", { name: "See the places" }).click()
   await expect(cards(page)).toHaveCount(306)
+})
+
+test("the old Contact and Links addresses still lead somewhere useful", async ({ page }) => {
+  await page.goto("/contact")
+  await expect(page).toHaveURL(/\/about$/)
+  await expect(page.getByRole("heading", { level: 1, name: "About" })).toBeVisible()
+
+  await page.goto("/links")
+  await expect(page).toHaveURL(/\/about#sources$/)
+  await expect(page.getByRole("heading", { level: 2, name: "Sources" })).toBeInViewport()
+})
+
+test("About lists the story sources that exist in the content", async ({ page }) => {
+  await page.goto("/about")
+  const sources = page.locator("#sources")
+  await expect(sources.getByRole("link", { name: "helensvillemuseum.org.nz" })).toHaveAttribute(
+    "href",
+    "https://helensvillemuseum.org.nz"
+  )
+  await expect(sources.getByRole("link", { name: /kura\.aucklandlibraries/ })).toBeVisible()
+  await sources.getByRole("link", { name: "Mill House, Auckland" }).click()
+  await expect(page.getByRole("heading", { level: 1, name: "Mill House, Auckland" })).toBeVisible()
 })
