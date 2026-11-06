@@ -24,6 +24,30 @@ test.describe("a story page", () => {
     await expect(page).toHaveURL(/\/sheep$/)
   })
 
+  test("asking for a whole photograph again returns the line to where it was", async ({ page }) => {
+    await page.goto("/sheep?p=30")
+    const input = page.getByTestId("compare-slider-input")
+    await expect(input).toHaveValue("30")
+
+    await page.getByTestId("story-show-now").click()
+    await expect(input).toHaveValue("0")
+    await page.getByTestId("story-show-then").click()
+    await expect(input).toHaveValue("100")
+    await page.getByTestId("story-show-then").click()
+    await expect(input).toHaveValue("30")
+  })
+
+  test("the whole knob stays on a phone screen at both ends of the line", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    for (const end of [0, 100]) {
+      await page.goto(`/mill-house?p=${end}`)
+      await expect(page.getByTestId("compare-slider-input")).toHaveValue(String(end))
+      const knob = (await page.getByTestId("compare-slider-knob").boundingBox())!
+      expect(knob.x).toBeGreaterThanOrEqual(0)
+      expect(knob.x + knob.width).toBeLessThanOrEqual(390)
+    }
+  })
+
   test("a real story moves on to the next real story, never a sample", async ({ page }) => {
     await page.goto("/mill-house")
     await expect(page.getByText("Sample", { exact: true })).toHaveCount(0)
@@ -34,7 +58,8 @@ test.describe("a story page", () => {
 
   test("a sample says so on the photograph and leads to the real story behind it", async ({ page }) => {
     await page.goto("/demo-017")
-    await expect(page.getByText("Sample place, placeholder photographs")).toBeVisible()
+    await expect(page.getByText("Placeholder photographs")).toBeVisible()
+    await expect(page.getByText("Sample place.")).toBeInViewport()
     await page.getByRole("link", { name: "Mission Bay Yacht Club, Auckland" }).last().click()
     await expect(page).toHaveURL(/\/mission-bay-yacht-club$/)
     await expect(page.getByText("Sample place.")).toHaveCount(0)

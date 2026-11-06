@@ -226,28 +226,53 @@ body:has(.tn-home) {
 .tn-story {
   --legend-h: 2.75rem;
   --peek: 5rem;
+  /* The photograph stays inside the stage by half the knob, so at either end the whole knob is on screen. */
+  --stage-inset: 1.5rem;
   --stage-h: min(
-    calc(100cqw / var(--ratio)),
+    calc((100cqw - var(--stage-inset) * 2) / var(--ratio)),
     calc(100svh - var(--header-h) - var(--legend-h) - var(--peek))
   );
   --image-w: min(100cqw, calc(var(--stage-h) * var(--ratio)));
-  --edge: max(1.25rem, calc((100cqw - var(--image-w)) / 2));
+  --edge: calc((100cqw - var(--image-w)) / 2);
   container-type: inline-size;
 }
 
 @media (min-width: 768px) {
   .tn-story {
-    --peek: 7rem;
+    --peek: 7.75rem;
   }
 
   .tn-story--long-title {
-    --peek: 10.5rem;
+    --peek: 10.75rem;
+  }
+
+  .tn-story--sample {
+    --peek: 10rem;
+  }
+
+  .tn-story--sample.tn-story--long-title {
+    --peek: 12.5rem;
   }
 }
 
 @media (max-height: 520px) {
-  .tn-story {
+  .tn-story,
+  .tn-story--long-title,
+  .tn-story--sample {
     --peek: 0rem;
+  }
+}
+
+/* On a phone a chapter's photograph runs edge to edge. */
+.tn-chapter-photo {
+  width: 100cqw;
+  margin-inline-start: calc(var(--edge) * -1);
+}
+
+@media (min-width: 768px) {
+  .tn-chapter-photo {
+    width: 100%;
+    margin-inline-start: 0;
   }
 }
 

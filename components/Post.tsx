@@ -59,7 +59,8 @@ function coordinates({ lat, lng }: PostType["location"]) {
   return `${Math.abs(lat).toFixed(4)}° ${ns}, ${Math.abs(lng).toFixed(4)}° ${ew}`
 }
 
-// A source reads by its host; the rest of the address stays visible, and quieter.
+// A source reads by its host. The full address is the link, and stays in the text for
+// screen readers and copying.
 function SourceLink({ source }: { source: string }) {
   const slash = source.indexOf("/")
   const host = slash === -1 ? source : source.slice(0, slash)
@@ -68,39 +69,55 @@ function SourceLink({ source }: { source: string }) {
   return (
     <p className="text-[15px] leading-snug text-muted-foreground">
       Source:{" "}
-      <a href={`https://${source}`} target="_blank" rel="noreferrer" className="underline underline-offset-4">
-        <span className="text-foreground">{host}</span>
-        <wbr />
-        <span className="[overflow-wrap:anywhere]">{path}</span>
+      <a href={`https://${source}`} target="_blank" rel="noreferrer" className="text-foreground underline underline-offset-4">
+        {host}
+        <span className="text-[0px]">{path}</span>
       </a>
     </p>
   )
 }
 
-// The first sentence of a passage is its caption; the rest is reading.
-function ChapterWords({ lines }: { lines: string[] }) {
+// The first sentence of a passage is its caption, and on a phone comes before its photograph.
+function Chapter({ alt, src, w, h, year, lines }: { alt: string; src: string; w: number; h: number; year?: string; lines: string[] }) {
   const words = lines.filter((line) => !SOURCE_LINE.test(line))
   const sources = lines.filter((line) => SOURCE_LINE.test(line))
   const [lead, ...rest] = words
 
   return (
-    <div className="space-y-3">
-      {lead ? <p className="tn-reading text-[1.375rem] leading-snug md:text-2xl">{lead}</p> : null}
-      {rest.map((line) => (
-        <p key={line} className="tn-reading text-lg leading-relaxed md:text-xl md:leading-relaxed">
-          {line}
-        </p>
-      ))}
-      {sources.map((source) => (
-        <SourceLink key={source} source={source} />
-      ))}
-    </div>
+    <section className="flex min-w-0 flex-col gap-4">
+      <div className="space-y-2 md:order-2">
+        {year ? <h2 className="tn-reading text-[1.75rem] leading-none tabular-nums text-muted-foreground">{year}</h2> : null}
+        {lead ? <p className="tn-reading text-[1.375rem] leading-snug md:text-2xl">{lead}</p> : null}
+      </div>
+      <Image
+        src={src}
+        alt={alt}
+        width={w}
+        height={h}
+        sizes="(min-width: 768px) 50vw, 100vw"
+        className="tn-chapter-photo aspect-[var(--ratio)] max-w-none bg-muted object-cover md:order-1"
+      />
+      {rest.length || sources.length ? (
+        <div className="space-y-3 md:order-3 md:-mt-1">
+          {rest.map((line) => (
+            <p key={line} className="tn-reading text-lg leading-relaxed md:text-xl md:leading-relaxed">
+              {line}
+            </p>
+          ))}
+          {sources.map((source) => (
+            <SourceLink key={source} source={source} />
+          ))}
+        </div>
+      ) : null}
+    </section>
   )
 }
 
 export default function Post({ post, next, nearby }: PostProps) {
   const [position, setPosition] = useState(DEFAULT_POSITION)
   const glideRef = useRef<number | null>(null)
+  // Where the line was before a whole photograph was asked for; asking again returns there.
+  const returnRef = useRef(DEFAULT_POSITION)
 
   const stopGlide = useCallback(() => {
     if (glideRef.current !== null) {
@@ -196,7 +213,16 @@ export default function Post({ post, next, nearby }: PostProps) {
   const rounded = Math.round(position)
 
   const showWhole = (target: number) => {
-    glideTo(rounded === target ? DEFAULT_POSITION : target, position)
+    if (rounded === target) {
+      glideTo(returnRef.current, position)
+      return
+    }
+
+    if (rounded !== ALL_THEN && rounded !== ALL_NOW) {
+      returnRef.current = position
+    }
+
+    glideTo(target, position)
   }
 
   const legendClass =
@@ -211,7 +237,7 @@ export default function Post({ post, next, nearby }: PostProps) {
 
   return (
     <main
-      className={`tn-story tn-enter flex-1${post.name.length > LONG_TITLE ? " tn-story--long-title" : ""}`}
+      className={`tn-story tn-enter flex-1${post.sample ? " tn-story--sample" : ""}${post.name.length > LONG_TITLE ? " tn-story--long-title" : ""}`}
       style={{ "--ratio": post.w / post.h } as React.CSSProperties}
     >
       <ResetScroll />
@@ -231,8 +257,8 @@ export default function Post({ post, next, nearby }: PostProps) {
             />
             {post.sample ? (
               <span className="tn-story-edge pointer-events-none absolute inset-x-0 top-3 flex">
-                <span className="ml-2 whitespace-nowrap rounded-full bg-black/75 px-3 py-1 text-[13px] text-white sm:text-sm">
-                  Sample place, placeholder photographs
+                <span className="ml-1.5 whitespace-nowrap rounded-full bg-black/75 px-2.5 py-1 text-xs text-white sm:ml-2 sm:px-3 sm:text-sm">
+                  Placeholder photographs
                 </span>
               </span>
             ) : null}
@@ -248,7 +274,7 @@ export default function Post({ post, next, nearby }: PostProps) {
             >
               <span className={legendPill}>
                 then
-                {thenYear ? <span className="font-serif text-xl leading-none">{thenYear}</span> : null}
+                {thenYear ? <span className="tn-reading text-base leading-none tabular-nums">{thenYear}</span> : null}
               </span>
             </button>
             <button
@@ -261,64 +287,60 @@ export default function Post({ post, next, nearby }: PostProps) {
             >
               <span className={legendPill}>
                 now
-                {nowYear ? <span className="font-serif text-xl leading-none">{nowYear}</span> : null}
+                {nowYear ? <span className="tn-reading text-base leading-none tabular-nums">{nowYear}</span> : null}
               </span>
             </button>
           </div>
         </div>
 
-        <article className="tn-story-edge pb-14 pt-3 md:pt-1">
+        <article className="tn-story-edge pb-14 pt-3">
           <header className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-            <h1 className="text-pretty font-serif text-[2.5rem] leading-[1.05] md:text-[3.25rem]">{post.name}</h1>
+            <h1
+              className={
+                post.sample
+                  ? "text-pretty font-serif text-[2rem] leading-[1.08] md:text-[2.5rem]"
+                  : "text-pretty font-serif text-[2.5rem] leading-[1.05] md:text-[3.25rem]"
+              }
+            >
+              {post.name}
+            </h1>
             {yearsApart ? (
               <p className="tabular-nums text-muted-foreground">{yearsApart} years apart</p>
             ) : null}
           </header>
 
           {post.sample ? (
-            <div className="mt-6 max-w-2xl space-y-3 border-l-2 border-accent pl-4">
-              <p className="text-lg leading-snug">
+            <div className="mt-2 max-w-2xl space-y-1">
+              <p className="text-[17px] leading-snug">
                 Sample place. The photographs are repeated placeholders and do not show this location.
               </p>
-              {undated.flatMap((section) => section.lines).map((line) => (
-                <p key={line} className="text-muted-foreground">
-                  {line}
-                </p>
-              ))}
-              {post.area ? <p className="text-muted-foreground">Sample area: {post.area}</p> : null}
+              <p className="leading-snug text-muted-foreground">
+                {undated.flatMap((section) => section.lines).join(" ")}
+                {post.area ? ` Sample area: ${post.area}.` : ""}
+              </p>
             </div>
           ) : (
             <>
-              {undated.length && !dated.length ? (
-                <div className="mt-5 space-y-1 md:mt-3">
-                  {undated.flatMap((section) => section.lines).map((line) => (
-                    <p key={line} className="text-muted-foreground">
-                      {line}
-                    </p>
+              {dated.length ? (
+                <div className="mt-8 grid gap-10 md:mt-14 md:grid-cols-2 md:gap-8">
+                  {photos.map((photo) => (
+                    <Chapter
+                      key={photo.label}
+                      alt={`${post.name}, ${photo.year ?? photo.label}`}
+                      src={photo.src}
+                      w={post.w}
+                      h={post.h}
+                      year={photo.year}
+                      lines={photo.section?.lines ?? []}
+                    />
                   ))}
                 </div>
-              ) : null}
-              <div className={dated.length ? "mt-10 grid gap-12 md:mt-16 md:grid-cols-2 md:gap-8" : "mt-16 hidden gap-8 md:grid md:grid-cols-2"}>
-                {photos.map((photo) => (
-                  <section key={photo.label} className="min-w-0">
-                    <Image
-                      src={photo.src}
-                      alt={`${post.name}, ${photo.year ?? photo.label}`}
-                      width={post.w}
-                      height={post.h}
-                      sizes="(min-width: 768px) 50vw, 100vw"
-                      className="-ml-5 aspect-[var(--ratio)] w-[calc(100%+2.5rem)] max-w-none bg-muted object-cover md:ml-0 md:w-full"
-                    />
-                    {photo.section ? (
-                      <div className="mt-4 space-y-3">
-                        <h2 className="font-serif text-[2rem] leading-none text-muted-foreground">{photo.year}</h2>
-                        <ChapterWords lines={photo.section.lines} />
-                      </div>
-                    ) : null}
-                  </section>
-                ))}
-              </div>
-              <p className="mt-8 flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t pt-4 md:mt-10 text-[15px] text-muted-foreground">
+              ) : (
+                <p className="mt-2 text-muted-foreground">
+                  {undated.flatMap((section) => section.lines).join(" ")}
+                </p>
+              )}
+              <p className="mt-8 flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t pt-4 text-[15px] text-muted-foreground md:mt-10">
                 <span className="tabular-nums">{coordinates(post.location)}</span>
                 <Link href={mapHref} className="-my-2 py-2 text-foreground underline underline-offset-4">
                   See it on the map
@@ -331,8 +353,8 @@ export default function Post({ post, next, nearby }: PostProps) {
 
       <section className="tn-story-edge border-t pb-16 pt-8 md:pb-24">
         {next ? (
-          <h2 className="mb-5 font-serif text-4xl leading-none md:text-5xl">
-            {post.sample ? "The real story behind these photographs" : "Next story"}
+          <h2 className="mb-5 font-serif text-[2rem] leading-none md:text-[2.5rem]">
+            {post.sample ? "Where these photographs come from" : "Next story"}
           </h2>
         ) : null}
         <div className="grid gap-10 md:grid-cols-[3fr_2fr] md:gap-8">
@@ -378,9 +400,11 @@ export default function Post({ post, next, nearby }: PostProps) {
               <Link href="/places" className="inline-block py-2 underline underline-offset-4">
                 All places
               </Link>
-              <Link href={mapHref} className="inline-block py-2 underline underline-offset-4">
-                Map
-              </Link>
+              {post.sample ? (
+                <Link href={mapHref} className="inline-block py-2 underline underline-offset-4">
+                  Map
+                </Link>
+              ) : null}
             </div>
           </div>
         </div>

@@ -57,18 +57,21 @@ for (const width of [390, 320]) {
       })
     }
 
-    test("dragging the grip reaches each edge under the pointer", async ({ page }) => {
+    // The photograph now sits half a knob inside the screen, so the whole knob stays visible
+    // at either end; the line still has to land exactly on the photograph's own edges.
+    test("dragging the grip reaches each edge of the photograph", async ({ page }) => {
       const start = await open(page, 30)
+      const photo = (await page.getByTestId("compare-overlay-image").boundingBox())!
 
       await page.mouse.move(start.grip, start.gripY)
       await page.mouse.down()
       await page.mouse.move(0, start.gripY, { steps: 8 })
       await expect(page.getByTestId("compare-slider-input")).toHaveValue("0")
-      expect((await read(page)).divider).toBeLessThanOrEqual(1)
+      expect(Math.abs((await read(page)).divider - photo.x)).toBeLessThanOrEqual(1)
 
       await page.mouse.move(width, start.gripY, { steps: 12 })
       await expect(page.getByTestId("compare-slider-input")).toHaveValue("100")
-      expect((await read(page)).divider).toBeGreaterThanOrEqual(width - 1)
+      expect(Math.abs((await read(page)).divider - (photo.x + photo.width))).toBeLessThanOrEqual(1)
       await page.mouse.up()
       await expect(page).toHaveURL(/p=100$/)
     })
