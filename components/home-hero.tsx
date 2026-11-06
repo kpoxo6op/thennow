@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { CompareStage } from "@/components/compare-stage"
+import { CompareYears } from "@/components/compare-years"
 
 interface Props {
   name: string
@@ -21,6 +22,9 @@ const SWEEP = [
   { at: 2400, position: 50 },
 ]
 const SWEEP_DELAY_MS = 900
+// It teaches once a visit; coming back to the page shouldn't teach it again.
+let hasSwept = false
+
 function ease(t: number) {
   return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
 }
@@ -32,9 +36,11 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, capt
   const cancelRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (hasSwept || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return
     }
+
+    hasSwept = true
 
     let frame = 0
     let start: number | null = null
@@ -73,9 +79,6 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, capt
     setTouched(true)
   }, [])
 
-  const yearClass =
-    "tn-year absolute top-3 flex h-7 items-center justify-center rounded-full bg-black/70 font-serif text-[1.0625rem] leading-none text-white md:top-4 md:h-8 md:text-xl"
-
   return (
     <div className="tn-home-hero">
       <div className="relative">
@@ -89,22 +92,10 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, capt
           onInteract={handleInteract}
           fit="cover"
           priority
-          className="h-[46svh] min-h-56 md:h-[calc(100svh-var(--header-h)-var(--hero-caption-h)-var(--hero-band-h))] md:min-h-72"
+          className="h-[46svh] min-h-56 md:h-[min(calc(100svh-var(--header-h)-var(--hero-caption-h)-var(--hero-band-h)),66vw)] md:min-h-72"
         />
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          {/* Each year stays beside the line, and inside the frame when the line nears an edge. */}
-          <span
-            className={yearClass}
-            style={{ left: `max(0.5rem, calc(${position}% - 0.5rem - var(--pill)))` }}
-          >
-            {thenYear}
-          </span>
-          <span
-            className={yearClass}
-            style={{ left: `min(calc(100% - 0.5rem - var(--pill)), calc(${position}% + 0.5rem))` }}
-          >
-            {nowYear}
-          </span>
+          <CompareYears position={position} thenYear={thenYear} nowYear={nowYear} />
           {touched ? null : (
             <span
               data-testid="hero-drag-hint"

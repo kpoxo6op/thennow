@@ -84,9 +84,11 @@ const PhotoGrid = memo(function PhotoGrid({
 
 function StoryRow({
   story,
+  chosen,
   onHighlight,
 }: {
   story: StorySummary
+  chosen?: boolean
   onHighlight?: (slug: string | null) => void
 }) {
   return (
@@ -94,7 +96,8 @@ function StoryRow({
       href={`/${story.slug}`}
       prefetch={false}
       data-testid="map-list-item"
-      className="group flex items-center gap-3 p-2 transition-colors hover:bg-muted"
+      aria-current={chosen ? "true" : undefined}
+      className="group flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted aria-[current=true]:bg-muted aria-[current=true]:ring-1 aria-[current=true]:ring-accent"
       onPointerEnter={() => onHighlight?.(story.slug)}
       onPointerLeave={() => onHighlight?.(null)}
       onFocus={() => onHighlight?.(story.slug)}
@@ -289,9 +292,18 @@ export function PlacesExplorer({ stories }: Props) {
     }
   }, [selected])
 
+  // A single chosen place is part of the address, so coming back from its story finds it still chosen.
   useEffect(() => {
-    if (!selected && new URLSearchParams(window.location.search).has("story")) {
-      writeParams((params) => params.delete("story"), "replace")
+    const chosen = selected?.length === 1 ? selected[0].slug : null
+
+    if (new URLSearchParams(window.location.search).get("story") !== chosen) {
+      writeParams((params) => {
+        if (chosen) {
+          params.set("story", chosen)
+        } else {
+          params.delete("story")
+        }
+      }, "replace")
     }
   }, [selected, writeParams])
 
@@ -392,7 +404,7 @@ export function PlacesExplorer({ stories }: Props) {
 
       {view === "photos" ? (
         isEmpty ? (
-          <EmptyState query={deferredQuery} hasFilter={hasFilter} onClear={clearFilters} />
+          <EmptyState query={deferredQuery} area={area} hasFilter={hasFilter} onClear={clearFilters} />
         ) : (
           <PhotoGrid stories={filtered} onPrefetch={handlePrefetch} />
         )
@@ -403,7 +415,11 @@ export function PlacesExplorer({ stories }: Props) {
               <ul className="p-2">
                 {filtered.map((story) => (
                   <li key={story.slug}>
-                    <StoryRow story={story} onHighlight={handleHighlight} />
+                    <StoryRow
+                      story={story}
+                      chosen={Boolean(selected?.some((other) => other.slug === story.slug))}
+                      onHighlight={handleHighlight}
+                    />
                   </li>
                 ))}
               </ul>
@@ -443,7 +459,7 @@ export function PlacesExplorer({ stories }: Props) {
             {isEmpty ? (
               <div className="absolute inset-x-3 bottom-10 z-[2] mx-auto max-w-sm rounded-lg bg-popover px-4 py-3 text-center shadow-[0_6px_28px_rgb(0_0_0/0.5)]">
                 <p className="text-[17px]">
-                  {query.trim() ? `Nothing matches “${query.trim()}”.` : "Nothing here."}
+                  {noMatchText(query, area)}
                 </p>
                 <button
                   type="button"
@@ -459,7 +475,7 @@ export function PlacesExplorer({ stories }: Props) {
               <div
                 ref={selectedRef}
                 data-testid="map-selection"
-                className="absolute inset-x-2 bottom-2 z-[2] max-h-[60%] overflow-y-auto rounded-lg bg-popover shadow-[0_6px_28px_rgb(0_0_0/0.55)] sm:left-auto sm:right-3 sm:bottom-10 sm:w-[22rem]"
+                className="absolute inset-x-2 bottom-2 z-[2] max-h-[60%] overflow-y-auto rounded-lg bg-popover shadow-[0_6px_28px_rgb(0_0_0/0.55)] sm:left-auto sm:right-3 sm:bottom-10 sm:w-[28rem]"
               >
                 <button
                   type="button"
@@ -481,7 +497,7 @@ export function PlacesExplorer({ stories }: Props) {
                       width={story.w}
                       height={story.h}
                       sizes="144px"
-                      className="aspect-[3/2] w-36 shrink-0 bg-muted object-cover"
+                      className="aspect-[3/2] w-28 sm:w-36 shrink-0 bg-muted object-cover"
                     />
                     <span className="min-w-0 text-[17px] font-medium leading-snug underline-offset-4 group-hover:underline">
                       {story.name}
@@ -498,19 +514,26 @@ export function PlacesExplorer({ stories }: Props) {
   )
 }
 
+function noMatchText(query: string, area: string) {
+  const within = area ? ` in ${area}` : ""
+  return query.trim() ? `Nothing matches “${query.trim()}”${within}.` : `Nothing here${within}.`
+}
+
 function EmptyState({
   query,
+  area,
   hasFilter,
   onClear,
 }: {
   query: string
+  area: string
   hasFilter: boolean
   onClear: () => void
 }) {
   return (
     <div data-testid="places-empty" className="px-4 py-20 text-center">
       <p className="font-serif text-4xl leading-tight md:text-5xl">
-        {query.trim() ? `Nothing matches “${query.trim()}”.` : "Nothing here."}
+        {noMatchText(query, area)}
       </p>
       {hasFilter ? (
         <button

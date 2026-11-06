@@ -4,7 +4,7 @@ import Link from "next/link"
 import { fetchPosts } from "@/lib/api"
 import { CtaLink } from "@/components/cta-link"
 import { InlineCompare } from "@/components/inline-compare"
-import { SOURCE_LINE } from "@/components/Desc"
+import { SOURCE_LINE, toSections } from "@/components/Desc"
 import { ResetScroll } from "@/components/reset-scroll"
 
 const FEATURE_SLUG = "historic-post-office"
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 export default async function AboutPage() {
   const posts = await fetchPosts()
   const feature = posts.find((post) => post.slug === FEATURE_SLUG) ?? posts[0]
+  const years = toSections(feature.description).flatMap((section) => (section.year ? [section.year] : []))
   const sources = posts.flatMap((post) =>
     post.description
       .split("\n")
@@ -28,7 +29,7 @@ export default async function AboutPage() {
     <article className="px-4 pb-16 pt-8 md:pb-24 md:pt-14">
       <ResetScroll />
       <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
-        <h1 className="font-serif text-6xl leading-none md:text-8xl">About</h1>
+        <h1 className="font-serif text-6xl leading-none md:text-7xl">About</h1>
         <div className="max-w-2xl space-y-4">
           <p className="font-serif text-[2rem] leading-[1.1] md:text-[2.75rem]">
             then|now is a visual archive of places photographed across time.
@@ -46,6 +47,8 @@ export default async function AboutPage() {
           thenSrc={feature.b_imageUrl}
           nowSrc={feature.a_imageUrl}
           ratio={feature.w / feature.h}
+          thenYear={years[0]}
+          nowYear={years.length > 1 ? years[years.length - 1] : undefined}
           priority
         />
         <figcaption className="mt-2 text-sm">

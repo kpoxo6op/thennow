@@ -13,7 +13,7 @@ export default function NotFound() {
     <>
       <SiteHeader />
       <main className="tn-enter flex flex-1 flex-col items-center justify-center gap-6 px-4 pb-24 text-center">
-        <h1 className="font-serif text-6xl leading-none md:text-8xl">Not found</h1>
+        <h1 className="font-serif text-6xl leading-none md:text-7xl">Not found</h1>
         <CtaLink href="/places">Explore the places</CtaLink>
       </main>
       <SiteFooter />

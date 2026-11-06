@@ -399,12 +399,32 @@ test("search and the view switch stay put between photos and map", async ({ page
   }
 })
 
-test("the large pairs beyond the first are real comparisons", async ({ page }) => {
-  for (const path of ["/", "/about"]) {
-    await page.goto(path)
-    const input = page.getByTestId("inline-slider-input")
-    await input.focus()
-    await page.keyboard.press("ArrowLeft")
-    await expect(input).toHaveValue("49")
+test("About's large pair is a real comparison, with its own years", async ({ page }) => {
+  await page.goto("/about")
+  const input = page.getByTestId("inline-slider-input")
+  await input.focus()
+  await page.keyboard.press("ArrowLeft")
+  await expect(input).toHaveValue("49")
+  await expect(page.getByText("1920", { exact: true })).toBeVisible()
+  await expect(page.getByText("2023", { exact: true })).toBeVisible()
+})
+
+test("the homepage reaches every story", async ({ page }) => {
+  await page.goto("/")
+  await page.waitForLoadState("load")
+  for (const post of posts) {
+    await expect(page.locator(`main a[href="/${post.slug}"]`).first()).toBeAttached()
   }
+})
+
+test("a place chosen on the map is still chosen after visiting its story", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto("/mill-house")
+  await page.getByRole("link", { name: "See it on the map" }).click()
+  const selection = page.getByTestId("map-selection")
+  await expect(page.locator('[aria-current="true"]')).toContainText("Mill House")
+  await selection.getByRole("link").click()
+  await expect(page.getByRole("heading", { level: 1, name: "Mill House, Auckland" })).toBeVisible()
+  await page.goBack()
+  await expect(selection).toContainText("Mill House")
 })
