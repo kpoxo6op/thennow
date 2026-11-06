@@ -23,7 +23,10 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#121110",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f3ef" },
+    { media: "(prefers-color-scheme: dark)", color: "#121110" },
+  ],
 }
 
 interface RootLayoutProps {
@@ -40,7 +43,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           fontSerif.variable
         )}
       >
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
           <TailwindIndicator />
         </ThemeProvider>

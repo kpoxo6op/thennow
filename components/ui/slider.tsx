@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -10,6 +11,8 @@ type SliderProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "
   onValueChange?: (value: number[]) => void
 }
 
+// The grip sits on the photo. Only the input takes pointer events, in a strip
+// along the photo's lower edge; the rest of the photo is the stage's to drag.
 const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
   ({ className, value, defaultValue, min = 0, max = 100, step = 1, onValueChange, ...props }, ref) => {
     const isControlled = value !== undefined
@@ -54,28 +57,17 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
     const percent = ((renderedValue - Number(min)) / (Number(max) - Number(min))) * 100
 
     return (
-      <div data-testid="compare-slider-root" className={cn("group relative flex w-full items-center", className)}>
-        <div className="pointer-events-none absolute inset-x-0 h-0.5 rounded-full bg-border" />
-        <div
-          data-testid="compare-slider-progress"
-          className="pointer-events-none absolute left-0 h-0.5 rounded-full bg-foreground/60"
-          style={{
-            width: `${percent}%`,
-          }}
-        />
-        <div
-          className="pointer-events-none absolute top-0 h-1/2 w-0.5 -translate-x-1/2 bg-foreground"
-          style={{
-            left: `${percent}%`,
-          }}
-        />
+      <div data-testid="compare-slider-root" className={cn("group pointer-events-none", className)}>
         <div
           data-testid="compare-slider-knob"
-          className="pointer-events-none absolute top-1/2 z-20 size-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground shadow-sm transition-[scale] group-active:scale-110 group-has-[input:focus-visible]:outline-2 group-has-[input:focus-visible]:outline-offset-2 group-has-[input:focus-visible]:outline-foreground"
+          className="absolute top-1/2 z-20 flex size-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-neutral-900 shadow-[0_1px_8px_rgb(0_0_0/0.45)] group-has-[input:focus-visible]:outline-2 group-has-[input:focus-visible]:outline-offset-2 group-has-[input:focus-visible]:outline-white"
           style={{
             left: `${percent}%`,
           }}
-        />
+        >
+          <ChevronLeft aria-hidden className="-mr-1 size-4" />
+          <ChevronRight aria-hidden className="-ml-1 size-4" />
+        </div>
         <input
           ref={setRefs}
           type="range"
@@ -86,7 +78,7 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
           value={renderedValue}
           onChange={handleValueChange}
           onInput={handleInput}
-          className="tn-slider relative z-10 h-11 w-full appearance-none bg-transparent outline-none"
+          className="tn-slider pointer-events-auto absolute inset-x-0 bottom-0 z-10 m-0 h-11 w-full cursor-ew-resize appearance-none bg-transparent outline-none"
           {...props}
         />
       </div>

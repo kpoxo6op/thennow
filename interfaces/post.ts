@@ -14,6 +14,8 @@ type PostType = {
   slug: string
   location: PostLocation
   isSample?: boolean
+  area?: string
+  imageSourceSlug?: string
 }
 
 export default PostType

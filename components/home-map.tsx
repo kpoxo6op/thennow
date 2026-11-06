@@ -10,6 +10,7 @@ import {
 import type PostType from "@/interfaces/post"
 
 import { clusterSpots, type SpotCluster } from "@/lib/map-clusters"
+import { replaceListUrl } from "@/lib/story-return"
 
 export type MapSpot = Pick<
   PostType,
@@ -18,6 +19,9 @@ export type MapSpot = Pick<
 
 export type HomeMapHandle = {
   showAll: () => void
+  // Limits the markers to these spots and frames them; null restores everything.
+  setActive: (slugs: string[] | null, fit?: boolean) => void
+  preview: (slug: string | null) => void
 }
 
 type Props = {
@@ -28,6 +32,7 @@ type Props = {
     movedByVisitor: boolean
   ) => void
   onSelect?: (slug: string) => void
+  onFailure?: () => void
 }
 
 const VIEWPORT_LIMITS = {
@@ -95,20 +100,22 @@ function writeUrlViewport(viewport: { lat: number; lng: number; z: number } | nu
     url.searchParams.delete("z")
   }
 
-  // Keeps the view shareable without a server round trip. Next treats a URL
-  // write as a restore, which could cancel a pending navigation, so an
-  // unchanged view must not write at all.
-  if (url.href !== window.location.href) {
-    window.history.replaceState(null, "", url)
-  }
+  // Keeps the view shareable without a server round trip.
+  replaceListUrl(url)
 }
 
 export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
-  { spots, onVisibleSlugsChange, onSelect },
+  { spots, onVisibleSlugsChange, onSelect, onFailure },
   ref
 ) {
   const mapRef = useRef<HTMLDivElement | null>(null)
   const showAllRef = useRef<() => void>(() => {})
+  const setActiveRef = useRef<(slugs: string[] | null, fit?: boolean) => void>(
+    () => {}
+  )
+  const previewRef = useRef<(slug: string | null) => void>(() => {})
+  const pendingActiveRef = useRef<{ slugs: string[] | null; fit: boolean } | null>(null)
+  const failureCallbackRef = useRef(onFailure)
   const spotsRef = useRef(spots)
   const visibleCallbackRef = useRef(onVisibleSlugsChange)
   const selectCallbackRef = useRef(onSelect)
@@ -117,9 +124,21 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
     spotsRef.current = spots
     visibleCallbackRef.current = onVisibleSlugsChange
     selectCallbackRef.current = onSelect
-  }, [spots, onVisibleSlugsChange, onSelect])
+    failureCallbackRef.current = onFailure
+  }, [spots, onVisibleSlugsChange, onSelect, onFailure])
 
-  useImperativeHandle(ref, () => ({ showAll: () => showAllRef.current() }), [])
+  useImperativeHandle(
+    ref,
+    () => ({
+      showAll: () => showAllRef.current(),
+      setActive: (slugs, fit = true) => {
+        pendingActiveRef.current = { slugs, fit }
+        setActiveRef.current(slugs, fit)
+      },
+      preview: (slug) => previewRef.current(slug),
+    }),
+    []
+  )
 
   const spotsKey = useMemo(
     () =>
@@ -273,10 +292,16 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
           event.preventDefault()
 
           // Touch has no hover: the first tap previews, the card opens the story.
-          if (canHover) {
+          // Keyboard activation (detail 0) already previewed on focus.
+          if (canHover || event.detail === 0) {
             selectCallbackRef.current?.(spot.slug)
           } else {
             openPopup(spot)
+          }
+        })
+        element.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") {
+            closePopup()
           }
         })
         element.addEventListener("focus", () => openPopup(spot))
@@ -320,6 +345,11 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
         element.addEventListener("click", (event) => {
           event.stopPropagation()
           zoomIntoCluster(cluster)
+
+          // This marker goes away after the zoom; keep keyboard users on the map.
+          if (event.detail === 0) {
+            activeMap.getCanvas().focus({ preventScroll: true })
+          }
         })
 
         return element
@@ -327,10 +357,12 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
 
       const markers = new Map<string, import("maplibre-gl").Marker>()
 
+      let activeSpots = currentSpots
+
       const renderMarkers = () => {
         const zoom = activeMap.getZoom()
         const clusters = clusterSpots(
-          currentSpots,
+          activeSpots,
           zoom,
           zoom >= SEPARATE_ZOOM ? 0 : CLUSTER_RADIUS_PX
         )
@@ -345,6 +377,21 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
           lng >= bounds.getWest() - lngPad &&
           lng <= bounds.getEast() + lngPad
 
+        // Markers kept just past the edge must not take keyboard focus.
+        const setTabbable = (
+          element: HTMLElement | undefined,
+          cluster: SpotCluster<MapSpot>
+        ) => {
+          if (element) {
+            element.tabIndex = bounds.contains([
+              cluster.location.lng,
+              cluster.location.lat,
+            ])
+              ? 0
+              : -1
+          }
+        }
+
         clusters.forEach((cluster) => {
           if (!isNearView(cluster.location)) {
             return
@@ -354,7 +401,9 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
           next.add(key)
 
           if (markers.has(key)) {
-            markers.get(key)?.setLngLat([cluster.location.lng, cluster.location.lat])
+            const marker = markers.get(key)
+            marker?.setLngLat([cluster.location.lng, cluster.location.lat])
+            setTabbable(marker?.getElement(), cluster)
             return
           }
 
@@ -363,6 +412,7 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
               ? createSpotMarker(cluster.spots[0])
               : createClusterMarker(cluster)
 
+          setTabbable(element, cluster)
           markers.set(
             key,
             new maplibregl.Marker({ element })
@@ -440,7 +490,76 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
 
       showAllRef.current = () => fitAll(450)
 
+      setActiveRef.current = (slugs, fit = true) => {
+        const active = slugs ? new Set(slugs) : null
+        activeSpots = active
+          ? currentSpots.filter((spot) => active.has(spot.slug))
+          : currentSpots
+        closePopup()
+        renderMarkers()
+
+        if (!fit) {
+          return
+        }
+
+        if (!active) {
+          fitAll(450)
+          return
+        }
+
+        if (activeSpots.length === 0) {
+          return
+        }
+
+        const bounds = new maplibregl.LngLatBounds()
+        activeSpots.forEach((spot) => {
+          bounds.extend([spot.location.lng, spot.location.lat])
+        })
+        activeMap.fitBounds(bounds, {
+          duration: 450,
+          maxZoom: 14,
+          padding: fitPadding(),
+        })
+      }
+
+      previewRef.current = (slug) => {
+        if (!canHover) {
+          return
+        }
+
+        const spot = slug
+          ? currentSpots.find((candidate) => candidate.slug === slug)
+          : null
+
+        if (spot) {
+          openPopup(spot)
+        } else {
+          scheduleClose()
+        }
+      }
+
+      if (pendingActiveRef.current) {
+        setActiveRef.current(
+          pendingActiveRef.current.slugs,
+          pendingActiveRef.current.fit
+        )
+      }
+
+      // Arriving from a story: say which of the markers it is.
+      const arrivedFrom = new URLSearchParams(window.location.search).get("spot")
+      const arrivedSpot = currentSpots.find((spot) => spot.slug === arrivedFrom)
+      if (arrivedSpot) {
+        openPopup(arrivedSpot)
+      }
+
+      // A hidden pane measures as a default size, not as what the visitor saw.
+      const isPaneHidden = () => !mapRef.current?.clientWidth
+
       activeMap.on("moveend", (event) => {
+        if (isPaneHidden()) {
+          return
+        }
+
         renderMarkers()
         updateVisibleSpots(
           Boolean(event.originalEvent) || VISITOR_MOVE in event
@@ -448,10 +567,19 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
         updateUrl()
       })
       activeMap.on("resize", () => {
+        if (isPaneHidden()) {
+          return
+        }
+
         if (fittedView) {
           fitAll(0)
         }
         updateVisibleSpots()
+      })
+      activeMap.on("error", () => {
+        if (!activeMap.isStyleLoaded()) {
+          failureCallbackRef.current?.()
+        }
       })
       activeMap.once("load", () => {
         // Compact attribution starts expanded and would sit on the markers.
@@ -464,11 +592,29 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
       updateVisibleSpots()
     }
 
-    setupMap()
+    // The map is below the first screen, and hidden on phones until asked for.
+    let idleHandle = 0
+    const container = mapRef.current
+    const startWhenVisible = new ResizeObserver(() => {
+      if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+        startWhenVisible.disconnect()
+        idleHandle = window.setTimeout(setupMap, 0)
+      }
+    })
+    const startTimer = window.setTimeout(() => {
+      if (container) {
+        startWhenVisible.observe(container)
+      }
+    }, 300)
 
     return () => {
       isMounted = false
+      window.clearTimeout(startTimer)
+      window.clearTimeout(idleHandle)
+      startWhenVisible.disconnect()
       showAllRef.current = () => {}
+      setActiveRef.current = () => {}
+      previewRef.current = () => {}
       map?.remove()
     }
   }, [spotsKey])

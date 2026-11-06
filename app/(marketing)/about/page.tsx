@@ -25,6 +25,11 @@ export default async function AboutPage() {
           className="w-full rounded-sm"
         />
       </Link>
+      <p className="mt-8 max-w-prose leading-relaxed text-muted-foreground">
+        This preview holds six stories and 300 sample places. The sample names
+        and locations are fictional and reuse the same photographs, to show how
+        the site behaves with a larger collection.
+      </p>
     </>
   )
 }

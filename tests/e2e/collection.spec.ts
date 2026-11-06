@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const postFolders = fs.readdirSync(path.join(process.cwd(), "public", "posts"));
 const slugs = postFolders.map(
@@ -11,25 +11,82 @@ const slugs = postFolders.map(
     ).slug as string
 );
 
-const visibleCards = "[data-testid=story-card]:not([hidden]) a";
+const places = "[data-testid=story-card]";
+const shownPlaces = `${places}:not([hidden])`;
 
-test.describe("collection at scale", () => {
-  test("every story is linked and the map stays legible", async ({ page }) => {
+async function openGroup(page: Page, name: string) {
+  const group = page.getByTestId("places-group").filter({ hasText: name });
+  await group.locator("summary").click();
+  await expect(group.locator(`${places} a`).first()).toBeVisible();
+  return group;
+}
+
+async function visibleMarkerCenter(page: Page) {
+  const center = await page.evaluate(() => {
+    const map = document.querySelector("[data-testid=home-map]")!.getBoundingClientRect();
+    const marker = [...document.querySelectorAll(".tn-map-marker")]
+      .map((element) => element.getBoundingClientRect())
+      .find(
+        (bounds) =>
+          bounds.left > map.left + 60 &&
+          bounds.right < map.right - 60 &&
+          bounds.top > map.top + 60 &&
+          bounds.bottom < map.bottom - 60
+      );
+    return marker ? { x: marker.x + marker.width / 2, y: marker.y + marker.height / 2 } : null;
+  });
+  expect(center).not.toBeNull();
+  return center!;
+}
+
+test.describe("homepage", () => {
+  test("opens on a comparison a visitor can use straight away", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
 
-    await expect(page.locator("[data-testid=story-card] a")).toHaveCount(slugs.length);
-    const hrefs = await page
-      .locator("[data-testid=story-card] a")
-      .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
-    expect(new Set(hrefs)).toEqual(new Set(slugs.map((slug) => `/${slug}`)));
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const stage = page.getByTestId("compare-stage");
+    await expect(stage).toBeInViewport();
 
-    await expect(page.getByTestId("home-map-marker").first()).toBeVisible();
-    expect(await page.getByTestId("home-map-marker").count()).toBeLessThan(40);
+    const input = page.getByTestId("compare-slider-input");
+    await expect(input).toHaveValue("50");
+
+    const box = await stage.boundingBox();
+    await page.mouse.move(box!.x + box!.width * 0.5, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width * 0.25, box!.y + box!.height / 2, { steps: 4 });
+    await page.mouse.up();
+    await expect(input).toHaveValue("25");
+
+    await input.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(input).toHaveValue("26");
     await expect(page).toHaveURL(/\/$/);
   });
 
-  test("story routes all resolve", async ({ request }) => {
+  test("shows the line moving once, unless motion is reduced", async ({ page }) => {
+    await page.goto("/");
+    await expect
+      .poll(() => page.getByTestId("compare-slider-input").inputValue(), { timeout: 4000 })
+      .not.toBe("50");
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await page.waitForTimeout(1500);
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("50");
+  });
+});
+
+test.describe("finding a place", () => {
+  test("all stories are real links and every route resolves", async ({ page, request }) => {
     test.setTimeout(120000);
+    await page.goto("/");
+
+    const hrefs = await page
+      .locator(`${places} a`)
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+    expect(hrefs).toHaveLength(slugs.length);
+    expect(new Set(hrefs)).toEqual(new Set(slugs.map((slug) => `/${slug}`)));
 
     for (const slug of slugs) {
       const response = await request.get(`/${slug}`);
@@ -37,7 +94,7 @@ test.describe("collection at scale", () => {
     }
   });
 
-  test("first load does not fetch every card image or full-size originals", async ({ page }) => {
+  test("first load fetches neither every thumbnail nor full-size originals", async ({ page }) => {
     const imageRequests: string[] = [];
     page.on("request", (request) => {
       if (request.resourceType() === "image") {
@@ -46,209 +103,364 @@ test.describe("collection at scale", () => {
     });
 
     await page.goto("/");
-    await expect(page.locator(visibleCards).first()).toBeVisible();
     await page.waitForLoadState("load");
-
     expect(imageRequests.length).toBeLessThan(40);
     expect(imageRequests.filter((url) => url.includes("/posts/") && !url.includes("_next/image"))).toEqual([]);
   });
 
-  test("a group zooms in, narrows the list, and the list can be restored", async ({ page }) => {
+  test("search narrows the list and map, stays in the URL, and can be cleared", async ({ page }) => {
+    await page.goto("/");
+    const search = page.getByTestId("places-search");
+
+    await search.fill("yacht");
+    await expect(page.locator(shownPlaces)).toHaveCount(1);
+    await expect(page.locator(`${shownPlaces} a`)).toHaveAttribute("href", "/mission-bay-yacht-club");
+    await expect(page.getByTestId("places-status")).toContainText("1 of 306");
+    await expect(page).toHaveURL(/q=yacht/);
+    await expect.poll(() => page.getByTestId("home-map-marker").count()).toBe(1);
+
+    await page.reload();
+    await expect(page.getByTestId("places-search")).toHaveValue("yacht");
+    await expect(page.locator(shownPlaces)).toHaveCount(1);
+
+    await page.getByTestId("places-search").fill("zzzz");
+    await expect(page.getByTestId("places-empty")).toBeVisible();
+    await page.getByRole("button", { name: "Show all places" }).click();
+    await expect(page.locator(shownPlaces)).toHaveCount(slugs.length);
+    await expect(page).not.toHaveURL(/q=/);
+  });
+
+  test("a sample group opens and its stories can be reached", async ({ page }) => {
+    await page.goto("/");
+    const group = await openGroup(page, "Upper harbour");
+    await group.locator(`${places} a`).first().click();
+
+    await expect(page.getByTestId("story-next")).toBeVisible();
+    await expect(page.getByTestId("sample-note")).toBeVisible();
+  });
+
+  test("a map group zooms in, narrows the list, and the view can be restored", async ({ page }) => {
     await page.goto("/");
     const cluster = page.locator(".tn-map-cluster").first();
-    await expect(cluster).toBeVisible();
+    await expect(cluster).toBeAttached();
+    await cluster.scrollIntoViewIfNeeded();
     await cluster.click();
 
     await expect(page.getByTestId("map-show-all")).toBeVisible();
     await expect(page).toHaveURL(/lat=.*lng=.*z=/);
-    expect(await page.locator(visibleCards).count()).toBeLessThan(slugs.length);
+    expect(await page.locator(shownPlaces).count()).toBeLessThan(slugs.length);
 
     await page.getByTestId("map-show-all").click();
-    await expect(page.locator(visibleCards)).toHaveCount(slugs.length);
-    await expect(page.getByTestId("map-show-all")).toHaveCount(0);
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator(shownPlaces)).toHaveCount(slugs.length);
+    await expect(page).not.toHaveURL(/lat=/);
   });
 
-  test("the wordmark on a zoomed home page resets the view in place", async ({ page }) => {
-    await page.goto("/?lat=-36.851754&lng=174.744417&z=13.5");
+  test("hovering a row or spot previews it; clicking a spot opens it", async ({ page }) => {
+    await page.goto("/?lat=-36.851754&lng=174.744417&z=15.24#places");
     await expect(page.getByTestId("map-show-all")).toBeVisible();
 
-    await page.getByTestId("site-header").locator('a[href="/"]').click();
-    await expect(page.locator(visibleCards)).toHaveCount(slugs.length);
-    await expect(page).toHaveURL(/\/$/);
-  });
-
-  test("the wheel over the map keeps scrolling the page", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.locator(".tn-map-cluster").first()).toBeVisible();
-    const map = await page.getByTestId("home-map").boundingBox();
-
-    await page.mouse.move(map!.x + map!.width / 2, map!.y + map!.height / 2);
-    await page.mouse.wheel(0, 800);
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-    await expect(page).toHaveURL(/\/$/);
-  });
-
-  test("hovering a spot previews it and clicking opens the story", async ({ page }) => {
-    await page.goto("/?lat=-36.851754&lng=174.744417&z=15.24");
-    await expect(page.getByTestId("map-show-all")).toBeVisible();
-    await expect(page.locator(".tn-map-marker").first()).toBeAttached();
-    const map = await page.getByTestId("home-map").boundingBox();
-    const box = await page.evaluate((rect) => {
-      const marker = [...document.querySelectorAll(".tn-map-marker")]
-        .map((element) => element.getBoundingClientRect())
-        .find(
-          (bounds) =>
-            bounds.left > rect!.x + 60 &&
-            bounds.right < rect!.x + rect!.width - 60 &&
-            bounds.top > rect!.y + 60 &&
-            bounds.bottom < rect!.y + rect!.height - 60
-        );
-      return marker ? { x: marker.x + marker.width / 2, y: marker.y + marker.height / 2 } : null;
-    }, map);
-    expect(box).not.toBeNull();
-
-    await page.mouse.move(box!.x, box!.y);
+    await page.locator(`${shownPlaces} a`).first().hover();
     await expect(page.getByTestId("home-map-card")).toBeVisible();
-    // Hovering must not displace the marker from under the pointer.
+    await page.mouse.move(0, 0);
+    await expect(page.getByTestId("home-map-card")).toHaveCount(0);
+
+    const center = await visibleMarkerCenter(page);
+    await page.mouse.move(center.x, center.y);
+    await expect(page.getByTestId("home-map-card")).toBeVisible();
     await page.waitForTimeout(250);
     expect(
       await page.evaluate(
         ({ x, y }) => document.elementFromPoint(x, y)?.closest("a")?.dataset.testid,
-        box!
+        center
       )
     ).toBe("home-map-marker");
-    await page.mouse.click(box!.x, box!.y);
-    await expect(page.getByTestId("compare-stage")).toBeVisible();
+    await page.mouse.click(center.x, center.y);
+    await expect(page.getByTestId("story-next")).toBeVisible();
+    await expect(page).not.toHaveURL(/lat=/);
+  });
+
+  test("the wheel over the map keeps scrolling the page", async ({ page }) => {
+    await page.goto("/#places");
+    await expect(page.locator(".tn-map-cluster").first()).toBeVisible();
+    const before = await page.evaluate(() => window.scrollY);
+    const map = await page.getByTestId("home-map").boundingBox();
+
+    await page.mouse.move(map!.x + map!.width / 2, map!.y + map!.height / 2);
+    await page.mouse.wheel(0, 300);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before);
+    await expect(page).not.toHaveURL(/lat=/);
+  });
+
+  test("the wordmark on a narrowed home page resets it in place", async ({ page }) => {
+    await page.goto("/?lat=-36.851754&lng=174.744417&z=13.5&q=bay");
+    await expect(page.getByTestId("places-search")).toHaveValue("bay");
+
+    await page.getByTestId("site-header").locator('a[href="/"]').click();
+    await expect(page.getByTestId("places-search")).toHaveValue("");
+    await expect(page.locator(shownPlaces)).toHaveCount(slugs.length);
+    await expect(page).toHaveURL(/\/$/);
   });
 
   for (const viewport of [
     { width: 1440, height: 900 },
     { width: 390, height: 844 },
   ]) {
-    test(`leaving a story returns to the same place at ${viewport.width}px`, async ({ page }) => {
+    test(`leaving a story returns to the same list place at ${viewport.width}px`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await page.goto("/");
-      await expect(page.locator(visibleCards)).toHaveCount(slugs.length);
+      const group = await openGroup(page, "City fringe");
+      const row = group.locator(`${places} a`).nth(30);
+      await row.scrollIntoViewIfNeeded();
+      const before = await page.evaluate(() => Math.round(window.scrollY));
+      expect(before).toBeGreaterThan(0);
 
-      await page.evaluate(() => window.scrollTo(0, 6000));
-      const link = page.locator(visibleCards).nth(
-        await page.locator(visibleCards).evaluateAll((links) =>
-          links.findIndex((element) => element.getBoundingClientRect().top > 200)
-        )
-      );
-      await link.click();
-      await expect(page.getByTestId("compare-stage")).toBeVisible();
-
+      await row.click();
+      await expect(page.getByTestId("story-next")).toBeVisible();
       await page.getByTestId("site-header").locator('a[href="/"]').click();
-      await expect(page.locator(visibleCards)).toHaveCount(slugs.length);
-      await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(6000);
+
+      await expect(group.locator(`${places} a`).nth(30)).toBeVisible();
+      await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(before);
     });
   }
 
-  test("a filtered list keeps its map view and position after leaving a story", async ({ page }) => {
+  test("a map view keeps its position through a story and browser back", async ({ page }) => {
     await page.goto("/?lat=-36.851754&lng=174.744417&z=13.5");
     await expect(page.getByTestId("map-show-all")).toBeVisible();
-    await page.evaluate(() => window.scrollTo(0, 500));
-
-    const link = page.locator(visibleCards).nth(
-      await page.locator(visibleCards).evaluateAll((links) =>
-        links.findIndex((element) => element.getBoundingClientRect().top > 200)
-      )
-    );
+    const link = page.locator(`${shownPlaces} a`).nth(12);
+    await link.scrollIntoViewIfNeeded();
+    const before = await page.evaluate(() => Math.round(window.scrollY));
     await link.click();
-    await expect(page.getByTestId("compare-stage")).toBeVisible();
+    await expect(page.getByTestId("story-next")).toBeVisible();
     await page.goBack();
 
     await expect(page).toHaveURL(/z=13\.5/);
     await expect(page.getByTestId("map-show-all")).toBeVisible();
-    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(500);
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(before);
+  });
+
+  test("back from a story after the hero link needs one step and no reload", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => {
+      (window as unknown as { sameDocument: boolean }).sameDocument = true;
+    });
+    await page.getByRole("link", { name: "Find a place" }).click();
+    const group = await openGroup(page, "Stories");
+    await group.locator(`${places} a`).first().click();
+    await expect(page.getByTestId("story-next")).toBeVisible();
+
+    await page.goBack();
+    await expect(page.getByTestId("places-search")).toBeVisible();
+    await expect(page.getByTestId("story-next")).toHaveCount(0);
+    expect(
+      await page.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument)
+    ).toBe(true);
+  });
+
+  test("back, forward and back keep the opened group and position", async ({ page }) => {
+    await page.goto("/");
+    const group = await openGroup(page, "Western bays");
+    const row = group.locator(`${places} a`).nth(20);
+    await row.scrollIntoViewIfNeeded();
+    const before = await page.evaluate(() => Math.round(window.scrollY));
+    await row.click();
+    await expect(page.getByTestId("story-next")).toBeVisible();
+
+    await page.goBack();
+    await expect(row).toBeVisible();
+    await page.goForward();
+    await expect(page.getByTestId("story-next")).toBeVisible();
+    await page.goBack();
+
+    await expect(row).toBeVisible();
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(before);
+  });
+
+  test("a story reached by next does not send the wordmark to another story", async ({ page }) => {
+    await page.goto("/");
+    const group = await openGroup(page, "Stories");
+    await group.locator(`${places} a`).first().click();
+    await expect(page.getByTestId("story-next")).toBeVisible();
+    const first = page.url();
+
+    await page.getByTestId("story-next").click();
+    await expect(page).not.toHaveURL(first);
+    await page.getByTestId("story-previous").click();
+    await expect(page).toHaveURL(first);
+
+    await page.getByTestId("site-header").locator('a[href="/"]').click();
+    await expect(page).toHaveURL(/\/#places$/);
+    await expect(page.getByTestId("places-search")).toBeInViewport();
+  });
+
+  test("the map still offers the list when its tiles fail", async ({ page }) => {
+    await page.route("https://tiles.openfreemap.org/**", (route) => route.abort());
+    await page.goto("/#places");
+
+    await expect(page.getByText("Map tiles could not load")).toBeVisible();
+    await expect(page.getByTestId("home-map-marker").first()).toBeAttached();
+    await expect(page.locator(`${places} a`)).toHaveCount(slugs.length);
   });
 });
 
-test.describe("collection on touch", () => {
+test.describe("on a phone", () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
-  test("show all returns a phone to the clean URL", async ({ page }) => {
-    await page.goto("/");
-    const cluster = page.locator(".tn-map-cluster").first();
-    await expect(cluster).toBeVisible();
-    await cluster.tap();
-    await expect(page.getByTestId("map-show-all")).toBeVisible();
+  test("the list comes first and the map is one tap away, in the URL", async ({ page }) => {
+    await page.goto("/#places");
+    await expect(page.getByTestId("places-map-pane")).toBeHidden();
 
-    await page.getByTestId("map-show-all").tap();
-    await expect(page.locator(visibleCards)).toHaveCount(slugs.length);
-    await expect(page).toHaveURL(/\/$/);
+    await page.getByTestId("places-view-toggle").tap();
+    await expect(page.getByTestId("places-map-pane")).toBeVisible();
+    await expect(page.getByTestId("story-list")).toBeHidden();
+    await expect(page).toHaveURL(/view=map/);
+    await expect(page.locator(".tn-map-cluster").first()).toBeVisible();
+
+    await page.getByTestId("places-view-toggle").tap();
+    await expect(page.getByTestId("story-list")).toBeVisible();
+    await expect(page).not.toHaveURL(/view=map/);
   });
 
   test("tapping a spot previews it and tapping the preview opens the story", async ({ page }) => {
-    await page.goto("/?lat=-36.851754&lng=174.744417&z=15.24");
-    await expect(page.getByTestId("map-show-all")).toBeVisible();
+    await page.goto("/?lat=-36.851754&lng=174.744417&z=15.24&view=map");
     await expect(page.locator(".tn-map-marker").first()).toBeAttached();
 
-    const point = await page.evaluate(() => {
-      const map = document.querySelector("[data-testid=home-map]")!.getBoundingClientRect();
-      const marker = [...document.querySelectorAll(".tn-map-marker")]
-        .map((element) => element.getBoundingClientRect())
-        .find(
-          (bounds) =>
-            bounds.left > map.left + 60 &&
-            bounds.right < map.right - 60 &&
-            bounds.top > map.top + 60 &&
-            bounds.bottom < map.bottom - 60
-        );
-      return marker ? { x: marker.x + marker.width / 2, y: marker.y + marker.height / 2 } : null;
-    });
-    expect(point).not.toBeNull();
-
-    await page.touchscreen.tap(point!.x, point!.y);
+    const center = await visibleMarkerCenter(page);
+    await page.touchscreen.tap(center.x, center.y);
     const card = page.getByTestId("home-map-card");
     await expect(card).toBeVisible();
-    await expect(page.getByTestId("compare-stage")).toHaveCount(0);
+    await expect(page.getByTestId("story-next")).toHaveCount(0);
 
     await card.tap();
-    await expect(page.getByTestId("compare-stage")).toBeVisible();
-  });
-});
-
-test.describe("navigation", () => {
-  test("mobile menu opens from a real button and closes on navigation", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
-
-    const menuButton = page.getByRole("button", { name: "Menu" });
-    await menuButton.click();
-    await expect(menuButton).toHaveAttribute("aria-expanded", "true");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#mobile-menu")).toHaveCount(0);
-
-    await menuButton.click();
-    await page.locator("#mobile-menu").getByRole("link", { name: "About" }).click();
-    await expect(page).toHaveURL(/\/about$/);
-    await expect(page.locator("#mobile-menu")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
+    await expect(page.getByTestId("story-next")).toBeVisible();
   });
 
-  for (const route of ["/about", "/contact", "/links"]) {
-    test(`${route} content sits below the header`, async ({ page }) => {
-      const response = await page.goto(route);
-      expect(response?.status()).toBe(200);
-
-      const header = await page.getByTestId("site-header").boundingBox();
-      const heading = await page.locator("main h1").boundingBox();
-      expect(heading!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
+  test("returning to a search restores the list position", async ({ page }) => {
+    await page.goto("/?q=e");
+    await expect(page.locator(shownPlaces).first()).toBeAttached();
+    const row = page.locator(`${shownPlaces} a`).nth(60);
+    await row.scrollIntoViewIfNeeded();
+    const before = await page.evaluate(() => Math.round(window.scrollY));
+    expect(before).toBeGreaterThan(1500);
+    await page.evaluate(() => {
+      window.history.scrollRestoration = "manual";
     });
-  }
+    await row.tap();
+    await expect(page.getByTestId("story-next")).toBeVisible();
+    await page.goBack();
 
-  test("unknown routes offer the way home", async ({ page }) => {
-    const response = await page.goto("/no-such-story");
-    expect(response?.status()).toBe(404);
-    await page.getByRole("link", { name: "All stories" }).click();
-    await expect(page.getByTestId("home-map")).toBeVisible();
+    await expect(page.getByTestId("places-search")).toHaveValue("e");
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(before);
+  });
+
+  test("hiding a moved map does not narrow the list to a guess", async ({ page }) => {
+    await page.goto("/?lat=-36.85&lng=174.75&z=11&view=map");
+    await expect(page.getByTestId("map-show-all")).toBeVisible();
+    const shownOnMap = await page.locator(shownPlaces).count();
+
+    await page.getByTestId("places-view-toggle").tap();
+    await expect(page.getByTestId("story-list")).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(await page.locator(shownPlaces).count()).toBe(shownOnMap);
+
+    await page.getByTestId("list-show-all").tap();
+    await expect(page.locator(shownPlaces)).toHaveCount(slugs.length);
+  });
+
+  test("a search with no results says so on the map too", async ({ page }) => {
+    await page.goto("/?q=zzzqqq&view=map");
+    await expect(page.getByTestId("places-map-pane").getByText("Nothing matches")).toBeVisible();
+    await page.getByTestId("places-map-pane").getByRole("button", { name: "Show all places" }).tap();
+    await expect(page.getByTestId("places-search")).toHaveValue("");
+  });
+
+  test("a tap on the photo moves the reveal", async ({ page }) => {
+    await page.goto("/historic-post-office");
+    const box = await page.getByTestId("compare-stage").boundingBox();
+
+    await page.touchscreen.tap(195 + 80, box!.y + box!.height / 2);
+    await expect(page.getByTestId("compare-slider-input")).not.toHaveValue("50");
+    await expect(page).toHaveURL(/\?p=\d+$/);
+  });
+
+  test("the photo stays in view while the story is read", async ({ page }) => {
+    await page.goto("/mill-house");
+    await page.evaluate(() => window.scrollTo(0, 400));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await expect(page.getByTestId("compare-stage")).toBeInViewport({ ratio: 1 });
   });
 });
 
-test.describe("compare photograph", () => {
+test.describe("story page", () => {
+  test("shows the whole photograph with nothing over its centre text", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/sheep");
+
+    const image = await page.getByTestId("compare-overlay-image").boundingBox();
+    expect(image!.width / image!.height).toBeCloseTo(4018 / 2298, 1);
+    expect(image!.width).toBeCloseTo(390, 0);
+  });
+
+  test("desktop fits photo, text and next steps on one screen", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/sheep");
+
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(900);
+    await expect(page.getByTestId("compare-stage")).toBeInViewport();
+    await expect(page.getByTestId("story-next")).toBeInViewport();
+  });
+
+  test("a click moves the reveal, and full screen can be entered and left", async ({ page }) => {
+    await page.goto("/historic-post-office");
+    const box = await page.getByTestId("compare-stage").boundingBox();
+
+    await page.mouse.click(box!.x + 200, box!.y + box!.height / 2);
+    await expect(page.getByTestId("compare-slider-input")).not.toHaveValue("50");
+    const value = await page.getByTestId("compare-slider-input").inputValue();
+
+    const expand = page.getByTestId("compare-expand");
+    await expand.click();
+    const close = page.getByTestId("compare-close");
+    await expect(close).toBeFocused();
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue(value);
+
+    await page.keyboard.press("Escape");
+    await expect(close).toHaveCount(0);
+    await expect(expand).toBeFocused();
+
+    await expand.click();
+    await page.keyboard.press("Tab");
+    await expect(page.getByTestId("compare-slider-input")).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.getByTestId("compare-close")).toBeFocused();
+    await page.getByTestId("compare-close").click();
+    await expect(page.getByTestId("compare-close")).toHaveCount(0);
+  });
+
+  test("next, previous and nearby lead on, and sample places say what they are", async ({ page }) => {
+    await page.goto("/demo-150");
+    await expect(page.getByTestId("sample-note")).toBeVisible();
+
+    await page.getByTestId("story-next").click();
+    await expect(page).toHaveURL(/\/demo-151$/);
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("50");
+    await page.getByTestId("story-previous").click();
+    await expect(page).toHaveURL(/\/demo-150$/);
+
+    await page.goto("/sheep");
+    await expect(page.getByTestId("sample-note")).toHaveCount(0);
+  });
+
+  test("on the map opens the map at this place", async ({ page }) => {
+    await page.goto("/sheep");
+    await page.getByRole("link", { name: "On the map" }).click();
+
+    await expect(page).toHaveURL(/lat=-36\.6779.*z=15/);
+    await expect(page.getByTestId("home-map")).toBeVisible();
+    await expect(page.getByTestId("map-show-all")).toBeVisible();
+    await expect(page.getByTestId("home-map-card")).toContainText("Rata Street");
+    await expect(page.locator(".maplibregl-ctrl-zoom-in")).toBeInViewport();
+  });
+
   test("story text fits narrow screens without losing any of it", async ({ page }) => {
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
@@ -289,49 +501,57 @@ test.describe("compare photograph", () => {
       "kura.aucklandlibraries.govt.nz/digital/collection/photos/id/47325/rec/38"
     );
   });
+});
 
-  test("shows the whole photograph with nothing over it", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/sheep");
+test.describe("keyboard on the map", () => {
+  test("a spot previews on focus, closes on Escape and opens on Enter", async ({ page }) => {
+    await page.goto("/?lat=-36.851754&lng=174.744417&z=15.24");
+    await expect(page.getByTestId("map-show-all")).toBeVisible();
 
-    const image = await page.getByTestId("compare-overlay-image").boundingBox();
-    expect(image!.width / image!.height).toBeCloseTo(4018 / 2298, 1);
-    expect(image!.width).toBeCloseTo(390, 0);
+    const marker = page.locator('.tn-map-marker[tabindex="0"]').first();
+    await marker.focus();
+    await expect(page.getByTestId("home-map-card")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("home-map-card")).toHaveCount(0);
 
-    const slider = await page.getByTestId("compare-slider-input").boundingBox();
-    expect(slider!.y).toBeGreaterThanOrEqual(image!.y + image!.height);
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("story-next")).toBeVisible();
   });
 
-  test("a tap clears the page without moving the reveal; dragging moves it", async ({ page }) => {
-    await page.goto("/historic-post-office");
-    const stage = page.getByTestId("compare-stage");
-    const box = await stage.boundingBox();
-    const x = box!.x + box!.width * 0.7;
-    const y = box!.y + box!.height / 2;
+  test("markers outside the view take no keyboard focus", async ({ page }) => {
+    await page.goto("/?lat=-36.851754&lng=174.744417&z=13.5");
+    await expect(page.getByTestId("map-show-all")).toBeVisible();
 
-    await page.mouse.click(x, y);
-    await expect(page.getByTestId("compare-slider-input")).toHaveValue("50");
-    await expect(page.locator(".tn-compare")).toHaveAttribute("data-focus", "true");
+    const strays = await page.evaluate(() => {
+      const map = document.querySelector("[data-testid=home-map]")!.getBoundingClientRect();
+      return [...document.querySelectorAll<HTMLElement>("[data-testid=home-map-marker]")].filter((marker) => {
+        const box = marker.getBoundingClientRect();
+        const inside = box.right > map.left && box.left < map.right && box.bottom > map.top && box.top < map.bottom;
+        return !inside && marker.tabIndex === 0;
+      }).length;
+    });
+    expect(strays).toBe(0);
+  });
+});
 
-    await page.keyboard.press("Escape");
-    await expect(page.locator(".tn-compare")).toHaveAttribute("data-focus", "false");
+test.describe("secondary pages", () => {
+  for (const route of ["/about", "/contact", "/links"]) {
+    test(`${route} is reachable from the site and clears the header`, async ({ page }) => {
+      await page.goto("/");
+      const footerLink = page.locator(`footer a[href="${route}"], header a[href="${route}"]`).first();
+      await footerLink.click();
+      await expect(page).toHaveURL(new RegExp(`${route}$`));
 
-    await page.setViewportSize({ width: 390, height: 844 });
-    const phoneStage = await stage.boundingBox();
-    await page.mouse.click(195, phoneStage!.y + phoneStage!.height / 2);
-    await expect(page.locator(".tn-compare")).toHaveAttribute("data-focus", "true");
-    await page.mouse.click(195, 20);
-    await expect(page.locator(".tn-compare")).toHaveAttribute("data-focus", "false");
-    await page.setViewportSize({ width: 1280, height: 720 });
-    const wideStage = await stage.boundingBox();
-    expect(wideStage!.width).toBeGreaterThan(0);
+      const header = await page.getByTestId("site-header").boundingBox();
+      const heading = await page.locator("main h1").boundingBox();
+      expect(heading!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
+    });
+  }
 
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.mouse.move(box!.x + box!.width * 0.3, y, { steps: 4 });
-    await page.mouse.up();
-    await expect(page.locator(".tn-compare")).toHaveAttribute("data-focus", "false");
-    expect(Number(await page.getByTestId("compare-slider-input").inputValue())).toBeLessThan(50);
-    await expect(page).toHaveURL(/\?p=\d+$/);
+  test("unknown routes offer the way back", async ({ page }) => {
+    const response = await page.goto("/no-such-story");
+    expect(response?.status()).toBe(404);
+    await page.getByRole("link", { name: "All places" }).click();
+    await expect(page.getByTestId("places-search")).toBeVisible();
   });
 });

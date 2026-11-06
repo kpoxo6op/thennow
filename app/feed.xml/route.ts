@@ -20,7 +20,8 @@ export async function GET() {
   const items = posts
     .map((post) => {
       const url = `${SITE_URL}/${post.slug}`
-      const description = getSummary(post.description)
+      const summary = getSummary(post.description)
+      const description = post.isSample ? `Sample place. ${summary}` : summary
 
       return `
         <item>

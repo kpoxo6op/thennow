@@ -1,17 +1,25 @@
 'use client';
 
 import React, { useCallback, useEffect, useState, forwardRef } from "react";
+import Link from "next/link";
+import { ArrowLeft, ArrowRight, MapPin } from "lucide-react";
+
 import PostType from "@/interfaces/post"
 import { cn } from "@/lib/utils"
-import { COMPARE_SIDE_GUTTER_PX } from "@/lib/compare";
-import ImageSplit from "@/components/ImageSplit";
-import { Slider } from "@/components/ui/slider";
+import { CompareFrame } from "@/components/compare-frame";
+import { PlaceRow, type PlaceSummary } from "@/components/place-row";
 
 interface PostProps extends React.HTMLAttributes<HTMLDivElement> {
   post: PostType;
+  previous: PlaceSummary;
+  next: PlaceSummary;
+  nearby: PlaceSummary[];
+  imageSource?: PlaceSummary;
 }
 
 const DEFAULT_POSITION = 50;
+const IMAGE_SIZES = "(min-width: 1024px) 75vw, 100vw";
+const MAP_ZOOM = 15;
 
 function clampPosition(position: number) {
   return Math.min(100, Math.max(0, position));
@@ -31,9 +39,21 @@ function parsePositionParam(positionParam: string | null) {
   return clampPosition(parsedPosition);
 }
 
-const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props }, ref) => {
+// Source addresses are written bare in the captions; the text stays as written.
+function linkSources(description: string) {
+  return description.split(/(\b[\w-]+(?:\.[\w-]+)*\.(?:nz|com|org|net)\b(?:\/\S*)?)/).map((part, index) =>
+    index % 2 === 1 ? (
+      <a key={index} href={`https://${part}`} className="underline underline-offset-2 hover:text-foreground">
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
+const Post = forwardRef<HTMLDivElement, PostProps>(({ post, previous, next, nearby, imageSource, className, ...props }, ref) => {
   const [position, setPosition] = useState(DEFAULT_POSITION);
-  const [photoOnly, setPhotoOnly] = useState(false);
 
   const applyPosition = useCallback((position: number) => {
     setPosition(clampPosition(position));
@@ -79,97 +99,77 @@ const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props 
     }
   }, [position]);
 
-  useEffect(() => {
-    if (!photoOnly) {
-      return;
-    }
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setPhotoOnly(false);
-      }
-    };
-
-    document.addEventListener("keydown", closeOnEscape);
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("keydown", closeOnEscape);
-      document.body.style.overflow = "";
-    };
-  }, [photoOnly]);
-
-  const togglePhotoOnly = useCallback(() => {
-    setPhotoOnly((current) => !current);
-  }, []);
+  const mapHref = `/?lat=${post.location.lat}&lng=${post.location.lng}&z=${MAP_ZOOM}&view=map&spot=${post.slug}`;
 
   return (
     <main
       ref={ref}
-      className={cn(
-        "flex-1 pt-14",
-        // A container could trap the fixed photo view; viewport units take over.
-        !photoOnly && "[container-type:inline-size]",
-        className
-      )}
+      className={cn("tn-story flex-1 pt-14", className)}
       {...props}
     >
-      <div
-        className="tn-compare"
-        data-focus={photoOnly}
-        style={
-          {
-            "--compare-ratio": post.w / post.h,
-            "--compare-min-gutter": `${COMPARE_SIDE_GUTTER_PX}px`,
-          } as React.CSSProperties
-        }
-      >
-        <div
-          className={cn(
-            photoOnly &&
-              "fixed inset-0 z-40 flex items-center bg-black animate-in fade-in duration-200"
-          )}
-          onClick={(event) => {
-            if (photoOnly && event.target === event.currentTarget) {
-              setPhotoOnly(false);
-            }
-          }}
-        >
-          <ImageSplit
-            post={post}
-            position={position}
-            onPositionChange={applyPosition}
-            onTap={togglePhotoOnly}
-            className={photoOnly ? "[touch-action:none]" : undefined}
-          />
-        </div>
+      <CompareFrame
+        post={post}
+        position={position}
+        onPositionChange={applyPosition}
+        sizes={IMAGE_SIZES}
+        className="tn-story-photo"
+      />
 
-        <div style={{ paddingInline: "var(--compare-gutter)" }}>
-          <Slider
-            aria-label="Compare slider"
-            className="h-13 cursor-ew-resize"
-            value={[position]}
-            onValueChange={(value) => {
-              applyPosition(value[0] ?? DEFAULT_POSITION);
-            }}
-          />
-        </div>
+      <aside className="tn-story-text px-4 pb-10 pt-5 [overflow-wrap:anywhere]">
+        <h1 className="text-balance font-serif text-[1.75rem] leading-tight tracking-tight">
+          {post.name}
+        </h1>
+        <p className="mt-3 max-w-prose whitespace-pre-line leading-relaxed text-foreground/80 lg:text-[0.9375rem]">
+          {linkSources(post.description)}
+        </p>
 
-        <div
-          className="pb-12 pt-2 [overflow-wrap:anywhere]"
-          style={{
-            paddingLeft: "max(1rem, calc((100cqw - var(--compare-frame-width)) / 2))",
-            paddingRight: "max(1rem, calc((100cqw - var(--compare-frame-width)) / 2))",
-          }}
-        >
-          <h1 className="max-w-3xl text-balance font-serif text-2xl leading-tight tracking-tight lg:text-3xl">
-            {post.name}
-          </h1>
-          <p className="mt-3 max-w-prose whitespace-pre-line leading-relaxed text-foreground/75">
-            {post.description}
+        {post.isSample && (
+          <p className="mt-4 max-w-prose text-sm leading-relaxed text-muted-foreground" data-testid="sample-note">
+            Sample place. The name and location are fictional.
+            {imageSource && (
+              <>
+                {" "}The photographs belong to{" "}
+                <Link href={`/${imageSource.slug}`} className="underline underline-offset-2 hover:text-foreground">
+                  {imageSource.name}
+                </Link>
+                .
+              </>
+            )}
           </p>
-        </div>
-      </div>
+        )}
+
+        <Link
+          href={mapHref}
+          className="mt-4 inline-flex h-11 items-center gap-1.5 rounded-sm text-sm font-medium"
+        >
+          <MapPin aria-hidden className="size-4" />
+          On the map
+        </Link>
+
+        <section aria-labelledby="nearby-title" className="mt-6 border-t border-border/70 pt-4">
+          <h2 id="nearby-title" className="text-sm font-medium text-muted-foreground">
+            Nearby
+          </h2>
+          <ul className="-mx-2 mt-1">
+            {nearby.map((place) => (
+              <li key={place.slug}>
+                <PlaceRow place={place} />
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <nav aria-label="More stories" className="mt-4 grid grid-cols-2 gap-3 border-t border-border/70 pt-3 text-sm">
+          <Link href={`/${previous.slug}`} rel="prev" data-testid="story-previous" className="flex min-h-11 items-start gap-1.5 rounded-sm py-1.5 hover:underline hover:underline-offset-2">
+            <ArrowLeft aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <span className="line-clamp-2">{previous.name}</span>
+          </Link>
+          <Link href={`/${next.slug}`} rel="next" data-testid="story-next" className="flex min-h-11 items-start justify-end gap-1.5 rounded-sm py-1.5 text-right hover:underline hover:underline-offset-2">
+            <span className="line-clamp-2">{next.name}</span>
+            <ArrowRight aria-hidden className="mt-0.5 size-4 shrink-0" />
+          </Link>
+        </nav>
+      </aside>
     </main>
   )
 }) as React.ForwardRefExoticComponent<PostProps>

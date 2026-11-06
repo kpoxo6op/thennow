@@ -101,35 +101,172 @@
   }
 }
 
-/* Compare: the frame takes the photo's own shape and the slider spans the frame. */
+html {
+  scroll-padding-top: 3.5rem;
+}
+
+/* Compare: the frame takes the photo's own shape; the reveal range spans it. */
 .tn-compare {
-  --compare-chrome: 10.5rem;
+  --compare-panel: 0px;
+  --compare-max-height: calc(100svh - 3.5rem);
   --compare-frame-width: min(
-    100cqw,
-    calc((100svh - var(--compare-chrome)) * var(--compare-ratio))
+    calc(100cqw - var(--compare-panel)),
+    calc(var(--compare-max-height) * var(--compare-ratio))
   );
-  --compare-gutter: max(
+  --compare-frame-left: calc(
+    (100cqw - var(--compare-panel) - var(--compare-frame-width)) / 2
+  );
+  --compare-frame-right: calc(
+    100cqw - var(--compare-frame-left) - var(--compare-frame-width)
+  );
+  --compare-gutter-left: max(
     var(--compare-min-gutter),
-    calc((100cqw - var(--compare-frame-width)) / 2)
+    var(--compare-frame-left)
+  );
+  --compare-gutter-right: max(
+    var(--compare-min-gutter),
+    var(--compare-frame-right)
+  );
+  --compare-stage-height: calc(
+    var(--compare-frame-width) / var(--compare-ratio)
   );
 }
 
-@media (max-height: 500px) {
+/* Tall screens keep the photo in view while the text scrolls beneath it. */
+@media (max-width: 1023px) and (orientation: portrait) {
   .tn-compare {
-    --compare-chrome: 6.75rem;
+    --compare-max-height: 62svh;
+  }
+
+  .tn-compare-sticky {
+    position: sticky;
+    top: 3.5rem;
+    z-index: 20;
+    background: hsl(var(--background));
+  }
+}
+
+@media (min-width: 1024px) {
+  .tn-compare {
+    --compare-min-gutter: 0px !important;
+    --compare-panel: 22rem;
+  }
+}
+
+/* Photo beside the text wherever the width allows but the height doesn't. */
+@media (min-width: 640px) and (max-width: 1023px) and (max-height: 500px) {
+  .tn-compare {
+    --compare-panel: 18rem;
+  }
+}
+
+.tn-story-photo {
+  min-height: 0;
+}
+
+@media (min-width: 1024px),
+  (min-width: 640px) and (max-height: 500px) {
+  .tn-story-photo {
+    display: flex;
+    align-items: center;
+    min-height: calc(100svh - 3.5rem);
+  }
+
+  .tn-story-text {
+    position: absolute;
+    inset-block: 3.5rem 0;
+    right: 0;
+    z-index: 10;
+    width: 18rem;
+    overflow-y: auto;
+    border-left: 1px solid hsl(var(--border) / 0.7);
+    background: hsl(var(--background));
+    padding-inline: 1.25rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .tn-story {
+    position: relative;
+  }
+}
+
+@media (min-width: 1024px) {
+  .tn-story-text {
+    width: 22rem;
   }
 }
 
 .tn-compare[data-focus="true"] {
-  --compare-chrome: 0px;
+  --compare-panel: 0px;
+  --compare-max-height: 100svh;
+}
+
+.tn-compare--hero {
+  --compare-panel: 0px;
+  --compare-frame-width: 100cqw;
+  --compare-frame-left: 0px;
+  --compare-frame-right: 0px;
+  --compare-stage-height: min(125cqw, calc(100svh - 15rem));
+}
+
+@media (min-width: 640px) {
+  .tn-compare--hero {
+    --compare-stage-height: min(68cqw, calc(100svh - 15rem));
+  }
+}
+
+@media (min-width: 1024px) {
+  .tn-compare--hero {
+    --compare-panel: 0px;
+    --compare-stage-height: max(24rem, calc(100svh - 14.5rem));
+  }
+}
+
+@media (max-height: 500px) {
+  .tn-compare--hero {
+    --compare-panel: 0px;
+    --compare-stage-height: calc(100svh - 3.5rem);
+  }
 }
 
 .tn-compare-frame {
   position: absolute;
   inset-block: 0;
-  left: 50%;
+  left: var(--compare-frame-left);
   width: var(--compare-frame-width);
-  transform: translateX(-50%);
+}
+
+.tn-compare-range {
+  position: absolute;
+  inset-block: 0;
+  left: var(--compare-gutter-left);
+  right: var(--compare-gutter-right);
+}
+
+.tn-compare-mark {
+  border-radius: 2px;
+  background: rgb(0 0 0 / 0.55);
+  padding: 0.125rem 0.5rem;
+  color: white;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  transition: opacity 150ms ease;
+}
+
+.tn-places-row {
+  transition: background-color 120ms ease;
+}
+
+details > summary {
+  list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details[open] > summary .tn-disclosure {
+  rotate: 90deg;
 }
 
 .tn-slider::-webkit-slider-runnable-track {
@@ -202,7 +339,7 @@
 
 /* Map: quiet the basemap so the markers and photographs lead. */
 .tn-map .maplibregl-canvas {
-  filter: saturate(0.45) contrast(0.96);
+  filter: saturate(0.5) contrast(0.97);
 }
 
 .dark .tn-map .maplibregl-canvas {
@@ -261,6 +398,10 @@
 .tn-map-cluster:focus-visible {
   outline: 2px solid hsl(var(--foreground));
   outline-offset: 2px;
+}
+
+.tn-map.maplibregl-map {
+  font: inherit;
 }
 
 .tn-map .maplibregl-ctrl-group {

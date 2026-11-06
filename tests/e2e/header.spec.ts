@@ -5,9 +5,8 @@ test("desktop header reaches the right edge with matching left/right padding", a
 
   const headerGeometry = await page.evaluate(() => {
     const title = document.querySelector('[data-testid="site-header"] a[href="/"]');
-    const linksLink = Array.from(document.querySelectorAll('[data-testid="site-header"] a')).find(
-      (link) => link.textContent?.trim() === "Links"
-    );
+    // The last primary link. Contact and Links moved to the footer in V2.
+    const linksLink = Array.from(document.querySelectorAll('[data-testid="site-header"] nav a')).at(-1);
 
     if (!title || !linksLink) {
       return null;

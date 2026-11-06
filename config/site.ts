@@ -6,9 +6,15 @@ export const siteConfig = {
     "New Zealand photos then and now",
   mainNav: [
     {
+      title: "Places",
+      href: "/#places",
+    },
+    {
       title: "About",
       href: "/about",
     },
+  ],
+  footerNav: [
     {
       title: "Contact",
       href: "/contact",
@@ -16,6 +22,10 @@ export const siteConfig = {
     {
       title: "Links",
       href: "/links",
+    },
+    {
+      title: "Feed",
+      href: "/feed.xml",
     },
   ],
   links: {
