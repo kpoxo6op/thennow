@@ -23,6 +23,8 @@ const DEFAULT_POSITION = 50
 const ALL_THEN = 100
 const ALL_NOW = 0
 const GLIDE_MS = 520
+// Past this a title wraps at desktop size, and the photograph gives it room in the first screen.
+const LONG_TITLE = 56
 
 function clampPosition(position: number) {
   return Math.min(100, Math.max(0, position))
@@ -57,6 +59,24 @@ function coordinates({ lat, lng }: PostType["location"]) {
   return `${Math.abs(lat).toFixed(4)}° ${ns}, ${Math.abs(lng).toFixed(4)}° ${ew}`
 }
 
+// A source reads by its host; the rest of the address stays visible, and quieter.
+function SourceLink({ source }: { source: string }) {
+  const slash = source.indexOf("/")
+  const host = slash === -1 ? source : source.slice(0, slash)
+  const path = slash === -1 ? "" : source.slice(slash)
+
+  return (
+    <p className="text-[15px] leading-snug text-muted-foreground">
+      Source:{" "}
+      <a href={`https://${source}`} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+        <span className="text-foreground">{host}</span>
+        <wbr />
+        <span className="[overflow-wrap:anywhere]">{path}</span>
+      </a>
+    </p>
+  )
+}
+
 // The first sentence of a passage is its caption; the rest is reading.
 function ChapterWords({ lines }: { lines: string[] }) {
   const words = lines.filter((line) => !SOURCE_LINE.test(line))
@@ -64,25 +84,15 @@ function ChapterWords({ lines }: { lines: string[] }) {
   const [lead, ...rest] = words
 
   return (
-    <div className="space-y-4">
-      {lead ? <p className="font-serif text-[1.75rem] leading-[1.15] md:text-[2rem]">{lead}</p> : null}
+    <div className="space-y-3">
+      {lead ? <p className="tn-reading text-[1.375rem] leading-snug md:text-2xl">{lead}</p> : null}
       {rest.map((line) => (
-        <p key={line} className="tn-reading text-lg leading-relaxed md:text-xl">
+        <p key={line} className="tn-reading text-lg leading-relaxed md:text-xl md:leading-relaxed">
           {line}
         </p>
       ))}
       {sources.map((source) => (
-        <p key={source} className="text-[15px] leading-snug text-muted-foreground">
-          <span className="block">Source</span>
-          <a
-            href={`https://${source}`}
-            target="_blank"
-            rel="noreferrer"
-            className="break-all text-foreground underline underline-offset-4"
-          >
-            {source}
-          </a>
-        </p>
+        <SourceLink key={source} source={source} />
       ))}
     </div>
   )
@@ -91,7 +101,6 @@ function ChapterWords({ lines }: { lines: string[] }) {
 export default function Post({ post, next, nearby }: PostProps) {
   const [position, setPosition] = useState(DEFAULT_POSITION)
   const glideRef = useRef<number | null>(null)
-  const stageAnchorRef = useRef<HTMLDivElement>(null)
 
   const stopGlide = useCallback(() => {
     if (glideRef.current !== null) {
@@ -190,33 +199,24 @@ export default function Post({ post, next, nearby }: PostProps) {
     glideTo(rounded === target ? DEFAULT_POSITION : target, position)
   }
 
-  // From further down the page, a year also brings the comparison back into view.
-  const showWholeFromWords = (target: number) => {
-    glideTo(target, position)
-    const anchor = stageAnchorRef.current
-
-    if (anchor && anchor.getBoundingClientRect().bottom < 0 && getComputedStyle(anchor).position !== "sticky") {
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" })
-    }
-  }
-
   const legendClass =
-    "inline-flex h-11 items-center gap-1.5 text-[15px] underline-offset-4 transition-colors hover:underline aria-pressed:font-medium aria-pressed:text-accent"
+    "group -my-0.5 inline-flex h-11 items-center"
+  const legendPill =
+    "inline-flex h-8 items-center gap-1.5 rounded-full border border-input px-3 text-sm transition-colors group-hover:border-foreground group-aria-pressed:border-foreground group-aria-pressed:bg-foreground group-aria-pressed:text-background"
 
   const photos = [
-    { label: "then", year: thenYear, src: post.b_imageUrl, target: ALL_THEN, section: dated[0] },
-    { label: "now", year: nowYear, src: post.a_imageUrl, target: ALL_NOW, section: dated.length > 1 ? dated[dated.length - 1] : undefined },
+    { label: "then", year: thenYear, src: post.b_imageUrl, section: dated[0] },
+    { label: "now", year: nowYear, src: post.a_imageUrl, section: dated.length > 1 ? dated[dated.length - 1] : undefined },
   ]
 
   return (
     <main
-      className="tn-story tn-enter flex-1"
+      className={`tn-story tn-enter flex-1${post.name.length > LONG_TITLE ? " tn-story--long-title" : ""}`}
       style={{ "--ratio": post.w / post.h } as React.CSSProperties}
     >
       <ResetScroll />
       <div>
-        <div ref={stageAnchorRef} className="tn-story-pin">
+        <div>
           <div className="relative">
             <CompareStage
               name={post.name}
@@ -231,8 +231,8 @@ export default function Post({ post, next, nearby }: PostProps) {
             />
             {post.sample ? (
               <span className="tn-story-edge pointer-events-none absolute inset-x-0 top-3 flex">
-                <span className="ml-3 rounded-full bg-black/75 px-3 py-1 text-sm text-white">
-                  Sample place<span className="hidden sm:inline">, placeholder photographs</span>
+                <span className="ml-2 whitespace-nowrap rounded-full bg-black/75 px-3 py-1 text-[13px] text-white sm:text-sm">
+                  Sample place, placeholder photographs
                 </span>
               </span>
             ) : null}
@@ -242,32 +242,36 @@ export default function Post({ post, next, nearby }: PostProps) {
               type="button"
               data-testid="story-show-then"
               aria-pressed={rounded === ALL_THEN}
-              aria-label={`Show the whole ${thenYear ?? "then"} photograph`}
+              aria-label={`then${thenYear ? ` ${thenYear}` : ""}: show this whole photograph`}
               className={legendClass}
               onClick={() => showWhole(ALL_THEN)}
             >
-              <span className="text-muted-foreground">then</span>
-              {thenYear ? <span className="font-serif text-[1.375rem] leading-none">{thenYear}</span> : null}
+              <span className={legendPill}>
+                then
+                {thenYear ? <span className="font-serif text-xl leading-none">{thenYear}</span> : null}
+              </span>
             </button>
             <button
               type="button"
               data-testid="story-show-now"
               aria-pressed={rounded === ALL_NOW}
-              aria-label={`Show the whole ${nowYear ?? "now"} photograph`}
+              aria-label={`now${nowYear ? ` ${nowYear}` : ""}: show this whole photograph`}
               className={legendClass}
               onClick={() => showWhole(ALL_NOW)}
             >
-              <span className="text-muted-foreground">now</span>
-              {nowYear ? <span className="font-serif text-[1.375rem] leading-none">{nowYear}</span> : null}
+              <span className={legendPill}>
+                now
+                {nowYear ? <span className="font-serif text-xl leading-none">{nowYear}</span> : null}
+              </span>
             </button>
           </div>
         </div>
 
         <article className="tn-story-edge pb-14 pt-3 md:pt-1">
-          <header className="flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between md:gap-8">
-            <h1 className="text-balance font-serif text-[2.25rem] leading-[1.05] sm:text-[2.5rem] md:text-[3.25rem]">{post.name}</h1>
+          <header className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+            <h1 className="text-pretty font-serif text-[2.5rem] leading-[1.05] md:text-[3.25rem]">{post.name}</h1>
             {yearsApart ? (
-              <p className="shrink-0 tabular-nums text-muted-foreground">{yearsApart} years apart</p>
+              <p className="tabular-nums text-muted-foreground">{yearsApart} years apart</p>
             ) : null}
           </header>
 
@@ -285,46 +289,36 @@ export default function Post({ post, next, nearby }: PostProps) {
             </div>
           ) : (
             <>
-              <div className={dated.length ? "mt-8 grid gap-10 md:mt-12 md:grid-cols-2 md:gap-8" : "hidden gap-8 md:mt-12 md:grid md:grid-cols-2"}>
+              {undated.length && !dated.length ? (
+                <div className="mt-5 space-y-1 md:mt-3">
+                  {undated.flatMap((section) => section.lines).map((line) => (
+                    <p key={line} className="text-muted-foreground">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+              <div className={dated.length ? "mt-10 grid gap-12 md:mt-16 md:grid-cols-2 md:gap-8" : "mt-16 hidden gap-8 md:grid md:grid-cols-2"}>
                 {photos.map((photo) => (
-                  <section key={photo.label} className="min-w-0 space-y-4">
+                  <section key={photo.label} className="min-w-0">
                     <Image
                       src={photo.src}
                       alt={`${post.name}, ${photo.year ?? photo.label}`}
                       width={post.w}
                       height={post.h}
-                      sizes="50vw"
-                      className="hidden w-full bg-muted md:block"
+                      sizes="(min-width: 768px) 50vw, 100vw"
+                      className="-ml-5 aspect-[var(--ratio)] w-[calc(100%+2.5rem)] max-w-none bg-muted object-cover md:ml-0 md:w-full"
                     />
-                    {photo.year ? (
-                      <h2>
-                        <button
-                          type="button"
-                          aria-label={`Show the whole ${photo.year} photograph`}
-                          className="font-serif text-[3.25rem] leading-none underline-offset-[6px] hover:underline md:text-[4rem]"
-                          onClick={() => showWholeFromWords(photo.target)}
-                        >
-                          {photo.year}
-                        </button>
-                      </h2>
-                    ) : (
-                      <p className="hidden text-muted-foreground md:block">{photo.label}</p>
-                    )}
-                    {photo.section ? <ChapterWords lines={photo.section.lines} /> : null}
+                    {photo.section ? (
+                      <div className="mt-4 space-y-3">
+                        <h2 className="font-serif text-[2rem] leading-none text-muted-foreground">{photo.year}</h2>
+                        <ChapterWords lines={photo.section.lines} />
+                      </div>
+                    ) : null}
                   </section>
                 ))}
               </div>
-              {undated.length && !dated.length ? (
-                <div className="mt-8 max-w-2xl space-y-1 border-t pt-4">
-                  {undated.flatMap((section) => section.lines).map((line) => (
-                    <p key={line} className="text-lg">
-                      {line}
-                    </p>
-                  ))}
-                  <p className="text-muted-foreground">The dates and history of these photographs have not been written up yet.</p>
-                </div>
-              ) : null}
-              <p className="mt-10 flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t pt-4 text-[15px] text-muted-foreground">
+              <p className="mt-8 flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t pt-4 md:mt-10 text-[15px] text-muted-foreground">
                 <span className="tabular-nums">{coordinates(post.location)}</span>
                 <Link href={mapHref} className="-my-2 py-2 text-foreground underline underline-offset-4">
                   See it on the map
@@ -349,7 +343,7 @@ export default function Post({ post, next, nearby }: PostProps) {
                 name={next.name}
                 thenSrc={next.b_imageUrl}
                 nowSrc={next.a_imageUrl}
-                ratio={next.w / next.h}
+                ratio={3 / 2}
                 trim={STORY_TRIM[next.slug]}
                 sizes="(min-width: 768px) 60vw, 100vw"
               />

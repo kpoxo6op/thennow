@@ -239,6 +239,10 @@ body:has(.tn-home) {
   .tn-story {
     --peek: 7rem;
   }
+
+  .tn-story--long-title {
+    --peek: 10.5rem;
+  }
 }
 
 @media (max-height: 520px) {
@@ -267,15 +271,6 @@ body:has(.tn-home) {
 
 .tn-story-edge {
   padding-inline: var(--edge);
-}
-
-@media (orientation: portrait) {
-  .tn-story-pin {
-    position: sticky;
-    top: var(--sticky-top);
-    z-index: 5;
-    background: hsl(var(--background));
-  }
 }
 
 /* Places */
