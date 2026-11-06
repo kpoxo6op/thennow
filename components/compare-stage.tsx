@@ -22,13 +22,16 @@ interface Props {
 
 const TOUCH_SLOP_PX = 4
 
-// The reveal travels over the photograph, never over the empty space beside it.
-function getGutter(width: number, height: number, ratio: number, fit: Props["fit"]) {
-  if (fit === "cover") {
-    return COMPARE_SIDE_GUTTER_PX
-  }
+// Where the photograph actually sits inside the stage.
+function getImageBounds(width: number, height: number, ratio: number, fit: Props["fit"]) {
+  const imageWidth = fit === "cover" ? width : Math.min(width, height * ratio)
 
-  return Math.max(COMPARE_SIDE_GUTTER_PX, (width - Math.min(width, height * ratio)) / 2)
+  return { left: (width - imageWidth) / 2, width: imageWidth }
+}
+
+// Fingers stay clear of the screen edges, and of any empty space beside the photograph.
+function getGutter(imageLeft: number) {
+  return Math.max(COMPARE_SIDE_GUTTER_PX, imageLeft)
 }
 
 export function CompareStage({
@@ -76,7 +79,7 @@ export function CompareStage({
         return
       }
 
-      const gutter = getGutter(rect.width, rect.height, ratio, fit)
+      const gutter = getGutter(getImageBounds(rect.width, rect.height, ratio, fit).left)
       const activeWidth = Math.max(rect.width - gutter * 2, 1)
       const next = ((clientX - rect.left - gutter) / activeWidth) * 100
       onPositionChange(Math.min(100, Math.max(0, next)))
@@ -86,8 +89,10 @@ export function CompareStage({
 
   const measured = size.width > 0
   const bounded = Math.min(100, Math.max(0, position))
-  const gutter = getGutter(size.width, size.height, ratio, fit)
-  const revealX = gutter + (bounded / 100) * Math.max(size.width - gutter * 2, 0)
+  const image = getImageBounds(size.width, size.height, ratio, fit)
+  const gutter = getGutter(image.left)
+  // Input travel maps onto the whole photograph, so 0 and 100 show each one complete.
+  const revealX = image.left + (bounded / 100) * image.width
   const lineLeft = measured ? `${revealX}px` : `${bounded}%`
   const imageClass = fit === "cover" ? "absolute inset-0" : "tn-compare-image"
   const sizes = "100vw"
@@ -105,9 +110,17 @@ export function CompareStage({
           return
         }
 
+        const touch = event.pointerType !== "mouse"
+        const rect = event.currentTarget.getBoundingClientRect()
+        const edge = getGutter(getImageBounds(rect.width, rect.height, ratio, fit).left)
+
+        // Touches starting in the margins are left to the OS edge gestures.
+        if (touch && (event.clientX < rect.left + edge || event.clientX > rect.right - edge)) {
+          return
+        }
+
         event.currentTarget.setPointerCapture(event.pointerId)
         onInteract?.()
-        const touch = event.pointerType !== "mouse"
         gestureRef.current = { startX: event.clientX, moved: false, touch }
 
         // A touch may become a page scroll, so it only moves the line once it is clearly not one.
