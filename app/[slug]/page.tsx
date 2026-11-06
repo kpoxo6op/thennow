@@ -2,6 +2,7 @@ import { Metadata } from "next"
 import { notFound } from "next/navigation"
 import type PostType from "@/interfaces/post"
 import { fetchPosts } from "@/lib/api"
+import { SOURCE_LINE, toSections } from "@/components/Desc"
 import Post, { type StoryLink } from "@/components/Post"
 
 function toLink({ name, slug, b_imageUrl, a_imageUrl, w, h, sample }: PostType): StoryLink {
@@ -39,7 +40,10 @@ export async function generateMetadata({ params }: PostProps): Promise<Metadata>
 
   return {
     title: post.name,
-    description: post.description,
+    description: toSections(post.description)
+      .flatMap((section) => section.lines)
+      .filter((line) => !SOURCE_LINE.test(line))
+      .join(" "),
   }
 }
 
@@ -48,6 +52,18 @@ export async function generateStaticParams(): Promise<StaticParams> {
   return posts.map((post) => ({
     slug: post.slug,
   }))
+}
+
+// Written and unwritten stories take turns, so "Next story" never strings together pages
+// that say only "Coming soon...", and the loop still visits all of them.
+function storyLoop(originals: PostType[]) {
+  const dated = originals.filter((story) => toSections(story.description).some((section) => section.year))
+  const undated = originals.filter((story) => !dated.includes(story))
+  const longest = Math.max(dated.length, undated.length)
+
+  return Array.from({ length: longest }).flatMap((_, index) =>
+    [dated[index], undated[index]].filter((story): story is PostType => Boolean(story))
+  )
 }
 
 function kilometres(a: PostType, b: PostType) {
@@ -76,9 +92,8 @@ export default async function PostPage({ params }: PostProps) {
 
   // A sample leads to the real story behind its photographs; a story to the next one.
   const source = post.sample ? originals.find((other) => other.slug === post.imageSourceSlug) : undefined
-  const next = post.sample
-    ? source
-    : originals[(originals.findIndex((other) => other.slug === post.slug) + 1) % originals.length]
+  const loop = storyLoop(originals)
+  const next = post.sample ? source : loop[(loop.findIndex((other) => other.slug === post.slug) + 1) % loop.length]
   const nearby = post.sample
     ? byDistance(posts.filter((other) => other.sample)).slice(0, 4)
     : byDistance(originals).filter(({ story }) => story.slug !== next?.slug)

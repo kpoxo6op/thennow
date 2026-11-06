@@ -95,7 +95,7 @@ function Chapter({ alt, src, w, h, year, lines }: { alt: string; src: string; w:
         width={w}
         height={h}
         sizes="(min-width: 768px) 50vw, 100vw"
-        className="tn-chapter-photo aspect-[var(--ratio)] max-w-none bg-muted object-cover md:order-1"
+        className="aspect-[var(--ratio)] w-full bg-muted object-cover md:order-1"
       />
       {rest.length || sources.length ? (
         <div className="space-y-3 md:order-3 md:-mt-1">
@@ -226,7 +226,7 @@ export default function Post({ post, next, nearby }: PostProps) {
   }
 
   const legendClass =
-    "group -my-0.5 inline-flex h-11 items-center"
+    "group -my-0.5 inline-flex h-11 shrink-0 items-center rounded-full"
   const legendPill =
     "inline-flex h-8 items-center gap-1.5 rounded-full border border-input px-3 text-sm transition-colors group-hover:border-foreground group-aria-pressed:border-foreground group-aria-pressed:bg-foreground group-aria-pressed:text-background"
 
@@ -277,6 +277,10 @@ export default function Post({ post, next, nearby }: PostProps) {
                 {thenYear ? <span className="tn-reading text-base leading-none tabular-nums">{thenYear}</span> : null}
               </span>
             </button>
+            <p className="hidden min-w-0 px-3 text-center text-sm text-muted-foreground sm:block">
+              Drag the line, or choose then or now to see a whole photograph
+            </p>
+            <p className="px-2 text-center text-sm text-muted-foreground sm:hidden">Drag the line</p>
             <button
               type="button"
               data-testid="story-show-now"
@@ -298,8 +302,8 @@ export default function Post({ post, next, nearby }: PostProps) {
             <h1
               className={
                 post.sample
-                  ? "text-pretty font-serif text-[2rem] leading-[1.08] md:text-[2.5rem]"
-                  : "text-pretty font-serif text-[2.5rem] leading-[1.05] md:text-[3.25rem]"
+                  ? "text-pretty font-serif text-[2rem] leading-[1.08] md:text-balance md:text-[clamp(2rem,4.5svh,2.5rem)]"
+                  : "text-pretty font-serif text-[2.5rem] leading-[1.05] md:text-balance md:text-[clamp(2.25rem,5.8svh,3.25rem)]"
               }
             >
               {post.name}
@@ -351,13 +355,13 @@ export default function Post({ post, next, nearby }: PostProps) {
         </article>
       </div>
 
-      <section className="tn-story-edge border-t pb-16 pt-8 md:pb-24">
+      <section className="tn-story-edge border-t pb-12 pt-8 md:pb-16">
         {next ? (
           <h2 className="mb-5 font-serif text-[2rem] leading-none md:text-[2.5rem]">
             {post.sample ? "Where these photographs come from" : "Next story"}
           </h2>
         ) : null}
-        <div className="grid gap-10 md:grid-cols-[3fr_2fr] md:gap-8">
+        <div className="grid gap-10 md:grid-cols-2 md:gap-8">
           {next ? (
             <div>
               <SeamTile
@@ -365,9 +369,9 @@ export default function Post({ post, next, nearby }: PostProps) {
                 name={next.name}
                 thenSrc={next.b_imageUrl}
                 nowSrc={next.a_imageUrl}
-                ratio={3 / 2}
+                ratio={16 / 9}
                 trim={STORY_TRIM[next.slug]}
-                sizes="(min-width: 768px) 60vw, 100vw"
+                sizes="(min-width: 768px) 50vw, 100vw"
               />
               <Link
                 href={`/${next.slug}`}

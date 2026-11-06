@@ -48,12 +48,24 @@ test.describe("a story page", () => {
     }
   })
 
-  test("a real story moves on to the next real story, never a sample", async ({ page }) => {
-    await page.goto("/mill-house")
-    await expect(page.getByText("Sample", { exact: true })).toHaveCount(0)
-    await page.getByRole("link", { name: "Corner of Rata Street and Commercial Road, Helensville" }).last().click()
-    await expect(page).toHaveURL(/\/sheep$/)
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Rata Street")
+  test("next story visits all six originals, never samples, and no two unwritten in a row", async ({ page }) => {
+    const seen: string[] = []
+    let slug = "mill-house"
+
+    for (let step = 0; step < 6; step += 1) {
+      await page.goto(`/${slug}`)
+      await expect(page.getByText("Sample", { exact: true })).toHaveCount(0)
+      seen.push(slug)
+      const unwritten = (await page.locator("article").innerText()).includes("Coming soon...")
+      const nextHref = await page.locator('a[aria-label$="compare then and now"]').getAttribute("href")
+      slug = nextHref!.slice(1)
+      await page.goto(`/${slug}`)
+      const nextUnwritten = (await page.locator("article").innerText()).includes("Coming soon...")
+      expect(unwritten && nextUnwritten, `${seen.at(-1)} to ${slug}`).toBe(false)
+    }
+
+    expect(new Set(seen).size).toBe(6)
+    expect(slug).toBe("mill-house")
   })
 
   test("a sample says so on the photograph and leads to the real story behind it", async ({ page }) => {

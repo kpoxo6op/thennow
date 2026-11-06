@@ -263,16 +263,11 @@ body:has(.tn-home) {
   }
 }
 
-/* On a phone a chapter's photograph runs edge to edge. */
-.tn-chapter-photo {
-  width: 100cqw;
-  margin-inline-start: calc(var(--edge) * -1);
-}
-
-@media (min-width: 768px) {
-  .tn-chapter-photo {
-    width: 100%;
-    margin-inline-start: 0;
+/* Where a story's photograph is width-limited the knob sits lighter and clear of the screen edge; its grip stays as large. */
+@media (max-width: 1023px) {
+  .tn-story [data-testid="compare-slider-knob"] {
+    width: 2.25rem;
+    height: 2.25rem;
   }
 }
 
