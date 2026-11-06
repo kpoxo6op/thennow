@@ -423,6 +423,11 @@ details[open] > summary .tn-disclosure {
   filter: invert(1);
 }
 
+.tn-map .maplibregl-ctrl-attrib {
+  font-size: 12px;
+  line-height: 20px;
+}
+
 .tn-map .maplibregl-ctrl-attrib.maplibregl-compact {
   background: hsl(var(--background) / 0.8);
   color: hsl(var(--foreground));

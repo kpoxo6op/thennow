@@ -581,12 +581,14 @@ export const HomeMap = forwardRef<HomeMapHandle, Props>(function HomeMap(
           failureCallbackRef.current?.()
         }
       })
-      activeMap.once("load", () => {
-        // Compact attribution starts expanded and would sit on the markers.
+      // Compact attribution starts expanded and would sit on the markers.
+      const collapseAttribution = () =>
         mapRef.current
           ?.querySelector(".maplibregl-ctrl-attrib")
           ?.classList.remove("maplibregl-compact-show")
-      })
+
+      collapseAttribution()
+      activeMap.once("load", collapseAttribution)
 
       renderMarkers()
       updateVisibleSpots()
