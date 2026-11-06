@@ -508,6 +508,17 @@ test("choosing any story shows its own pin, from the list and from an address", 
 test.describe("the chosen place on a phone's map list", () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
+  test("the keyboard meets the map before the list, as the eye does", async ({ page }) => {
+    await page.goto("/places?view=map")
+    await expect(markers(page).first()).toBeVisible()
+    const mapFirst = await page.evaluate(() => {
+      const map = document.querySelector('[data-testid="home-map"]')!
+      const row = document.querySelector('[data-testid="map-list-item"]')!
+      return Boolean(map.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING)
+    })
+    expect(mapFirst).toBe(true)
+  })
+
   test("stays under the finger when it is already in view", async ({ page }) => {
     await page.goto("/places?view=map")
     await expect(markers(page).first()).toBeVisible()

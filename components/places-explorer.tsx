@@ -491,23 +491,7 @@ export function PlacesExplorer({ stories }: Props) {
           <PhotoGrid stories={filtered} onPrefetch={handlePrefetch} />
         )
       ) : (
-        <div className="tn-map-view flex flex-col-reverse lg:flex-row" data-testid="map-view">
-          <aside className="shrink-0 border-t lg:w-[23rem] lg:overflow-y-auto lg:border-r lg:border-t-0">
-            {filtered.length > 0 ? (
-              <ul ref={listRef} className="p-2">
-                {listed.map((story) => (
-                  <li key={story.slug}>
-                    <StoryRow
-                      story={story}
-                      chosen={Boolean(selected?.some((other) => other.slug === story.slug))}
-                      onChoose={handleChoose}
-                      onHighlight={handleHighlight}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </aside>
+        <div className="tn-map-view flex flex-col lg:flex-row-reverse" data-testid="map-view">
           <div className="tn-map relative h-[50svh] min-h-[20rem] min-w-0 shrink-0 lg:h-auto lg:flex-1 lg:shrink">
             <PlacesMap
               stories={filtered}
@@ -570,6 +554,22 @@ export function PlacesExplorer({ stories }: Props) {
             ) : null}
 
           </div>
+          <aside className="shrink-0 border-t lg:w-[23rem] lg:overflow-y-auto lg:border-r lg:border-t-0">
+            {filtered.length > 0 ? (
+              <ul ref={listRef} className="p-2">
+                {listed.map((story) => (
+                  <li key={story.slug}>
+                    <StoryRow
+                      story={story}
+                      chosen={Boolean(selected?.some((other) => other.slug === story.slug))}
+                      onChoose={handleChoose}
+                      onHighlight={handleHighlight}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </aside>
         </div>
       )}
     </main>

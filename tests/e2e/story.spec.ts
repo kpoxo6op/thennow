@@ -325,10 +325,14 @@ test.describe("a story's own map", () => {
     await expect(page.getByTestId("compare-slider-input")).toHaveValue("50")
   })
 
-  test.describe("on a phone", () => {
-    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  for (const [device, use] of [
+    ["a phone", { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }],
+    ["a touchscreen with a fine pointer", { viewport: { width: 1280, height: 800 }, hasTouch: true, isMobile: false }],
+  ] as const) {
+  test.describe(`on ${device}`, () => {
+    test.use(use)
 
-    test("a swipe over the map still scrolls the page", async ({ page, context }) => {
+    test("a swipe over the map still scrolls the page and leaves the pin where it is", async ({ page, context }) => {
       await page.goto("/mill-house")
       await page.getByTestId("story-map").scrollIntoViewIfNeeded()
       await expect(page.locator(".maplibregl-canvas")).toBeVisible()
@@ -345,7 +349,46 @@ test.describe("a story's own map", () => {
       }
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(start + 40)
+
+      // Both read in one frame: the page may still be gliding from the swipe.
+      const drift = await page.evaluate(() => {
+        const map = document.querySelector('[data-testid="story-map"]')!.getBoundingClientRect()
+        const pin = document.querySelector('[data-testid="story-map-pin"]')!.getBoundingClientRect()
+        return Math.abs(pin.top + pin.height / 2 - (map.top + map.height / 2))
+      })
+      expect(drift).toBeLessThanOrEqual(2)
     })
+
+    test("a pinch low on the map zooms around the pin and never loses it", async ({ page, context }) => {
+      await page.goto("/mill-house")
+      await page.getByTestId("story-map").scrollIntoViewIfNeeded()
+      await expect(page.locator(".maplibregl-canvas")).toBeVisible()
+      await page.waitForTimeout(500)
+      const box = (await page.getByTestId("story-map").boundingBox())!
+      const cdp = await context.newCDPSession(page)
+      const y = box.y + box.height - 24
+      const x = box.x + box.width / 2
+
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x - 20, y, id: 0 }, { x: x + 20, y, id: 1 }] })
+      for (let i = 1; i <= 8; i += 1) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - 20 - i * 10, y, id: 0 }, { x: x + 20 + i * 10, y, id: 1 }] })
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      await page.waitForTimeout(600)
+
+      const map = (await page.getByTestId("story-map").boundingBox())!
+      const pin = (await page.getByTestId("story-map-pin").boundingBox())!
+      expect(Math.abs(pin.y + pin.height / 2 - (map.y + map.height / 2))).toBeLessThanOrEqual(3)
+    })
+  })
+  }
+
+  test("the pin is not offered to assistive technology as a control", async ({ page }) => {
+    await page.goto("/mill-house")
+    await page.getByTestId("story-map").scrollIntoViewIfNeeded()
+    await expect(page.getByTestId("story-map-pin")).toBeVisible()
+    await expect(page.getByTestId("story-map").getByRole("button", { name: "Map marker" })).toHaveCount(0)
+    await expect(page.getByRole("region", { name: "Map showing where Mill House, Auckland is" })).toBeVisible()
   })
 })
 

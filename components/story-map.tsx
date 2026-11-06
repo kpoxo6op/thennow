@@ -36,7 +36,6 @@ export function StoryMap({ name, location }: Props) {
         return
       }
 
-      const touchFirst = window.matchMedia("(pointer: coarse)").matches
       const center: [number, number] = [location.lng, location.lat]
 
       try {
@@ -53,8 +52,7 @@ export function StoryMap({ name, location }: Props) {
           dragRotate: false,
           pitchWithRotate: false,
           touchPitch: false,
-          // One finger belongs to the page; on a phone two fingers still zoom.
-          dragPan: !touchFirst,
+          doubleClickZoom: false,
         })
       } catch {
         setFailed(true)
@@ -76,7 +74,19 @@ export function StoryMap({ name, location }: Props) {
         }
       })
 
+      // Two fingers zoom, always around the pin, so it can't be lost.
+      activeMap.touchZoomRotate.enable({ around: "center" })
       activeMap.touchZoomRotate.disableRotation()
+
+      // One finger belongs to the page, on any touch screen; the map never hears of it.
+      const canvasArea = activeMap.getCanvasContainer()
+      const leaveToPage = (event: TouchEvent) => {
+        if (event.touches.length === 1 && canvasArea.contains(event.target as Node)) {
+          event.stopPropagation()
+        }
+      }
+      container.addEventListener("touchstart", leaveToPage, { capture: true, passive: true })
+      container.addEventListener("touchmove", leaveToPage, { capture: true, passive: true })
       activeMap.getCanvas().removeAttribute("tabindex")
       activeMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right")
 
@@ -85,6 +95,10 @@ export function StoryMap({ name, location }: Props) {
       pin.dataset.testid = "story-map-pin"
       pin.append(document.createElement("span"))
       new maplibregl.Marker({ element: pin }).setLngLat(center).addTo(activeMap)
+      // The region's own label says what it shows; the pin is not a control.
+      pin.removeAttribute("role")
+      pin.removeAttribute("aria-label")
+      pin.setAttribute("aria-hidden", "true")
     }
 
     const observer = new IntersectionObserver(
@@ -112,7 +126,7 @@ export function StoryMap({ name, location }: Props) {
   return (
     <section className="mt-8 border-t pt-4 md:mt-10">
       <h2 className="tn-reading text-[1.75rem] leading-none text-muted-foreground">Where</h2>
-      <div className="tn-map tn-story-map relative mt-4 aspect-[4/3] max-h-[60svh] w-full overflow-hidden bg-muted md:aspect-[3/1]">
+      <div className="tn-map tn-story-map relative mt-4 aspect-[4/3] max-h-[60svh] min-h-56 w-full overflow-hidden bg-muted md:aspect-[3/1]">
         <div
           ref={containerRef}
           data-testid="story-map"
