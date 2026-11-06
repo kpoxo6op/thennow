@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0003-mission-bay-fountain/fountain-then-1080x885.jpg",
+  "a_imageUrl": "/posts/0003-mission-bay-fountain/fountain-now-1080x885.jpg",
+  "ba_imageUrl": "/posts/0003-mission-bay-fountain/fountain-preview-1080x885.jpg",
+  "w": 1080,
+  "h": 885,
+  "name": "Waterfront steps · 106",
+  "description": "A view towards the water.",
+  "slug": "demo-106",
+  "location": {
+    "lat": -36.855336,
+    "lng": 174.717318
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Western bays",
+  "_image_source_slug": "mission-bay-fountain"
+}

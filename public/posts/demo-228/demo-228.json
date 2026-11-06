@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0005-mission-house/mission-house-then-768x512.jpg",
+  "a_imageUrl": "/posts/0005-mission-house/mission-house-now-768x512.jpg",
+  "ba_imageUrl": "/posts/0005-mission-house/mission-house-preview-768x512.jpg",
+  "w": 768,
+  "h": 512,
+  "name": "Gardens and houses · 228",
+  "description": "Changes around an everyday place.",
+  "slug": "demo-228",
+  "location": {
+    "lat": -36.805846,
+    "lng": 174.765437
+  },
+  "_preview_fixture": true,
+  "_preview_area": "North shore",
+  "_image_source_slug": "mission-house"
+}

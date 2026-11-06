@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0001-sheep/then-sheep-4018x2298.jpg",
+  "a_imageUrl": "/posts/0001-sheep/now-sheep-4018x2298.jpg",
+  "ba_imageUrl": "/posts/0001-sheep/preview-sheep-4018x2298.jpg",
+  "w": 4018,
+  "h": 2298,
+  "name": "Waterfront steps · 146",
+  "description": "A view towards the water.",
+  "slug": "demo-146",
+  "location": {
+    "lat": -36.834909,
+    "lng": 174.736782
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Western bays",
+  "_image_source_slug": "sheep"
+}

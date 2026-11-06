@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0005-mission-house/mission-house-then-768x512.jpg",
+  "a_imageUrl": "/posts/0005-mission-house/mission-house-now-768x512.jpg",
+  "ba_imageUrl": "/posts/0005-mission-house/mission-house-preview-768x512.jpg",
+  "w": 768,
+  "h": 512,
+  "name": "The square · 138",
+  "description": "A view towards the water.",
+  "slug": "demo-138",
+  "location": {
+    "lat": -36.86162,
+    "lng": 174.754807
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Western bays",
+  "_image_source_slug": "mission-house"
+}

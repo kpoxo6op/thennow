@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0001-sheep/then-sheep-4018x2298.jpg",
+  "a_imageUrl": "/posts/0001-sheep/now-sheep-4018x2298.jpg",
+  "ba_imageUrl": "/posts/0001-sheep/preview-sheep-4018x2298.jpg",
+  "w": 4018,
+  "h": 2298,
+  "name": "A corner shop · 194",
+  "description": "A view towards the water.",
+  "slug": "demo-194",
+  "location": {
+    "lat": -36.841718,
+    "lng": 174.813931
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Eastern waterfront",
+  "_image_source_slug": "sheep"
+}

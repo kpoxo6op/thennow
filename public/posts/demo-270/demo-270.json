@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0005-mission-house/mission-house-then-768x512.jpg",
+  "a_imageUrl": "/posts/0005-mission-house/mission-house-now-768x512.jpg",
+  "ba_imageUrl": "/posts/0005-mission-house/mission-house-preview-768x512.jpg",
+  "w": 768,
+  "h": 512,
+  "name": "Market frontage · 270",
+  "description": "A stretch of waterfront and the paths beside it.\n\nThe street and its buildings, side by side.",
+  "slug": "demo-270",
+  "location": {
+    "lat": -36.907785,
+    "lng": 174.77652
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Southern neighbourhoods",
+  "_image_source_slug": "mission-house"
+}

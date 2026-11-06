@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0000-mill-house/t1-mill-house-750x580.jpg",
+  "a_imageUrl": "/posts/0000-mill-house/n1-mill-house-750x580.jpg",
+  "ba_imageUrl": "/posts/0000-mill-house/tn1-mill-house-750x580.jpg",
+  "w": 750,
+  "h": 580,
+  "name": "View towards the water · 157",
+  "description": "Trees frame the view.",
+  "slug": "demo-157",
+  "location": {
+    "lat": -36.860545,
+    "lng": 174.848004
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Eastern waterfront",
+  "_image_source_slug": "mill-house"
+}

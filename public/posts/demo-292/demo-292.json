@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0003-mission-bay-fountain/fountain-then-1080x885.jpg",
+  "a_imageUrl": "/posts/0003-mission-bay-fountain/fountain-now-1080x885.jpg",
+  "ba_imageUrl": "/posts/0003-mission-bay-fountain/fountain-preview-1080x885.jpg",
+  "w": 1080,
+  "h": 885,
+  "name": "Bay Road · 292",
+  "description": "Changes around an everyday place.",
+  "slug": "demo-292",
+  "location": {
+    "lat": -36.75838,
+    "lng": 174.713721
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Upper harbour",
+  "_image_source_slug": "mission-bay-fountain"
+}
