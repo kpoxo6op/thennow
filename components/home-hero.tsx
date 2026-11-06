@@ -16,15 +16,12 @@ interface Props {
 
 const SWEEP = [
   { at: 0, position: 50 },
-  { at: 900, position: 24 },
-  { at: 2100, position: 76 },
-  { at: 3000, position: 50 },
+  { at: 1100, position: 22 },
+  { at: 2400, position: 50 },
 ]
 const SWEEP_DELAY_MS = 900
 // Past here a year would run off the photograph, so it steps aside.
 const YEAR_ROOM_PERCENT = 18
-// The words sit on the dark road in the "now" half and step aside once the line reaches them.
-const COPY_CLEAR_PERCENT = 56
 
 function ease(t: number) {
   return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
@@ -33,6 +30,8 @@ function ease(t: number) {
 // One slow pass of the line says what this site is before anything is read.
 export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, children }: Props) {
   const [position, setPosition] = useState(50)
+  // The words sit on the dark road in the "now" half, and step aside only while the line is being dragged.
+  const [dragging, setDragging] = useState(false)
   const cancelRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -77,11 +76,20 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
   }, [])
 
   const yearClass =
-    "absolute top-1/2 flex h-9 -translate-y-1/2 items-center bg-black/70 font-serif text-[1.375rem] leading-none text-white transition-opacity duration-200 md:h-10 md:text-[1.625rem]"
+    "absolute top-3 flex h-7 items-center rounded-full bg-black/70 px-2.5 font-serif text-[1.0625rem] leading-none text-white transition-opacity duration-200 md:top-[4.5rem] md:h-8 md:px-3 md:text-xl"
 
   return (
     <>
-      <div className="relative">
+      <div
+        className="relative"
+        onPointerMove={(event) => {
+          if (event.buttons > 0 && !dragging) {
+            setDragging(true)
+          }
+        }}
+        onPointerUp={() => setDragging(false)}
+        onPointerCancel={() => setDragging(false)}
+      >
         <CompareStage
           name={name}
           thenSrc={thenSrc}
@@ -97,13 +105,13 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute inset-y-0" style={{ left: `${position}%` }}>
             <span
-              className={`${yearClass} right-5 rounded-l-full pl-3.5 pr-6`}
+              className={`${yearClass} right-2`}
               style={{ opacity: position < YEAR_ROOM_PERCENT ? 0 : 1 }}
             >
               {thenYear}
             </span>
             <span
-              className={`${yearClass} left-5 rounded-r-full pl-6 pr-3.5`}
+              className={`${yearClass} left-2`}
               style={{ opacity: position > 100 - YEAR_ROOM_PERCENT ? 0 : 1 }}
             >
               {nowYear}
@@ -111,7 +119,7 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
           </div>
         </div>
       </div>
-      <div className="tn-hero-copy" data-clear={position > COPY_CLEAR_PERCENT}>
+      <div className="tn-hero-copy" data-clear={dragging}>
         {children}
       </div>
     </>

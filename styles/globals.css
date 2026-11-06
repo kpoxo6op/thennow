@@ -127,22 +127,28 @@ body:has(.tn-home) {
     position: absolute;
     inset: 0;
     z-index: -1;
-    background: linear-gradient(to top, rgb(0 0 0 / 0.78), rgb(0 0 0 / 0.68) 62%, transparent);
-    mask-image: linear-gradient(to right, transparent, black 14%);
+    background: linear-gradient(to top, rgb(0 0 0 / 0.72), rgb(0 0 0 / 0.6) 58%, transparent);
+    mask-image: linear-gradient(to right, transparent, rgb(0 0 0 / 0.75) 9%, black 32%);
   }
 
-  .tn-hero-copy[data-clear="true"]:not(:focus-within) {
+  .tn-hero-copy[data-clear="true"] {
     opacity: 0;
-  }
-
-  .tn-hero-copy[data-clear="true"]:not(:focus-within) a {
-    pointer-events: none;
   }
 }
 
 /* Then over now, cut along a line that a mouse can move. */
 .tn-seam-tile {
   --seam: 50%;
+}
+
+.tn-seam-tile img {
+  transform: scale(var(--trim));
+}
+
+@media (min-width: 768px) {
+  .tn-seam-wide {
+    aspect-ratio: 2 / 1 !important;
+  }
 }
 
 .tn-seam-then {

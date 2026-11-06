@@ -1,8 +1,11 @@
 "use client"
 
 import { useRef } from "react"
+import { ChevronsLeftRight } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+
+import { cn } from "@/lib/utils"
 
 interface Props {
   href: string
@@ -11,11 +14,14 @@ interface Props {
   nowSrc: string
   sizes: string
   ratio: number
+  // Equal zoom on both photographs, to lose a scan's torn edge while keeping them registered.
+  trim?: number
+  wide?: boolean
 }
 
 // A resting cut through both photographs. It follows a mouse; touch and keyboard
 // get the same cut at rest and the full comparison one tap away.
-export function SeamTile({ href, name, thenSrc, nowSrc, sizes, ratio }: Props) {
+export function SeamTile({ href, name, thenSrc, nowSrc, sizes, ratio, trim, wide }: Props) {
   const tileRef = useRef<HTMLAnchorElement>(null)
 
   const setSeam = (seam: string) => {
@@ -27,8 +33,8 @@ export function SeamTile({ href, name, thenSrc, nowSrc, sizes, ratio }: Props) {
       ref={tileRef}
       href={href}
       aria-label={`${name}: compare then and now`}
-      className="tn-seam-tile relative block w-full overflow-hidden bg-muted"
-      style={{ aspectRatio: ratio }}
+      className={cn("tn-seam-tile relative block w-full overflow-hidden bg-muted", wide && "tn-seam-wide")}
+      style={{ aspectRatio: ratio, "--trim": trim ?? 1.03 } as React.CSSProperties}
       onPointerMove={(event) => {
         if (event.pointerType !== "mouse") {
           return
@@ -42,6 +48,12 @@ export function SeamTile({ href, name, thenSrc, nowSrc, sizes, ratio }: Props) {
       <Image src={nowSrc} alt="" fill sizes={sizes} className="object-cover" />
       <Image src={thenSrc} alt="" fill sizes={sizes} className="tn-seam-then object-cover" />
       <span aria-hidden className="tn-seam-line absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white/90" />
+      <span
+        aria-hidden
+        className="tn-seam-line absolute top-1/2 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black shadow-[0_1px_8px_rgb(0_0_0/0.4)]"
+      >
+        <ChevronsLeftRight className="size-4" />
+      </span>
     </Link>
   )
 }

@@ -16,6 +16,8 @@ import { SiteHeader } from "@/components/site-header"
 
 const HERO_SLUG = "sheep"
 const LEAD_SLUG = "historic-post-office"
+// The fountain's negative has a heavy black border and notched corners.
+const TRIM: Record<string, number> = { "mission-bay-fountain": 1.16 }
 
 export const viewport: Viewport = {
   themeColor: "#13120f",
@@ -38,12 +40,12 @@ function StoryCaption({ story }: { story: PostType }) {
     <div className="mt-3">
       <Link
         href={`/${story.slug}`}
-        className="-my-1 block py-1 text-[17px] font-medium leading-snug underline-offset-4 hover:underline"
+        className="-my-1 block py-1 font-serif text-[1.625rem] leading-tight underline-offset-4 hover:underline md:text-[1.75rem]"
       >
         {story.name}
       </Link>
       {sections.length > 1 ? (
-        <p className="text-[15px] tabular-nums text-muted-foreground">
+        <p className="mt-0.5 text-[15px] tabular-nums text-muted-foreground">
           {sections[0].year} and {sections[sections.length - 1].year}
         </p>
       ) : null}
@@ -62,6 +64,7 @@ function StoryRow({ stories }: { stories: PostType[] }) {
             thenSrc={story.b_imageUrl}
             nowSrc={story.a_imageUrl}
             ratio={story.w / story.h}
+            trim={TRIM[story.slug]}
             sizes="(min-width: 768px) 50vw, 100vw"
           />
           <figcaption>
@@ -95,7 +98,7 @@ export default async function IndexPage() {
 
   return (
     <div className={cn("tn-home flex flex-1 flex-col font-sans", fontHomeSans.variable, fontHomeSerif.variable)}>
-      <SiteHeader className="bg-background md:absolute md:bg-transparent md:[&_a]:text-white" />
+      <SiteHeader className="bg-background md:absolute md:bg-transparent md:[&_a]:text-white md:[&>div>a:first-child]:text-[1.625rem]" />
       <main className="tn-enter flex-1">
         <section className="relative">
           <HomeHero
@@ -106,15 +109,15 @@ export default async function IndexPage() {
             thenYear={thenYear}
             nowYear={nowYear}
           >
-            <div className="space-y-3 px-4 pb-8 pt-4 md:space-y-4 md:pb-8 md:pl-8 md:pr-4 md:pt-28">
-              <h1 className="text-balance font-serif text-[2.4rem] leading-[1.03] md:text-[clamp(2.75rem,5vw,6rem)]">
+            <div className="space-y-3 px-4 pb-8 pt-4 md:space-y-3.5 md:pb-7 md:pl-8 md:pr-4 md:pt-20">
+              <h1 className="text-balance font-serif text-[2.4rem] leading-[1.03] md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
                 <span className="md:block">The same corner, </span>
                 <span className="md:block">
                   ninety<span className="mx-[-0.05em]">-</span>three years apart.
                 </span>
               </h1>
-              <p className="max-w-[30rem] text-[17px] leading-snug">
-                then|now pairs old photographs of New Zealand places with a modern
+              <p className="max-w-[34rem] text-[17px] leading-snug">
+                Old photographs of New Zealand places, each paired with a modern
                 retake. Drag the line to see what stayed and what disappeared.
               </p>
               <div className="pointer-events-auto flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -131,7 +134,7 @@ export default async function IndexPage() {
               </div>
               <Link
                 href={`/${hero.slug}`}
-                className="pointer-events-auto block text-sm underline-offset-4 hover:underline"
+                className="pointer-events-auto inline-block py-1 text-sm underline underline-offset-4"
               >
                 {hero.name}
               </Link>
@@ -146,13 +149,13 @@ export default async function IndexPage() {
         <section className="space-y-12 px-4 pb-20 pt-12 md:space-y-20 md:pb-28 md:pt-24">
           <div className="grid gap-4 md:grid-cols-2 md:items-end md:gap-10">
             <h2 className="font-serif text-5xl leading-none md:text-7xl">Photographed twice.</h2>
-            <p className="max-w-lg leading-snug text-muted-foreground">
+            <p className="max-w-xl leading-snug text-muted-foreground">
               These are the {originals.length} original stories. The other {sampleCount} places in
               this preview are{" "}
               <Link href="/about" className="underline underline-offset-2 hover:text-foreground">
                 fictional samples
-              </Link>
-              .{" "}
+              </Link>{" "}
+              that reuse these photographs, which do not show them.{" "}
               <Link
                 href={placesHref({ area: STORIES_AREA })}
                 className="whitespace-nowrap text-foreground underline underline-offset-2"
@@ -170,12 +173,18 @@ export default async function IndexPage() {
               nowSrc={lead.a_imageUrl}
               ratio={lead.w / lead.h}
               sizes="100vw"
+              wide
             />
-            <figcaption className="grid gap-x-6 gap-y-4 md:grid-cols-[2fr_3fr]">
-              <StoryCaption story={lead} />
-              <dl className="grid grid-cols-2 gap-4 md:mt-3 md:gap-6">
+            <figcaption>
+              <Link
+                href={`/${lead.slug}`}
+                className="mt-3 block py-1 font-serif text-[1.625rem] leading-tight underline-offset-4 hover:underline md:text-[1.75rem]"
+              >
+                {lead.name}
+              </Link>
+              <dl className="mt-4 grid gap-4 md:grid-cols-2 md:gap-0">
                 {leadSections.map((section) => (
-                  <div key={section.year}>
+                  <div key={section.year} className="max-w-md md:pr-8">
                     <dt className="font-serif text-3xl leading-none">{section.year}</dt>
                     <dd className="mt-2 space-y-1 text-[15px] leading-snug text-muted-foreground">
                       {section.lines.map((line) => (
@@ -208,32 +217,33 @@ export default async function IndexPage() {
                 className="h-14 w-full border border-input bg-popover pl-12 pr-5 text-lg placeholder:text-muted-foreground"
               />
             </Form>
-            <p className="max-w-xl leading-snug text-muted-foreground">
-              The {sampleCount} sample places are fictional Auckland-area locations that repeat these
-              photographs as placeholders; those photographs do not show them.{" "}
-              <Link href="/about" className="underline underline-offset-2 hover:text-foreground">
-                More about the project
+            <div className="flex flex-wrap gap-x-6">
+              <Link href="/places" className="inline-block py-2 underline underline-offset-4">
+                Browse all {posts.length} places
               </Link>
-            </p>
-            <Link href="/places" className="inline-block py-2 underline underline-offset-4">
-              Browse all {posts.length} places
-            </Link>
+              <Link href={placesHref({ view: "map" })} className="inline-block py-2 underline underline-offset-4">
+                Look around the map
+              </Link>
+            </div>
           </div>
-          <ul className="md:mt-1">
-            {Array.from(areas).map(([area, count]) => (
-              <li key={area} className="border-b first:border-t">
-                <Link
-                  href={placesHref({ area })}
-                  className="flex items-baseline justify-between gap-4 py-2.5 font-serif text-3xl underline-offset-4 hover:underline"
-                >
-                  {area}
-                  <span className="font-sans text-[15px] tabular-nums text-muted-foreground">
-                    {count} samples
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <div>
+            <h3 className="mb-3 text-[15px] text-muted-foreground">Sample areas</h3>
+            <ul>
+              {Array.from(areas).map(([area, count]) => (
+                <li key={area} className="border-b first:border-t">
+                  <Link
+                    href={placesHref({ area })}
+                    className="flex items-baseline justify-between gap-4 py-3 text-lg underline-offset-4 hover:underline"
+                  >
+                    {area}
+                    <span className="shrink-0 text-[15px] tabular-nums text-muted-foreground">
+                      {count} samples
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       </main>
       <SiteFooter />
