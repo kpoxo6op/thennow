@@ -112,6 +112,17 @@ body:has(.tn-home) {
   }
 }
 
+.tn-year {
+  --pill: 3.25rem;
+  width: var(--pill);
+}
+
+@media (min-width: 768px) {
+  .tn-year {
+    --pill: 3.75rem;
+  }
+}
+
 .tn-hero-copy {
   position: relative;
 }
@@ -134,16 +145,29 @@ body:has(.tn-home) {
     position: absolute;
     inset: 0;
     z-index: -1;
+    transition: opacity 200ms ease-out;
     background: linear-gradient(to top, rgb(0 0 0 / 0.72), rgb(0 0 0 / 0.6) 58%, transparent);
     mask-image: linear-gradient(to right, transparent, rgb(0 0 0 / 0.75) 9%, black 32%);
   }
 
-  .tn-hero-copy[data-clear="true"]:not(:focus-within) {
+  /* While the line is held, nothing but the photograph. */
+  .tn-hero-copy[data-clear="drag"] {
     opacity: 0;
   }
 
-  .tn-hero-copy[data-clear="true"]:not(:focus-within) a {
-    pointer-events: none;
+  /* Studying what the words would cover: they step aside, the ways onward stay. */
+  .tn-hero-copy[data-clear="study"]:not(:focus-within)::before,
+  .tn-hero-copy[data-clear="study"]:not(:focus-within) .tn-hero-words {
+    opacity: 0;
+  }
+
+  .tn-hero-copy[data-clear="study"] .tn-hero-map {
+    padding-inline: 0.75rem;
+    background: rgb(0 0 0 / 0.7);
+  }
+
+  .tn-hero-words {
+    transition: opacity 200ms ease-out;
   }
 }
 
@@ -164,7 +188,12 @@ body:has(.tn-home) {
   /* The ground and the scan's own inscription hold the story; the sky is blown out. */
   .tn-seam-wide img {
     object-position: 50% 100%;
-    transform-origin: 50% 100%;
+    transform-origin: 50% 82%;
+  }
+
+  /* Takes the glare off a blown-out sky on the dark ground. */
+  .tn-seam-wide .tn-seam-then {
+    filter: brightness(0.93);
   }
 }
 

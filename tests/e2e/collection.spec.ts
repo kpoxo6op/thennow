@@ -277,6 +277,31 @@ test.describe("the homepage comparison", () => {
   test.describe("with reduced motion", () => {
     test.use({ contextOptions: { reducedMotion: "reduce" } })
 
+    test("the words clear for a drag and the ways onward are always there afterwards", async ({ page }) => {
+      await page.goto("/")
+      const headline = page.getByRole("heading", { level: 1 })
+      const explore = page.getByRole("link", { name: "Explore the places" })
+      const box = (await page.getByTestId("compare-stage").boundingBox())!
+      const y = box.y + box.height / 2
+
+      await page.mouse.move(box.x + box.width / 2, y)
+      await page.mouse.down()
+      await page.mouse.move(box.x + box.width * 0.8, y, { steps: 6 })
+      await expect(explore).toHaveCSS("opacity", "1")
+      await expect.poll(() => explore.evaluate((link) => getComputedStyle(link.closest(".tn-hero-copy")!).opacity)).toBe("0")
+
+      await page.mouse.up()
+      await expect.poll(() => explore.evaluate((link) => getComputedStyle(link.closest(".tn-hero-copy")!).opacity)).toBe("1")
+      await expect(headline).toHaveCSS("opacity", "0")
+      await explore.hover()
+      await expect(headline).toHaveCSS("opacity", "0")
+
+      await page.mouse.move(box.x + box.width / 2, box.y - 10)
+      await expect(headline).toHaveCSS("opacity", "1")
+      await explore.click()
+      await expect(page).toHaveURL(/\/places$/)
+    })
+
     test("stays still until asked", async ({ page }) => {
       await page.goto("/")
       await page.waitForTimeout(2500)

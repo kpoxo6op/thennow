@@ -82,7 +82,7 @@ export default async function IndexPage() {
 
   return (
     <div className={cn("tn-home flex flex-1 flex-col font-sans", fontHomeSans.variable, fontHomeSerif.variable)}>
-      <SiteHeader className="bg-background md:absolute md:bg-transparent md:[&_a]:text-white md:[&>div>a:first-child]:text-[1.625rem] md:[&_a]:[text-shadow:0_1px_6px_rgb(0_0_0/0.55)]" />
+      <SiteHeader />
       <main className="tn-enter flex-1">
         <section className="relative">
           <HomeHero
@@ -94,13 +94,13 @@ export default async function IndexPage() {
             nowYear={nowYear}
           >
             <div className="space-y-3 px-4 pb-8 pt-4 md:space-y-3.5 md:pb-7 md:pl-8 md:pr-4 md:pt-20">
-              <h1 className="text-balance font-serif text-[2.4rem] leading-[1.03] md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
+              <h1 className="tn-hero-words text-balance font-serif text-[2.4rem] leading-[1.03] md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
                 <span className="md:block">The same corner, </span>
                 <span className="md:block">
                   ninety<span className="mx-[-0.05em]">-</span>three years apart.
                 </span>
               </h1>
-              <p className="max-w-[34rem] text-[17px] leading-snug">
+              <p className="tn-hero-words max-w-[34rem] text-[17px] leading-snug">
                 Old photographs of New Zealand places, each paired with a modern
                 retake. Drag the line to see what stayed and what disappeared.
               </p>
@@ -112,22 +112,18 @@ export default async function IndexPage() {
                   Explore the places
                   <ArrowRight aria-hidden className="size-4" />
                 </Link>
-                <Link href={placesHref({ view: "map" })} className="py-3 underline underline-offset-4">
+                <Link href={placesHref({ view: "map" })} className="tn-hero-map py-3 underline underline-offset-4">
                   Open the map
                 </Link>
               </div>
               <Link
                 href={`/${hero.slug}`}
-                className="pointer-events-auto inline-block py-1 text-sm underline underline-offset-4"
+                className="tn-hero-words pointer-events-auto inline-block py-1 text-sm underline underline-offset-4"
               >
                 {hero.name}
               </Link>
             </div>
           </HomeHero>
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 hidden h-16 bg-gradient-to-b from-black/40 to-transparent md:block"
-          />
         </section>
 
         <section className="space-y-12 px-4 pb-20 pt-12 md:space-y-20 md:pb-28 md:pt-24">
@@ -157,6 +153,7 @@ export default async function IndexPage() {
               nowSrc={lead.a_imageUrl}
               ratio={lead.w / lead.h}
               sizes="100vw"
+              trim={1.06}
               wide
             />
             <figcaption className="mt-2">

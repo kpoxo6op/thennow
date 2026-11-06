@@ -77,14 +77,16 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
   }, [])
 
   const yearClass =
-    "absolute top-3 flex h-7 items-center rounded-full bg-black/70 px-2.5 font-serif text-[1.0625rem] leading-none text-white md:top-[4.5rem] md:h-8 md:px-3 md:text-xl"
+    "tn-year absolute top-3 flex h-7 items-center justify-center rounded-full bg-black/70 font-serif text-[1.0625rem] leading-none text-white md:top-4 md:h-8 md:text-xl"
+  const clear = dragging ? "drag" : mouseOnPhoto && position > COPY_EDGE_PERCENT ? "study" : undefined
 
   return (
-    <>
+    <div
+      onPointerEnter={(event) => setMouseOnPhoto(event.pointerType === "mouse")}
+      onPointerLeave={() => setMouseOnPhoto(false)}
+    >
       <div
         className="relative"
-        onPointerEnter={(event) => setMouseOnPhoto(event.pointerType === "mouse")}
-        onPointerLeave={() => setMouseOnPhoto(false)}
         onPointerMove={(event) => {
           if (event.buttons > 0 && !dragging) {
             setDragging(true)
@@ -103,18 +105,27 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
           onInteract={handleInteract}
           fit="cover"
           priority
-          className="h-[54svh] min-h-64 md:h-svh md:min-h-[38rem]"
+          className="h-[54svh] min-h-64 md:h-[calc(100svh-var(--header-h))] md:min-h-[36rem]"
         />
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute inset-y-0" style={{ left: `${position}%` }}>
-            <span className={`${yearClass} right-2`}>{thenYear}</span>
-            <span className={`${yearClass} left-2`}>{nowYear}</span>
-          </div>
+          {/* Each year stays beside the line, and inside the frame when the line nears an edge. */}
+          <span
+            className={yearClass}
+            style={{ left: `max(0.5rem, calc(${position}% - 0.5rem - var(--pill)))` }}
+          >
+            {thenYear}
+          </span>
+          <span
+            className={yearClass}
+            style={{ left: `min(calc(100% - 0.5rem - var(--pill)), calc(${position}% + 0.5rem))` }}
+          >
+            {nowYear}
+          </span>
         </div>
       </div>
-      <div className="tn-hero-copy" data-clear={dragging || (mouseOnPhoto && position > COPY_EDGE_PERCENT)}>
+      <div className="tn-hero-copy" data-clear={clear}>
         {children}
       </div>
-    </>
+    </div>
   )
 }
