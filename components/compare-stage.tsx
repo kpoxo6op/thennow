@@ -20,7 +20,20 @@ interface Props {
   className?: string
 }
 
+type Gesture = {
+  startX: number
+  moved: boolean
+  touch: boolean
+  // Set when the grip was pressed: how far the divider sits from the pointer,
+  // and how far the pointer then was from the edge it would otherwise never reach.
+  grip: { offset: number; edgeRoom: number } | null
+}
+
 const TOUCH_SLOP_PX = 4
+const GRIP_RADIUS_PX = 24
+const OFFSET_EASE_PX = 48
+// A finger can't land on the last pixel, and the ends are what people are after.
+const END_SNAP_PX = 3
 
 // Where the photograph actually sits inside the stage.
 function getImageBounds(width: number, height: number, ratio: number, fit: Props["fit"]) {
@@ -36,6 +49,23 @@ function getGutter(imageLeft: number) {
   return Math.max(COMPARE_SIDE_GUTTER_PX, imageLeft)
 }
 
+function pointerDividerX(
+  clientX: number,
+  grip: Gesture["grip"],
+  image: { left: number; width: number }
+) {
+  if (!grip || grip.offset === 0) {
+    return clientX
+  }
+
+  // An off-centre grab eases back onto the pointer so the far edge stays reachable.
+  const room = grip.offset > 0 ? clientX - image.left : image.left + image.width - clientX
+  const limit = Math.min(OFFSET_EASE_PX, grip.edgeRoom)
+  const ease = room >= limit ? 1 : Math.max(0, room) / limit
+
+  return clientX + grip.offset * ease
+}
+
 export function CompareStage({
   name,
   thenSrc,
@@ -49,7 +79,7 @@ export function CompareStage({
   className,
 }: Props) {
   const stageRef = useRef<HTMLDivElement>(null)
-  const gestureRef = useRef<{ startX: number; moved: boolean; touch: boolean } | null>(null)
+  const gestureRef = useRef<Gesture | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
@@ -74,17 +104,25 @@ export function CompareStage({
   }, [])
 
   const moveTo = useCallback(
-    (clientX: number) => {
+    (clientX: number, grip: Gesture["grip"]) => {
       const rect = stageRef.current?.getBoundingClientRect()
 
       if (!rect || rect.width === 0) {
         return
       }
 
-      const gutter = getGutter(getImageBounds(rect.width, rect.height, ratio, fit).left)
-      const activeWidth = Math.max(rect.width - gutter * 2, 1)
-      const next = ((clientX - rect.left - gutter) / activeWidth) * 100
-      onPositionChange(Math.min(100, Math.max(0, next)))
+      const bounds = getImageBounds(rect.width, rect.height, ratio, fit)
+      const image = { left: rect.left + bounds.left, width: bounds.width }
+      const x = pointerDividerX(clientX, grip, image)
+      const right = image.left + image.width
+
+      if (x <= image.left + END_SNAP_PX) {
+        onPositionChange(0)
+      } else if (x >= right - END_SNAP_PX) {
+        onPositionChange(100)
+      } else {
+        onPositionChange(((x - image.left) / image.width) * 100)
+      }
     },
     [fit, onPositionChange, ratio]
   )
@@ -93,7 +131,7 @@ export function CompareStage({
   const bounded = Math.min(100, Math.max(0, position))
   const image = getImageBounds(size.width, size.height, ratio, fit)
   const gutter = getGutter(image.left)
-  // Input travel maps onto the whole photograph, so 0 and 100 show each one complete.
+  // The divider travels the whole photograph, so 0 and 100 show each one complete.
   const revealX = image.left + (bounded / 100) * image.width
   const lineLeft = measured ? `${revealX}px` : `${bounded}%`
   const imageClass = fit === "cover" ? "absolute inset-0" : "tn-compare-image"
@@ -114,7 +152,8 @@ export function CompareStage({
 
         const touch = event.pointerType !== "mouse"
         const rect = event.currentTarget.getBoundingClientRect()
-        const edge = getGutter(getImageBounds(rect.width, rect.height, ratio, fit).left)
+        const bounds = getImageBounds(rect.width, rect.height, ratio, fit)
+        const edge = getGutter(bounds.left)
 
         // Touches starting in the margins are left to the OS edge gestures.
         if (touch && (event.clientX < rect.left + edge || event.clientX > rect.right - edge)) {
@@ -123,11 +162,22 @@ export function CompareStage({
 
         event.currentTarget.setPointerCapture(event.pointerId)
         onInteract?.()
-        gestureRef.current = { startX: event.clientX, moved: false, touch }
+
+        const dividerX = rect.left + bounds.left + (bounded / 100) * bounds.width
+        const offset = dividerX - event.clientX
+        const onGrip =
+          Math.hypot(offset, rect.top + rect.height / 2 - event.clientY) <= GRIP_RADIUS_PX
+        const edgeRoom =
+          offset > 0
+            ? event.clientX - rect.left - bounds.left
+            : rect.left + bounds.left + bounds.width - event.clientX
+        const grip = onGrip ? { offset, edgeRoom } : null
+
+        gestureRef.current = { startX: event.clientX, moved: false, touch, grip }
 
         // A touch may become a page scroll, so it only moves the line once it is clearly not one.
-        if (!touch) {
-          moveTo(event.clientX)
+        if (!touch && !grip) {
+          moveTo(event.clientX, null)
         }
       }}
       onPointerMove={(event) => {
@@ -141,14 +191,19 @@ export function CompareStage({
           return
         }
 
+        // Holding the grip still is not a move, even if the mouse reports one.
+        if (!gesture.moved && event.clientX === gesture.startX) {
+          return
+        }
+
         gesture.moved = true
-        moveTo(event.clientX)
+        moveTo(event.clientX, gesture.grip)
       }}
       onPointerUp={(event) => {
         const gesture = gestureRef.current
 
-        if (gesture?.touch && !gesture.moved) {
-          moveTo(event.clientX)
+        if (gesture?.touch && !gesture.moved && !gesture.grip) {
+          moveTo(event.clientX, null)
         }
 
         gestureRef.current = null
