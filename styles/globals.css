@@ -105,6 +105,13 @@ body:has(.tn-home) {
   height: 104% !important;
 }
 
+@media (max-width: 767px) {
+  /* A phone sees under half the photograph's width: keep the rider and the house in it. */
+  .tn-home [data-testid="compare-stage"] img {
+    object-position: 15% 50%;
+  }
+}
+
 .tn-hero-copy {
   position: relative;
 }
@@ -131,8 +138,12 @@ body:has(.tn-home) {
     mask-image: linear-gradient(to right, transparent, rgb(0 0 0 / 0.75) 9%, black 32%);
   }
 
-  .tn-hero-copy[data-clear="true"] {
+  .tn-hero-copy[data-clear="true"]:not(:focus-within) {
     opacity: 0;
+  }
+
+  .tn-hero-copy[data-clear="true"]:not(:focus-within) a {
+    pointer-events: none;
   }
 }
 
@@ -148,6 +159,12 @@ body:has(.tn-home) {
 @media (min-width: 768px) {
   .tn-seam-wide {
     aspect-ratio: 2 / 1 !important;
+  }
+
+  /* The ground and the scan's own inscription hold the story; the sky is blown out. */
+  .tn-seam-wide img {
+    object-position: 50% 100%;
+    transform-origin: 50% 100%;
   }
 }
 

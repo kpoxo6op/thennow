@@ -1,7 +1,6 @@
 "use client"
 
 import { useRef } from "react"
-import { ChevronsLeftRight } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -48,12 +47,6 @@ export function SeamTile({ href, name, thenSrc, nowSrc, sizes, ratio, trim, wide
       <Image src={nowSrc} alt="" fill sizes={sizes} className="object-cover" />
       <Image src={thenSrc} alt="" fill sizes={sizes} className="tn-seam-then object-cover" />
       <span aria-hidden className="tn-seam-line absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white/90" />
-      <span
-        aria-hidden
-        className="tn-seam-line absolute top-1/2 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black shadow-[0_1px_8px_rgb(0_0_0/0.4)]"
-      >
-        <ChevronsLeftRight className="size-4" />
-      </span>
     </Link>
   )
 }

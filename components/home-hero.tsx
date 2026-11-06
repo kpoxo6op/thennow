@@ -20,8 +20,8 @@ const SWEEP = [
   { at: 2400, position: 50 },
 ]
 const SWEEP_DELAY_MS = 900
-// Past here a year would run off the photograph, so it steps aside.
-const YEAR_ROOM_PERCENT = 18
+// Where the words on the road begin. A line past here, with a mouse still on the photograph, keeps them away.
+const COPY_EDGE_PERCENT = 51
 
 function ease(t: number) {
   return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
@@ -30,8 +30,9 @@ function ease(t: number) {
 // One slow pass of the line says what this site is before anything is read.
 export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, children }: Props) {
   const [position, setPosition] = useState(50)
-  // The words sit on the dark road in the "now" half, and step aside only while the line is being dragged.
+  // The words sit on the dark road in the "now" half, and step aside while someone is studying what is under them.
   const [dragging, setDragging] = useState(false)
+  const [mouseOnPhoto, setMouseOnPhoto] = useState(false)
   const cancelRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -76,12 +77,14 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
   }, [])
 
   const yearClass =
-    "absolute top-3 flex h-7 items-center rounded-full bg-black/70 px-2.5 font-serif text-[1.0625rem] leading-none text-white transition-opacity duration-200 md:top-[4.5rem] md:h-8 md:px-3 md:text-xl"
+    "absolute top-3 flex h-7 items-center rounded-full bg-black/70 px-2.5 font-serif text-[1.0625rem] leading-none text-white md:top-[4.5rem] md:h-8 md:px-3 md:text-xl"
 
   return (
     <>
       <div
         className="relative"
+        onPointerEnter={(event) => setMouseOnPhoto(event.pointerType === "mouse")}
+        onPointerLeave={() => setMouseOnPhoto(false)}
         onPointerMove={(event) => {
           if (event.buttons > 0 && !dragging) {
             setDragging(true)
@@ -100,26 +103,16 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
           onInteract={handleInteract}
           fit="cover"
           priority
-          className="h-[50svh] min-h-64 md:h-svh md:min-h-[38rem]"
+          className="h-[54svh] min-h-64 md:h-svh md:min-h-[38rem]"
         />
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute inset-y-0" style={{ left: `${position}%` }}>
-            <span
-              className={`${yearClass} right-2`}
-              style={{ opacity: position < YEAR_ROOM_PERCENT ? 0 : 1 }}
-            >
-              {thenYear}
-            </span>
-            <span
-              className={`${yearClass} left-2`}
-              style={{ opacity: position > 100 - YEAR_ROOM_PERCENT ? 0 : 1 }}
-            >
-              {nowYear}
-            </span>
+            <span className={`${yearClass} right-2`}>{thenYear}</span>
+            <span className={`${yearClass} left-2`}>{nowYear}</span>
           </div>
         </div>
       </div>
-      <div className="tn-hero-copy" data-clear={dragging}>
+      <div className="tn-hero-copy" data-clear={dragging || (mouseOnPhoto && position > COPY_EDGE_PERCENT)}>
         {children}
       </div>
     </>

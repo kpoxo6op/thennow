@@ -33,25 +33,7 @@ function datedSections(story: PostType) {
     }))
 }
 
-function StoryCaption({ story }: { story: PostType }) {
-  const sections = datedSections(story)
-
-  return (
-    <div className="mt-3">
-      <Link
-        href={`/${story.slug}`}
-        className="-my-1 block py-1 font-serif text-[1.625rem] leading-tight underline-offset-4 hover:underline md:text-[1.75rem]"
-      >
-        {story.name}
-      </Link>
-      {sections.length > 1 ? (
-        <p className="mt-0.5 text-[15px] tabular-nums text-muted-foreground">
-          {sections[0].year} and {sections[sections.length - 1].year}
-        </p>
-      ) : null}
-    </div>
-  )
-}
+const STORY_TITLE = "block py-1 text-xl font-medium leading-snug underline-offset-4 hover:underline"
 
 function StoryRow({ stories }: { stories: PostType[] }) {
   return (
@@ -67,8 +49,10 @@ function StoryRow({ stories }: { stories: PostType[] }) {
             trim={TRIM[story.slug]}
             sizes="(min-width: 768px) 50vw, 100vw"
           />
-          <figcaption>
-            <StoryCaption story={story} />
+          <figcaption className="mt-2">
+            <Link href={`/${story.slug}`} className={STORY_TITLE}>
+              {story.name}
+            </Link>
           </figcaption>
         </figure>
       ))}
@@ -98,7 +82,7 @@ export default async function IndexPage() {
 
   return (
     <div className={cn("tn-home flex flex-1 flex-col font-sans", fontHomeSans.variable, fontHomeSerif.variable)}>
-      <SiteHeader className="bg-background md:absolute md:bg-transparent md:[&_a]:text-white md:[&>div>a:first-child]:text-[1.625rem]" />
+      <SiteHeader className="bg-background md:absolute md:bg-transparent md:[&_a]:text-white md:[&>div>a:first-child]:text-[1.625rem] md:[&_a]:[text-shadow:0_1px_6px_rgb(0_0_0/0.55)]" />
       <main className="tn-enter flex-1">
         <section className="relative">
           <HomeHero
@@ -142,23 +126,23 @@ export default async function IndexPage() {
           </HomeHero>
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 hidden h-20 bg-gradient-to-b from-black/45 to-transparent md:block"
+            className="pointer-events-none absolute inset-x-0 top-0 hidden h-16 bg-gradient-to-b from-black/40 to-transparent md:block"
           />
         </section>
 
         <section className="space-y-12 px-4 pb-20 pt-12 md:space-y-20 md:pb-28 md:pt-24">
           <div className="grid gap-4 md:grid-cols-2 md:items-end md:gap-10">
             <h2 className="font-serif text-5xl leading-none md:text-7xl">Photographed twice.</h2>
-            <p className="max-w-xl leading-snug text-muted-foreground">
-              These are the {originals.length} original stories. The other {sampleCount} places in
-              this preview are{" "}
-              <Link href="/about" className="underline underline-offset-2 hover:text-foreground">
+            <p className="max-w-xl text-[17px] leading-snug">
+              With the corner above, these are the {originals.length} original stories. The other{" "}
+              {sampleCount} places in this preview are{" "}
+              <Link href="/about" className="underline underline-offset-2">
                 fictional samples
               </Link>{" "}
-              that reuse these photographs, which do not show them.{" "}
+              that reuse these photographs and do not show those places.{" "}
               <Link
                 href={placesHref({ area: STORIES_AREA })}
-                className="whitespace-nowrap text-foreground underline underline-offset-2"
+                className="whitespace-nowrap underline underline-offset-2"
               >
                 All {originals.length} stories
               </Link>
@@ -175,18 +159,15 @@ export default async function IndexPage() {
               sizes="100vw"
               wide
             />
-            <figcaption>
-              <Link
-                href={`/${lead.slug}`}
-                className="mt-3 block py-1 font-serif text-[1.625rem] leading-tight underline-offset-4 hover:underline md:text-[1.75rem]"
-              >
+            <figcaption className="mt-2">
+              <Link href={`/${lead.slug}`} className={STORY_TITLE}>
                 {lead.name}
               </Link>
-              <dl className="mt-4 grid gap-4 md:grid-cols-2 md:gap-0">
+              <dl className="mt-2 grid gap-3 md:grid-cols-2 md:gap-0">
                 {leadSections.map((section) => (
                   <div key={section.year} className="max-w-md md:pr-8">
-                    <dt className="font-serif text-3xl leading-none">{section.year}</dt>
-                    <dd className="mt-2 space-y-1 text-[15px] leading-snug text-muted-foreground">
+                    <dt className="font-medium tabular-nums">{section.year}</dt>
+                    <dd className="mt-0.5 space-y-1 leading-snug text-muted-foreground">
                       {section.lines.map((line) => (
                         <p key={line}>{line}</p>
                       ))}
@@ -246,7 +227,7 @@ export default async function IndexPage() {
           </div>
         </section>
       </main>
-      <SiteFooter />
+      <SiteFooter className="text-sm" />
     </div>
   )
 }
