@@ -49,3 +49,7 @@ test-results
 
 # typescript incremental output
 *.tsbuildinfo
+
+# static build experiment
+dist/
+.cache/

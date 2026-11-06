@@ -34,6 +34,36 @@ test.describe("compare view", () => {
     await expect(page.getByTestId("compare-slider-input")).toHaveValue("30");
   });
 
+  test("normalizes ?p=50 away from the URL", async ({ page }) => {
+    await page.goto(`${comparePath}?p=50`);
+
+    await expect(page).toHaveURL(new RegExp(`${comparePath}$`));
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("50");
+  });
+
+  test("dragging on the photo moves the compare position", async ({ page }) => {
+    await page.goto(comparePath);
+
+    const stage = page.getByTestId("compare-stage");
+    const box = await stage.boundingBox();
+
+    if (!box) {
+      throw new Error("compare stage has no bounding box");
+    }
+
+    const y = box.y + box.height / 3;
+    const xAt = (percent: number) => box.x + 40 + (box.width - 80) * (percent / 100);
+
+    await page.mouse.move(xAt(50), y);
+    await page.mouse.down();
+    await page.mouse.move(xAt(60), y, { steps: 4 });
+    await page.mouse.move(xAt(70), y, { steps: 4 });
+    await page.mouse.up();
+
+    await expect(page).toHaveURL(new RegExp(`${comparePath}\\?p=70$`));
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("70");
+  });
+
   test("dragging the slider updates the URL and keeps the before image fixed", async ({ page }) => {
     await page.goto(comparePath);
 
