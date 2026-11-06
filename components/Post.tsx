@@ -156,7 +156,7 @@ const Post = forwardRef<HTMLDivElement, PostProps>(({ post, className, ...props 
         </div>
 
         <div
-          className="pb-12 pt-2"
+          className="pb-12 pt-2 [overflow-wrap:anywhere]"
           style={{
             paddingLeft: "max(1rem, calc((100cqw - var(--compare-frame-width)) / 2))",
             paddingRight: "max(1rem, calc((100cqw - var(--compare-frame-width)) / 2))",

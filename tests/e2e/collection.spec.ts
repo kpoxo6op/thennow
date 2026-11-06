@@ -249,6 +249,47 @@ test.describe("navigation", () => {
 });
 
 test.describe("compare photograph", () => {
+  test("story text fits narrow screens without losing any of it", async ({ page }) => {
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+
+      for (const slug of [
+        "mill-house",
+        "sheep",
+        "historic-post-office",
+        "mission-bay-fountain",
+        "mission-bay-yacht-club",
+        "mission-house",
+        "demo-017",
+      ]) {
+        await page.goto(`/${slug}`);
+        const label = `${slug} at ${width}px`;
+
+        const layout = await page.evaluate(() => {
+          const range = document.createRange();
+          range.selectNodeContents(document.querySelector("main")!);
+          const text = range.getBoundingClientRect();
+
+          return {
+            overflow: document.documentElement.scrollWidth - window.innerWidth,
+            textLeft: text.left,
+            textRight: text.right,
+            innerWidth: window.innerWidth,
+          };
+        });
+
+        expect(layout.overflow, label).toBeLessThanOrEqual(0);
+        expect(layout.textLeft, label).toBeGreaterThanOrEqual(0);
+        expect(layout.textRight, label).toBeLessThanOrEqual(layout.innerWidth);
+      }
+    }
+
+    await page.goto("/mill-house");
+    await expect(page.locator("main")).toContainText(
+      "kura.aucklandlibraries.govt.nz/digital/collection/photos/id/47325/rec/38"
+    );
+  });
+
   test("shows the whole photograph with nothing over it", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/sheep");
