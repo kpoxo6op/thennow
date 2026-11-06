@@ -5,6 +5,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -198,6 +199,7 @@ export function PlacesExplorer({ stories }: Props) {
   const [visibleCount, setVisibleCount] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
+  const [lead, setLead] = useState<string | null>(null)
 
   const areas = useMemo(() => groupByArea(stories), [stories])
 
@@ -358,6 +360,29 @@ export function PlacesExplorer({ stories }: Props) {
     }
   }, [selected, writeParams])
 
+  // Under a phone's map, a chosen place out of reach leads the list, so it shows without being
+  // repeated on the map. One already in view stays put, under the finger that chose it.
+  useLayoutEffect(() => {
+    const row = listRef.current?.querySelector('[data-testid="map-selection"]')
+    const chosen = selected?.[0]?.slug ?? null
+
+    if (!row || !chosen || !window.matchMedia("(max-width: 1023px)").matches) {
+      setLead(null)
+      return
+    }
+
+    const { top, height } = row.getBoundingClientRect()
+
+    const inReach = top + window.scrollY + height <= window.innerHeight
+
+    setLead((current) => (current === chosen || !inReach ? chosen : null))
+  }, [selected])
+
+  const listed = useMemo(
+    () => (lead ? [...filtered].sort((a, b) => Number(b.slug === lead) - Number(a.slug === lead)) : filtered),
+    [filtered, lead]
+  )
+
   const hasFilter = Boolean(deferredQuery.trim() || area)
   const isEmpty = filtered.length === 0
   const resultLabel = `${filtered.length} ${filtered.length === 1 ? "place" : "places"}`
@@ -469,23 +494,17 @@ export function PlacesExplorer({ stories }: Props) {
         <div className="tn-map-view flex flex-col-reverse lg:flex-row" data-testid="map-view">
           <aside className="shrink-0 border-t lg:w-[23rem] lg:overflow-y-auto lg:border-r lg:border-t-0">
             {filtered.length > 0 ? (
-              <ul ref={listRef} className="flex flex-col p-2">
-                {filtered.map((story) => {
-                  const chosen = Boolean(selected?.some((other) => other.slug === story.slug))
-
-                  return (
-                    // On a phone the chosen place leads the list, right under the map, so it never
-                    // has to be repeated on top of the map. Beside a map, every row is already in view.
-                    <li key={story.slug} className={chosen ? "max-lg:order-first" : undefined}>
-                      <StoryRow
-                        story={story}
-                        chosen={chosen}
-                        onChoose={handleChoose}
-                        onHighlight={handleHighlight}
-                      />
-                    </li>
-                  )
-                })}
+              <ul ref={listRef} className="p-2">
+                {listed.map((story) => (
+                  <li key={story.slug}>
+                    <StoryRow
+                      story={story}
+                      chosen={Boolean(selected?.some((other) => other.slug === story.slug))}
+                      onChoose={handleChoose}
+                      onHighlight={handleHighlight}
+                    />
+                  </li>
+                ))}
               </ul>
             ) : null}
           </aside>

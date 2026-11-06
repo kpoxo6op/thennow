@@ -319,6 +319,12 @@
   height: 2.75rem;
 }
 
+.tn-map .maplibregl-ctrl-group button:focus-visible {
+  box-shadow: none;
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
 .tn-map .maplibregl-ctrl-group button + button {
   border-top-color: hsl(var(--border));
 }

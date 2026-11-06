@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react"
 import type { PostLocation } from "@/interfaces/post"
 
+// A narrow frame steps back a level, so the town still gets named around the pin.
 const STORY_ZOOM = 13
+const NARROW_STORY_ZOOM = 12
 
 interface Props {
   name: string
@@ -41,7 +43,7 @@ export function StoryMap({ name, location }: Props) {
         map = new maplibregl.Map({
           container,
           center,
-          zoom: STORY_ZOOM,
+          zoom: container.clientWidth < 640 ? NARROW_STORY_ZOOM : STORY_ZOOM,
           minZoom: 8,
           maxZoom: 16,
           attributionControl: { compact: true },
@@ -110,7 +112,7 @@ export function StoryMap({ name, location }: Props) {
   return (
     <section className="mt-8 border-t pt-4 md:mt-10">
       <h2 className="tn-reading text-[1.75rem] leading-none text-muted-foreground">Where</h2>
-      <div className="tn-map tn-story-map relative mt-4 aspect-[4/3] max-h-[60svh] w-full overflow-hidden bg-muted md:aspect-[5/2]">
+      <div className="tn-map tn-story-map relative mt-4 aspect-[4/3] max-h-[60svh] w-full overflow-hidden bg-muted md:aspect-[3/1]">
         <div
           ref={containerRef}
           data-testid="story-map"
@@ -121,7 +123,7 @@ export function StoryMap({ name, location }: Props) {
         {failed ? (
           <p
             data-testid="story-map-failure"
-            className="absolute inset-0 flex items-center justify-center bg-muted px-4 text-center text-[15px] text-muted-foreground"
+            className="absolute inset-0 z-10 flex items-center justify-center bg-muted px-4 text-center text-[15px] text-muted-foreground"
           >
             The map didn&apos;t load. This place is at {Math.abs(location.lat).toFixed(4)}° {ns},{" "}
             {Math.abs(location.lng).toFixed(4)}° {ew}.

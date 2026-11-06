@@ -410,6 +410,12 @@ export default function Post({ post, next, nearby }: PostProps) {
               <Link href="/places" className="inline-block py-2 underline underline-offset-4">
                 All places
               </Link>
+              <Link
+                href={`/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=13&story=${post.slug}`}
+                className="inline-block py-2 underline underline-offset-4"
+              >
+                Map
+              </Link>
             </div>
           </div>
         </div>

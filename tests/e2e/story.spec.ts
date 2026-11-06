@@ -314,6 +314,13 @@ test.describe("a story's own map", () => {
     await page.goto("/mill-house")
     await page.getByTestId("story-map").scrollIntoViewIfNeeded()
     await expect(page.getByTestId("story-map-failure")).toBeVisible()
+    // Nothing from the failed map sits over the words.
+    const failure = (await page.getByTestId("story-map-failure").boundingBox())!
+    const top = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x, y)?.getAttribute("data-testid"),
+      [failure.x + failure.width / 2, failure.y + failure.height / 2]
+    )
+    expect(top).toBe("story-map-failure")
     await expect(page.getByRole("heading", { level: 1 })).toBeAttached()
     await expect(page.getByTestId("compare-slider-input")).toHaveValue("50")
   })

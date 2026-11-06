@@ -504,3 +504,43 @@ test("choosing any story shows its own pin, from the list and from an address", 
     await expect(active, post.slug).toHaveAttribute("aria-label", post.name)
   }
 })
+
+test.describe("the chosen place on a phone's map list", () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test("stays under the finger when it is already in view", async ({ page }) => {
+    await page.goto("/places?view=map")
+    await expect(markers(page).first()).toBeVisible()
+    const row = page.getByTestId("map-list-item").nth(1)
+    const name = (await row.innerText()).trim()
+    const before = (await row.boundingBox())!
+    await row.click()
+    await expect(page.getByTestId("map-selection")).toContainText(name)
+    const after = (await page.getByTestId("map-list-item").nth(1).boundingBox())!
+    expect(after.y).toBeCloseTo(before.y, 0)
+    await expect(page.getByTestId("map-list-item").nth(1)).toContainText(name)
+  })
+
+  test("otherwise leads the list, first to the keyboard as well as the eye", async ({ page }) => {
+    await page.goto("/places?view=map")
+    await expect(markers(page).first()).toBeVisible()
+    await page.getByTestId("map-list-item").last().click()
+    const selection = page.getByTestId("map-selection")
+    await expect(page.getByTestId("map-list-item").first().getByTestId("map-selection")).toBeVisible()
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+    await expect(selection).toBeInViewport()
+
+    await selection.focus()
+    await page.keyboard.press("Tab")
+    const next = page.getByTestId("map-list-item").nth(1).getByRole("button")
+    await expect(next).toBeFocused()
+  })
+})
+
+test("a story's onward links reach the wider map with that story chosen", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto("/mill-house")
+  await page.getByRole("link", { name: "Map", exact: true }).click()
+  await expect(page).toHaveURL(/view=map/)
+  await expect(page.getByTestId("map-selection")).toContainText("Mill House")
+})
