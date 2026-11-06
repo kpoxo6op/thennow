@@ -9,15 +9,13 @@ type SliderProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "
   value?: number[]
   defaultValue?: number[]
   onValueChange?: (value: number[]) => void
-  // Where the grip sits along the range, when that isn't simply the value.
-  // It may pass either end: the grip follows the line, the input stays inset.
-  gripPercent?: number
 }
 
-// The grip sits on the photo. Only the input takes pointer events, in a strip
-// along the photo's lower edge; the rest of the photo is the stage's to drag.
+// The grip sits on the photo, at the value's share of its width. Pointers belong
+// to the stage underneath; the input, inset from the screen edges, is the focus
+// and keyboard control and takes none, so its own mapping can't fight the stage.
 const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
-  ({ className, value, defaultValue, min = 0, max = 100, step = 1, onValueChange, gripPercent, ...props }, ref) => {
+  ({ className, value, defaultValue, min = 0, max = 100, step = 1, onValueChange, ...props }, ref) => {
     const isControlled = value !== undefined
     const currentValue = Number((isControlled ? value?.[0] : defaultValue?.[0]) ?? min)
     const [internalValue, setInternalValue] = React.useState(currentValue)
@@ -65,7 +63,7 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
           data-testid="compare-slider-knob"
           className="absolute top-1/2 z-20 flex size-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-neutral-900 shadow-[0_1px_8px_rgb(0_0_0/0.45)] group-has-[input:focus-visible]:outline-2 group-has-[input:focus-visible]:outline-offset-2 group-has-[input:focus-visible]:outline-white"
           style={{
-            left: `${gripPercent ?? percent}%`,
+            left: `${percent}%`,
           }}
         >
           <ChevronLeft aria-hidden className="-mr-1 size-4" />
@@ -81,7 +79,7 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
           value={renderedValue}
           onChange={handleValueChange}
           onInput={handleInput}
-          className="tn-slider pointer-events-auto absolute inset-x-0 bottom-0 z-10 m-0 h-11 w-full cursor-ew-resize appearance-none bg-transparent outline-none"
+          className="tn-slider tn-compare-input pointer-events-none absolute bottom-0 z-10 m-0 h-11 appearance-none bg-transparent outline-none"
           {...props}
         />
       </div>

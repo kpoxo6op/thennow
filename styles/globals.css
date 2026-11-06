@@ -236,11 +236,12 @@ html {
   width: var(--compare-frame-width);
 }
 
-.tn-compare-range {
-  position: absolute;
-  inset-block: 0;
-  left: var(--compare-gutter-left);
-  right: var(--compare-gutter-right);
+/* Positioned within the photograph, inset to the gutters from the screen edges. */
+.tn-compare-input {
+  --compare-input-left: calc(var(--compare-gutter-left) - var(--compare-frame-left));
+  --compare-input-right: calc(var(--compare-gutter-right) - var(--compare-frame-right));
+  left: var(--compare-input-left);
+  width: calc(100% - var(--compare-input-left) - var(--compare-input-right));
 }
 
 .tn-compare-mark {

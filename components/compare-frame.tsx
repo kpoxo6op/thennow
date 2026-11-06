@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Maximize2, X } from "lucide-react"
 
-import { COMPARE_SIDE_GUTTER_PX, compareLinePercent } from "@/lib/compare"
+import { COMPARE_SIDE_GUTTER_PX } from "@/lib/compare"
 import { cn } from "@/lib/utils"
 import ImageSplit from "@/components/ImageSplit"
 import { Slider } from "@/components/ui/slider"
@@ -45,28 +45,22 @@ export function CompareFrame({
   const isHero = variant === "hero"
   const photoRef = React.useRef<HTMLDivElement>(null)
   const frameRef = React.useRef<HTMLDivElement>(null)
-  const rangeRef = React.useRef<HTMLDivElement>(null)
   const [geometry, setGeometry] = React.useState<{
     stage: number
-    rangeLeft: number
-    rangeWidth: number
-    overhangLeft: number
-    overhangRight: number
+    frameLeft: number
+    frameWidth: number
   } | null>(null)
 
   React.useLayoutEffect(() => {
     const measure = () => {
       const photo = photoRef.current?.getBoundingClientRect()
       const frame = frameRef.current?.getBoundingClientRect()
-      const range = rangeRef.current?.getBoundingClientRect()
 
-      if (photo && frame && range && range.width > 0) {
+      if (photo && frame && frame.width > 0) {
         setGeometry({
           stage: photo.width,
-          rangeLeft: range.left - photo.left,
-          rangeWidth: range.width,
-          overhangLeft: Math.max(0, ((range.left - frame.left) / range.width) * 100),
-          overhangRight: Math.max(0, ((frame.right - range.right) / range.width) * 100),
+          frameLeft: frame.left - photo.left,
+          frameWidth: frame.width,
         })
       }
     }
@@ -79,12 +73,6 @@ export function CompareFrame({
 
     return () => observer.disconnect()
   }, [])
-
-  const linePercent = compareLinePercent(
-    position,
-    geometry?.overhangLeft ?? 0,
-    geometry?.overhangRight ?? 0
-  )
 
   React.useEffect(() => {
     if (!photoOnly) {
@@ -168,7 +156,6 @@ export function CompareFrame({
             <ImageSplit
               post={post}
               position={position}
-              linePercent={linePercent}
               geometry={geometry}
               sizes={sizes}
               onPositionChange={onPositionChange}
@@ -188,12 +175,11 @@ export function CompareFrame({
                 now
               </span>
             </div>
-            <div ref={rangeRef} className="tn-compare-range pointer-events-none">
+            <div className="tn-compare-frame pointer-events-none">
               <Slider
                 aria-label={`Compare ${post.name}, then and now`}
                 className="absolute inset-0"
                 value={[position]}
-                gripPercent={linePercent}
                 onValueChange={(value) => {
                   onPositionChange(value[0] ?? DEFAULT_POSITION)
                 }}

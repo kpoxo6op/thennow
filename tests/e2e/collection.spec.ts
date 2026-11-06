@@ -39,6 +39,15 @@ async function visibleMarkerCenter(page: Page) {
   return center!;
 }
 
+async function linePositions(page: Page) {
+  return page.evaluate(() =>
+    ["compare-slider-knob", "compare-divider"].map((id) => {
+      const box = document.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect();
+      return box.left + box.width / 2;
+    })
+  );
+}
+
 test.describe("homepage", () => {
   test("opens on a comparison a visitor can use straight away", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -394,7 +403,7 @@ test.describe("comparison ends on a phone", () => {
   test.use({ hasTouch: true, isMobile: true });
 
   for (const width of [390, 320]) {
-    test(`0 and 100 show one photograph whole at ${width}px, from a safe drag`, async ({ page }) => {
+    test(`0 and 100 show one photograph whole at ${width}px, from a safe start`, async ({ page }) => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto("/mill-house");
       const input = page.getByTestId("compare-slider-input");
@@ -417,7 +426,7 @@ test.describe("comparison ends on a phone", () => {
           };
         });
 
-      // A real touch drag, starting and ending inside the safe margins.
+      // A real touch drag, starting inside the safe margins and running to the edge.
       const client = await page.context().newCDPSession(page);
       const stageBox = await page.getByTestId("compare-stage").boundingBox();
       const y = stageBox!.y + stageBox!.height / 2;
@@ -430,14 +439,14 @@ test.describe("comparison ends on a phone", () => {
         await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
       };
 
-      await drag(width / 2, width - 40);
+      await drag(width / 2, width - 1);
       await expect(input).toHaveValue("100");
       await expect(page).toHaveURL(/\?p=100$/);
       let end = await state();
       expect(end.shownThen).toBeCloseTo(end.stageWidth, 0);
       expect(end.knobCenter).toBeCloseTo(width, 0);
 
-      await drag(width - 60, 40);
+      await drag(width - 60, 1);
       await expect(input).toHaveValue("0");
       await expect(page).toHaveURL(/\?p=0$/);
       end = await state();
@@ -498,14 +507,14 @@ test.describe("comparison ends on a phone", () => {
     });
   }
 
-  test("partial positions stay where they were, with grip and line together", async ({ page }) => {
+  test("positions are a share of the photograph, with grip and line together", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
 
     for (const position of [5, 30, 95]) {
       await page.goto(`/mill-house?p=${position}`);
       await expect(page.getByTestId("compare-slider-input")).toHaveValue(String(position));
 
-      const expected = 40 + (position / 100) * 310;
+      const expected = (position / 100) * 390;
       await expect
         .poll(() =>
           page.evaluate(() => {
@@ -518,6 +527,124 @@ test.describe("comparison ends on a phone", () => {
         )
         .toEqual([expect.closeTo(expected, 0), expect.closeTo(expected, 0)]);
     }
+  });
+
+  test("a real touch on the photo: grip, edges, margins and scrolling", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/mill-house?p=30");
+    const input = page.getByTestId("compare-slider-input");
+    await expect(input).toHaveValue("30");
+
+    const client = await page.context().newCDPSession(page);
+    const stage = await page.getByTestId("compare-stage").boundingBox();
+    const y = stage!.y + stage!.height / 2;
+    const touch = (
+      type: "touchStart" | "touchMove" | "touchEnd",
+      x?: number,
+      atY = y
+    ) =>
+      client.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: x === undefined ? [] : [{ x, y: atY }],
+      });
+
+    // Pressing the grip without moving leaves it where it is.
+    await touch("touchStart", 117);
+    await touch("touchEnd");
+    await expect(input).toHaveValue("30");
+    await expect(page).toHaveURL(/\?p=30$/);
+
+    // Dragging it keeps it under the finger.
+    await touch("touchStart", 117);
+    for (const x of [125, 140, 160]) {
+      await touch("touchMove", x);
+      await expect
+        .poll(() => linePositions(page))
+        .toEqual([expect.closeTo(x, 0), expect.closeTo(x, 0)]);
+    }
+    await touch("touchEnd");
+
+    // A touch starting in an edge margin leaves the reveal alone.
+    const before = await input.inputValue();
+    for (const [from, to] of [
+      [15, 200],
+      [375, 200],
+    ]) {
+      await touch("touchStart", from);
+      await touch("touchMove", (from + to) / 2);
+      await touch("touchMove", to);
+      await touch("touchEnd");
+      await touch("touchStart", from);
+      await touch("touchEnd");
+    }
+    await expect(input).toHaveValue(before);
+
+    // A vertical swipe from the photo scrolls the page and moves nothing.
+    const startX = 250;
+    await touch("touchStart", startX);
+    for (let step = 1; step <= 8; step += 1) {
+      await touch("touchMove", startX, y - step * 20);
+    }
+    await touch("touchEnd");
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await expect(input).toHaveValue(before);
+  });
+});
+
+test.describe("pointer on the comparison", () => {
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ]) {
+    for (const position of [30, 3, 97]) {
+      test(`the grip stays under a mouse from p=${position} at ${viewport.width}px`, async ({ page }) => {
+        await page.setViewportSize(viewport);
+        await page.goto(`/mill-house?p=${position}`);
+        const input = page.getByTestId("compare-slider-input");
+        await expect(input).toHaveValue(String(position));
+        await expect.poll(() => linePositions(page).then(([knob]) => knob)).toBeGreaterThan(0);
+
+        const [start] = await linePositions(page);
+        const stage = await page.getByTestId("compare-stage").boundingBox();
+        const y = stage!.y + stage!.height / 2;
+
+        // Press without moving: no jump, and the URL keeps its value.
+        await page.mouse.move(start, y);
+        await page.mouse.down();
+        await expect(input).toHaveValue(String(position));
+        expect((await linePositions(page))[0]).toBeCloseTo(start, 0);
+
+        // Small horizontal moves keep grip and divider on the pointer.
+        const direction = position > 50 ? -1 : 1;
+        for (const distance of [3, 9, 20]) {
+          const x = start + direction * distance;
+          await page.mouse.move(x, y);
+          const [knob, divider] = await linePositions(page);
+          expect(Math.abs(knob - x), `grip at ${x}`).toBeLessThanOrEqual(1);
+          expect(Math.abs(divider - x), `divider at ${x}`).toBeLessThanOrEqual(1);
+        }
+
+        // On the way out it reaches the photo's edge under the pointer.
+        const frame = await page.getByTestId("compare-overlay-image").boundingBox();
+        const edge = direction > 0 ? frame!.x + frame!.width : frame!.x;
+        await page.mouse.move(edge - direction, y);
+        await expect(input).toHaveValue(direction > 0 ? "100" : "0");
+        await page.mouse.up();
+        await expect(page).toHaveURL(direction > 0 ? /\?p=100$/ : /\?p=0$/);
+      });
+    }
+  }
+
+  test("a press off the grip still moves the line there", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/mill-house?p=30");
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("30");
+    const stage = await page.getByTestId("compare-stage").boundingBox();
+
+    await page.mouse.click(273, stage!.y + stage!.height / 2);
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("70");
+    await expect(page).toHaveURL(/\?p=70$/);
   });
 });
 

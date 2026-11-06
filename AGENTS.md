@@ -37,7 +37,9 @@ This site has had repeated regressions around the compare page. Agents must trea
 - URL param `?p=` controls compare position.
 - `?p=50` should normalize away; non-default values should remain in the URL.
 - Mobile compare controls must keep safe side margins to avoid OS edge-swipe conflicts.
-- `0` and `100` must show one photograph whole. The margins bound the slider's input and hit area, not the reveal or the visible grip: in the last 5% of travel the line runs out to the photo's edge. The visible grip stays on the line at every position, including where that takes it partly off the photo at `0` and `100`.
+- A position is a share of the photograph's width, so the grip, divider and reveal border sit together under the pointer at every position, and `0` and `100` show one photograph whole.
+- Pressing on the line must not move it; pressing elsewhere on the photo moves the line there. A drag starting inside the photo may continue to its edge.
+- The side margins protect where touches start: a touch starting in them must not move the reveal. The native input stays inside them as the focus and keyboard control, and takes no pointer events.
 - The top header/nav must reach the correct right-edge spacing on desktop.
 
 If a change touches compare behavior, header layout, or page geometry, agents should expect e2e tests to catch regressions and should verify carefully.
@@ -59,6 +61,7 @@ Current e2e coverage includes:
 - knob/border alignment
 - mobile safe margins
 - full photographs at 0 and 100 with touch
+- press without jump, pointer tracking, edge-start protection and vertical scrolling from the photo
 - desktop header edge spacing
 
 ## When Tests Fail
