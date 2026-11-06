@@ -281,16 +281,12 @@ export default function Post({ post, next, nearby }: PostProps) {
                 {thenYear ? <span className="tn-reading text-base leading-none tabular-nums">{thenYear}</span> : null}
               </span>
             </button>
-            {wholeShown ? (
-              <p className="min-w-0 px-2 text-center text-sm text-muted-foreground">Press again to compare</p>
-            ) : (
-              <>
-                <p className="tn-hint-long hidden min-w-0 px-3 text-center text-sm text-muted-foreground">
-                  Drag the line, or choose then or now to see a whole photograph
-                </p>
-                <p className="tn-hint-short px-2 text-center text-sm text-muted-foreground">Drag the line</p>
-              </>
-            )}
+            <p className="tn-hint-long hidden min-w-0 px-3 text-center text-sm text-muted-foreground">
+              {wholeShown
+                ? "Press the highlighted button, or drag the line, to compare"
+                : "Drag the line, or choose then or now to see a whole photograph"}
+            </p>
+            <p className="tn-hint-short px-2 text-center text-sm text-muted-foreground">Drag the line</p>
             <button
               type="button"
               data-testid="story-show-now"
