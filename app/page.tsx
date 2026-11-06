@@ -28,6 +28,7 @@ export default async function IndexPage() {
   const posts = await fetchPosts()
   const hero = posts.find((post) => post.slug === HERO_SLUG) ?? posts[0]
   const originals = posts.filter((post) => !post.sample)
+  const rest = originals.filter((post) => post !== hero)
   const heroSections = datedSections(hero)
   const thenYear = heroSections[0]?.year
   const nowYear = heroSections[heroSections.length - 1]?.year
@@ -46,10 +47,10 @@ export default async function IndexPage() {
             caption={
               <Link
                 href={`/${hero.slug}`}
-                className="inline-flex min-h-11 items-center gap-2 text-[15px] underline underline-offset-4 md:text-base"
+                className="block py-3 text-[15px] leading-snug md:py-2.5 md:text-base"
               >
-                {hero.name}
-                <ArrowRight aria-hidden className="size-4 shrink-0" />
+                <span className="underline underline-offset-4">{hero.name}</span>
+                <ArrowRight aria-hidden className="ml-1.5 inline size-4 align-[-0.15em]" />
               </Link>
             }
           />
@@ -80,12 +81,12 @@ export default async function IndexPage() {
           </div>
 
           <ul className="mt-5 grid grid-cols-1 gap-x-3 gap-y-8 sm:grid-cols-2 md:mt-6 md:gap-x-6 md:gap-y-12 lg:grid-cols-12">
-            {originals.map((story, index) => (
+            {rest.map((story, index) => (
               <li
                 key={story.slug}
-                className={index < 2 ? "lg:col-span-6" : "lg:col-span-3"}
+                className={index === 0 ? "sm:col-span-2 lg:col-span-6" : index === 1 ? "lg:col-span-6" : "lg:col-span-4"}
               >
-                <StoryTile story={story} sizes={index < 2 ? "(min-width: 640px) 50vw, 100vw" : "(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"} />
+                <StoryTile story={story} sizes={index < 2 ? "(min-width: 640px) 50vw, 100vw" : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"} />
               </li>
             ))}
           </ul>

@@ -68,6 +68,21 @@ function clusterStories(stories: StorySummary[], zoom: number): StoryCluster[] {
   }))
 }
 
+// The first level at which a story has its own pin rather than a share of a cluster.
+function zoomShowingAlone(slug: string, stories: StorySummary[], from: number) {
+  for (let zoom = Math.ceil(from); zoom <= MAX_ZOOM; zoom += 1) {
+    const cluster = clusterStories(stories, zoom).find((group) =>
+      group.stories.some((story) => story.slug === slug)
+    )
+
+    if (!cluster || cluster.stories.length === 1) {
+      return zoom
+    }
+  }
+
+  return MAX_ZOOM
+}
+
 type Props = {
   stories: StorySummary[]
   selected?: StorySummary[] | null
@@ -150,7 +165,13 @@ export function PlacesMap({
           ...(initialViewport
             ? {
                 center: [initialViewport.lng, initialViewport.lat] as [number, number],
-                zoom: initialViewport.z,
+                // A story chosen on arrival is shown as itself, not inside a cluster.
+                zoom: selectedSlugsRef.current[0]
+                  ? Math.max(
+                      initialViewport.z,
+                      zoomShowingAlone(selectedSlugsRef.current[0], initialStories, initialViewport.z)
+                    )
+                  : initialViewport.z,
               }
             : initialStories.length > 0
               ? {
@@ -241,7 +262,10 @@ export function PlacesMap({
         focusRef.current = (story) => {
           activeMap.easeTo({
             center: [story.location.lng, story.location.lat],
-            zoom: Math.max(activeMap.getZoom(), FOCUS_ZOOM),
+            zoom: Math.max(
+              activeMap.getZoom(),
+              zoomShowingAlone(story.slug, storiesRef.current, FOCUS_ZOOM)
+            ),
             duration: 600,
           })
         }

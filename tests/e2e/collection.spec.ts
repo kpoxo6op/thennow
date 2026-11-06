@@ -484,3 +484,21 @@ test("the phone map has real height and draws", async ({ page }) => {
   expect(canvas.height).toBeGreaterThan(350)
   expect(canvas.width).toBeGreaterThan(380)
 })
+
+test("choosing any story shows its own pin, from the list and from its map link", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const active = page.locator(".tn-map-marker.is-active")
+
+  for (const post of posts) {
+    await page.goto("/places?view=map")
+    await expect(markers(page).first()).toBeVisible()
+    await page.getByTestId("map-list-item").filter({ hasText: post.name }).click()
+    await expect(active, post.slug).toHaveAttribute("data-count", "1")
+    await expect(active, post.slug).toHaveAttribute("aria-label", post.name)
+
+    await page.goto(`/${post.slug}`)
+    await page.getByRole("link", { name: "See it on the map" }).click()
+    await expect(active, post.slug).toHaveAttribute("data-count", "1")
+    await expect(active, post.slug).toHaveAttribute("aria-label", post.name)
+  }
+})
