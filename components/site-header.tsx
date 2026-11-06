@@ -14,12 +14,12 @@ const SiteHeader = React.forwardRef<
       ref={ref}
       data-testid="site-header"
       className={cn(
-        "fixed inset-x-0 top-0 z-10 border-b border-border/60 bg-background/85 text-left backdrop-blur",
+        "inset-x-0 top-0 z-10 bg-background text-left md:sticky",
         className
       )}
       {...props}
     >
-      <div className="flex h-16 w-full items-center justify-between px-2">
+      <div className="flex h-14 w-full items-center justify-between px-4">
         <MainNav items={siteConfig.mainNav} />
       </div>
     </header>

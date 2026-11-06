@@ -5,8 +5,9 @@ test("desktop header reaches the right edge with matching left/right padding", a
 
   const headerGeometry = await page.evaluate(() => {
     const title = document.querySelector('[data-testid="site-header"] a[href="/"]');
+    // Contact and Links left the navigation, so About is now the right-most item.
     const linksLink = Array.from(document.querySelectorAll('[data-testid="site-header"] a')).find(
-      (link) => link.textContent?.trim() === "Links"
+      (link) => link.textContent?.trim() === "About"
     );
 
     if (!title || !linksLink) {

@@ -7,69 +7,47 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
+    --background: 42 30% 94%;
+    --foreground: 36 14% 8%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 40 18% 87%;
+    --muted-foreground: 36 7% 33%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
+    --popover: 42 40% 97%;
+    --popover-foreground: 36 14% 8%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 38 12% 76%;
+    --input: 38 12% 62%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
+    --card: 42 30% 94%;
+    --card-foreground: 36 14% 8%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 36 14% 8%;
+    --primary-foreground: 42 30% 94%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 40 18% 87%;
+    --secondary-foreground: 36 14% 8%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 14 72% 36%;
+    --accent-foreground: 42 40% 97%;
 
-    --destructive: 0 100% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 70% 40%;
+    --destructive-foreground: 42 40% 97%;
 
-    --ring: 215 20.2% 65.1%;
+    --ring: 14 72% 36%;
 
-    --radius: 0.5rem;
+    --radius: 0.25rem;
+
+    --header-h: 3.5rem;
+    --sticky-top: 0rem;
+    --toolbar-h: 6.75rem;
   }
 
-  .dark {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
-
-    --muted: 223 47% 11%;
-    --muted-foreground: 215.4 16.3% 56.9%;
-
-    --accent: 216 34% 17%;
-    --accent-foreground: 210 40% 98%;
-
-    --popover: 224 71% 4%;
-    --popover-foreground: 215 20.2% 65.1%;
-
-    --border: 216 34% 17%;
-    --input: 216 34% 17%;
-
-    --card: 224 71% 4%;
-    --card-foreground: 213 31% 91%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 1.2%;
-
-    --secondary: 222.2 47.4% 11.2%;
-    --secondary-foreground: 210 40% 98%;
-
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-
-    --ring: 216 34% 17%;
-
-    --radius: 0.5rem;
+  @media (min-width: 768px) {
+    :root {
+      --sticky-top: var(--header-h);
+      --toolbar-h: 4rem;
+    }
   }
 }
 
@@ -77,99 +55,367 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
   }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
 }
 
-.tn-slider::-webkit-slider-runnable-track {
-  height: 0.5rem;
-  border-radius: 9999px;
-  background: transparent;
+/* The homepage is a dark viewing room: the ground steps back and the photographs carry the page. */
+.tn-home {
+  --background: 36 10% 7%;
+  --foreground: 42 30% 92%;
+  --muted: 36 8% 15%;
+  --muted-foreground: 40 12% 74%;
+  --popover: 36 9% 11%;
+  --popover-foreground: 42 30% 92%;
+  --border: 38 8% 24%;
+  --input: 38 8% 38%;
+  --card: 36 10% 7%;
+  --card-foreground: 42 30% 92%;
+  --primary: 42 30% 92%;
+  --primary-foreground: 36 10% 7%;
+  --secondary: 36 8% 15%;
+  --secondary-foreground: 42 30% 92%;
+  --accent: 18 88% 60%;
+  --accent-foreground: 36 10% 7%;
+  --ring: 18 88% 60%;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
 }
 
-.tn-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+body:has(.tn-home) {
+  background: hsl(36 10% 7%);
+}
+
+/* A little extra height on both layers trims the scan's torn top edge.
+   Their left and right stay on the stage, so the line still maps exactly onto the photograph. */
+.tn-home-hero [data-testid="compare-stage"] img {
+  top: -4% !important;
+  height: 104% !important;
+}
+
+@media (max-width: 767px) {
+  /* A phone sees under half the photograph's width: keep the rider and the house in it. */
+  .tn-home-hero [data-testid="compare-stage"] img {
+    object-position: 15% 50%;
+  }
+}
+
+.tn-year {
+  --pill: 3.25rem;
+  width: var(--pill);
+}
+
+@media (min-width: 768px) {
+  .tn-year {
+    --pill: 3.75rem;
+  }
+}
+
+.tn-hero-copy {
+  position: relative;
+}
+
+@media (min-width: 768px) {
+  .tn-hero-copy {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 50%;
+    pointer-events: none;
+    color: white;
+    isolation: isolate;
+    transition: opacity 200ms ease-out;
+  }
+
+  /* Quiets the road markings behind the words; feathered so no edge shows when the line moves left. */
+  .tn-hero-copy::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    transition: opacity 200ms ease-out;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.72), rgb(0 0 0 / 0.6) 58%, transparent);
+    mask-image: linear-gradient(to right, transparent, rgb(0 0 0 / 0.75) 9%, black 32%);
+  }
+
+  /* While the line is held, nothing but the photograph. */
+  .tn-hero-copy[data-clear="drag"] {
+    opacity: 0;
+  }
+
+  /* Studying what the words would cover: they step aside, the ways onward stay. */
+  .tn-hero-copy[data-clear="study"]:not(:focus-within)::before,
+  .tn-hero-copy[data-clear="study"]:not(:focus-within) .tn-hero-words {
+    opacity: 0;
+  }
+
+  .tn-hero-copy[data-clear="study"] .tn-hero-map {
+    padding-inline: 0.75rem;
+    background: rgb(0 0 0 / 0.7);
+  }
+
+  .tn-hero-words {
+    transition: opacity 200ms ease-out;
+  }
+}
+
+/* Then over now, cut along a line that a mouse can move. */
+.tn-seam-tile {
+  --seam: 50%;
+}
+
+.tn-seam-tile img {
+  transform: scale(var(--trim));
+}
+
+@media (min-width: 768px) {
+  .tn-seam-wide {
+    aspect-ratio: 2 / 1 !important;
+  }
+
+  /* The ground and the scan's own inscription hold the story; the sky is blown out. */
+  .tn-seam-wide img {
+    object-position: 50% 100%;
+    transform-origin: 50% 82%;
+  }
+
+  /* Takes the glare off a blown-out sky on the dark ground. */
+  .tn-seam-wide .tn-seam-then {
+    filter: brightness(0.93);
+  }
+}
+
+.tn-seam-then {
+  clip-path: inset(0 calc(100% - var(--seam)) 0 0);
+}
+
+.tn-seam-line {
+  left: var(--seam);
+}
+
+.tn-enter {
+  animation: tn-enter 240ms ease-out backwards;
+}
+
+@keyframes tn-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A hidden range keeps keyboard and screen reader access; the pointer drives the stage. */
+.tn-compare-input {
   appearance: none;
-  margin-top: 0;
-  height: 0;
-  width: 0;
-  border: 0;
-  border-radius: 9999px;
-  background: transparent;
-  cursor: ew-resize;
   opacity: 0;
-  box-shadow: none;
+  pointer-events: none;
 }
 
-.tn-slider::-moz-range-track {
-  height: 0.5rem;
-  border: 0;
-  border-radius: 9999px;
-  background: transparent;
+/* Story: the whole photograph, its controls, its name; then its words. */
+.tn-story {
+  --legend-h: 2.75rem;
+  --peek: 5rem;
+  /* The photograph stays inside the stage by half the knob, so at either end the whole knob is on screen. */
+  --stage-inset: 1.5rem;
+  --stage-h: min(
+    calc((100cqw - var(--stage-inset) * 2) / var(--ratio)),
+    calc(100svh - var(--header-h) - var(--legend-h) - var(--peek))
+  );
+  --image-w: min(100cqw, calc(var(--stage-h) * var(--ratio)));
+  --edge: calc((100cqw - var(--image-w)) / 2);
+  container-type: inline-size;
 }
 
-.tn-slider::-moz-range-progress {
-  height: 0.5rem;
-  border-radius: 9999px;
-  background: transparent;
+@media (min-width: 768px) {
+  .tn-story {
+    --peek: 7.75rem;
+  }
+
+  .tn-story--long-title {
+    --peek: 10.75rem;
+  }
+
+  .tn-story--sample {
+    --peek: 10rem;
+  }
+
+  .tn-story--sample.tn-story--long-title {
+    --peek: 12.5rem;
+  }
 }
 
-.tn-slider::-moz-range-thumb {
-  height: 0;
-  width: 0;
-  border: 0;
-  border-radius: 9999px;
-  background: transparent;
-  cursor: ew-resize;
-  opacity: 0;
-  box-shadow: none;
+@media (max-height: 520px) {
+  .tn-story,
+  .tn-story--long-title,
+  .tn-story--sample {
+    --peek: 0rem;
+  }
 }
 
-.leaflet-container {
+/* Where a story's photograph is width-limited the knob sits lighter and clear of the screen edge; its grip stays as large. */
+@media (max-width: 1023px) {
+  .tn-story [data-testid="compare-slider-knob"] {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+}
+
+/* The full instruction only where the legend has the room for it on one line. */
+@media (min-width: 1024px) and (min-height: 800px) {
+  .tn-hint-long {
+    display: block;
+  }
+
+  .tn-hint-short {
+    display: none;
+  }
+}
+
+.tn-reading {
+  font-family: var(--font-reading), Georgia, serif;
+}
+
+.tn-story-stage {
+  container-type: size;
+  height: var(--stage-h);
+}
+
+.tn-compare-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(100cqw, calc(100cqh * var(--ratio)));
+  aspect-ratio: var(--ratio);
+  transform: translate(-50%, -50%);
+}
+
+.tn-story-edge {
+  padding-inline: var(--edge);
+}
+
+/* Places */
+.tn-toolbar {
+  position: sticky;
+  top: var(--sticky-top);
+  z-index: 6;
+  min-height: var(--toolbar-h);
+}
+
+.tn-section {
+  scroll-margin-top: calc(var(--sticky-top) + var(--toolbar-h) + 0.75rem);
+}
+
+.tn-deep-link .tn-fallback-list {
+  visibility: hidden;
+}
+
+.tn-map-view {
+  height: calc(100dvh - var(--header-h) - var(--toolbar-h));
+  min-height: 22rem;
+}
+
+.tn-map .maplibregl-canvas {
+  filter: grayscale(1) sepia(0.18) contrast(0.94) brightness(1.03);
+}
+
+.tn-map .maplibregl-map {
   background: hsl(var(--muted));
 }
 
-.leaflet-tile {
-  filter: saturate(0.7) brightness(1.04) contrast(0.9);
+.tn-map .maplibregl-ctrl-group {
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: hsl(var(--popover));
+  box-shadow: 0 1px 6px rgb(40 30 20 / 0.28);
 }
 
-.tn-osm-variant--default .leaflet-tile {
-  filter: none;
+.tn-map .maplibregl-ctrl-group button {
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
-.tn-osm-variant--muted .leaflet-tile {
-  filter: saturate(0.58) brightness(1.06) contrast(0.9);
+.tn-map .maplibregl-ctrl-group button + button {
+  border-top-color: hsl(var(--border));
 }
 
-.tn-osm-variant--paper .leaflet-tile {
-  filter: grayscale(0.35) saturate(0.5) brightness(1.12) contrast(0.84);
-}
-
-.tn-osm-variant--mono .leaflet-tile {
-  filter: grayscale(0.82) brightness(1.08) contrast(0.88);
-}
-
+/* The anchor is the touch target; its child is what you see. */
 .tn-map-marker {
-  display: block;
-  width: 18px;
-  height: 18px;
-  border: 3px solid white;
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+  animation: tn-enter 180ms ease-out backwards;
+}
+
+.tn-map-marker > span {
+  display: grid;
+  place-items: center;
   border-radius: 9999px;
   background: hsl(var(--foreground));
-  box-shadow: 0 2px 10px rgb(15 23 42 / 0.28);
-  cursor: pointer;
+  color: hsl(var(--background));
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-shadow:
+    0 0 0 2px hsl(var(--popover)),
+    0 1px 6px rgb(40 30 20 / 0.4);
+  transition:
+    transform 140ms ease-out,
+    background-color 140ms ease-out;
+}
+
+.tn-map-marker--point > span {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.tn-map-marker--cluster > span {
+  width: 2rem;
+  height: 2rem;
+}
+
+.tn-map-marker:hover > span,
+.tn-map-marker.is-active > span {
+  transform: scale(1.25);
+  background: hsl(var(--accent));
+}
+
+.tn-map-marker:hover,
+.tn-map-marker.is-active,
+.tn-map-marker:focus-visible {
+  z-index: 1;
 }
 
 .tn-map-marker:focus-visible {
-  outline: 3px solid hsl(var(--ring));
+  outline: none;
+}
+
+.tn-map-marker:focus-visible > span {
+  outline: 2px solid hsl(var(--ring));
   outline-offset: 3px;
 }
 
-.maplibregl-popup-content {
-  border-radius: 0.5rem;
-  box-shadow: 0 12px 32px rgb(15 23 42 / 0.18);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -13,6 +13,15 @@ type PostType = {
   h: number
   slug: string
   location: PostLocation
+  sample?: boolean
+  area?: string
+  // Sample places only: the original story whose photographs they repeat.
+  imageSourceSlug?: string
 }
+
+export type StorySummary = Pick<
+  PostType,
+  "name" | "description" | "ba_imageUrl" | "w" | "h" | "slug" | "location" | "sample" | "area"
+>
 
 export default PostType

@@ -1,8 +1,6 @@
-export default async function ContactPage() {
-  return (
-    <>
-      <h2>Contact</h2>
-      <p>contact...</p>
-    </>
-  )
+import { redirect } from "next/navigation"
+
+// There are no contact details to publish yet; the address stays alive.
+export default function ContactPage() {
+  redirect("/about")
 }

@@ -3,10 +3,8 @@ import "@/styles/globals.css"
 import { Metadata, Viewport } from "next"
 
 import { siteConfig } from "@/config/site"
-import { fontSans } from "@/lib/fonts"
+import { fontSans, fontSerif } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
-import { SiteHeader } from "@/components/site-header"
-import { SiteFooter } from "@/components/site-footer"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
 
@@ -19,16 +17,11 @@ export const metadata: Metadata = {
   description: siteConfig.description,
   icons: {
     icon: "/favicon.ico",
-    shortcut: "/favicon-16x16.png",
-    apple: "/apple-touch-icon.png",
   },
 }
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
-    { media: "(prefers-color-scheme: dark)", color: "black" },
-  ],
+  themeColor: "#f4f1ea",
 }
 
 interface RootLayoutProps {
@@ -41,10 +34,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body
         className={cn(
           "flex min-h-screen flex-col bg-background font-sans antialiased",
-          fontSans.variable
+          fontSans.variable,
+          fontSerif.variable
         )}
       >
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+        <ThemeProvider attribute="class" forcedTheme="light">
           {children}
           <TailwindIndicator />
         </ThemeProvider>

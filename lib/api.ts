@@ -1,10 +1,16 @@
 import fs from "fs"
 import path from "path"
-import PostType from "@/interfaces/post"
+import PostType, { type StorySummary } from "@/interfaces/post"
+
+let postsCache: PostType[] | null = null
 
 export async function fetchPosts(): Promise<PostType[]> {
+  if (postsCache) {
+    return postsCache
+  }
+
   const postsDirectory = path.join(process.cwd(), "public", "posts")
-  const postFolders = fs.readdirSync(postsDirectory)
+  const postFolders = fs.readdirSync(postsDirectory).sort()
 
   const posts = postFolders.map((postFolder) => {
     const fullPath = path.join(postsDirectory, postFolder, `${postFolder}.json`)
@@ -21,8 +27,27 @@ export async function fetchPosts(): Promise<PostType[]> {
       h: jsonContent.h,
       slug: jsonContent.slug,
       location: jsonContent.location,
+      sample: jsonContent._preview_fixture === true,
+      area: jsonContent._preview_area,
+      imageSourceSlug: jsonContent._image_source_slug,
     }
   })
 
+  postsCache = posts
+
   return posts
+}
+
+export function toSummary({
+  name,
+  description,
+  ba_imageUrl,
+  w,
+  h,
+  slug,
+  location,
+  sample,
+  area,
+}: PostType): StorySummary {
+  return { name, description, ba_imageUrl, w, h, slug, location, sample, area }
 }
