@@ -35,17 +35,17 @@ function StoryCaption({ story }: { story: PostType }) {
   const sections = datedSections(story)
 
   return (
-    <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+    <div className="mt-3">
       <Link
         href={`/${story.slug}`}
-        className="-my-1 py-1 font-serif text-2xl leading-tight underline-offset-4 hover:underline"
+        className="-my-1 block py-1 text-[17px] font-medium leading-snug underline-offset-4 hover:underline"
       >
         {story.name}
       </Link>
       {sections.length > 1 ? (
-        <span className="text-sm tabular-nums text-muted-foreground">
+        <p className="text-[15px] tabular-nums text-muted-foreground">
           {sections[0].year} and {sections[sections.length - 1].year}
-        </span>
+        </p>
       ) : null}
     </div>
   )
@@ -105,22 +105,15 @@ export default async function IndexPage() {
             ratio={hero.w / hero.h}
             thenYear={thenYear}
             nowYear={nowYear}
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 hidden h-28 bg-gradient-to-b from-black/60 to-transparent md:block"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-[44%] bg-gradient-to-t from-black/85 via-black/45 to-transparent md:block"
-          />
-          <div className="pointer-events-none relative grid gap-5 px-4 pb-8 pt-4 md:absolute md:inset-x-0 md:bottom-0 md:grid-cols-[3fr_2fr] md:items-end md:gap-10 md:pb-10 md:text-white">
-            <h1 className="font-serif text-[2.75rem] leading-[1.02] md:text-5xl lg:text-6xl xl:text-[5rem]">
-              <span className="md:block">The same corner, </span>
-              <span className="md:block">ninety-three years apart.</span>
-            </h1>
-            <div className="space-y-4">
-              <p className="max-w-md text-[17px] leading-snug">
+          >
+            <div className="space-y-3 px-4 pb-8 pt-4 md:space-y-4 md:pb-8 md:pl-8 md:pr-4 md:pt-28">
+              <h1 className="text-balance font-serif text-[2.4rem] leading-[1.03] md:text-[clamp(2.75rem,5vw,6rem)]">
+                <span className="md:block">The same corner, </span>
+                <span className="md:block">
+                  ninety<span className="mx-[-0.05em]">-</span>three years apart.
+                </span>
+              </h1>
+              <p className="max-w-[30rem] text-[17px] leading-snug">
                 then|now pairs old photographs of New Zealand places with a modern
                 retake. Drag the line to see what stayed and what disappeared.
               </p>
@@ -138,59 +131,69 @@ export default async function IndexPage() {
               </div>
               <Link
                 href={`/${hero.slug}`}
-                className="pointer-events-auto block text-sm underline-offset-4 opacity-80 hover:underline"
+                className="pointer-events-auto block text-sm underline-offset-4 hover:underline"
               >
                 {hero.name}
               </Link>
             </div>
-          </div>
+          </HomeHero>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 hidden h-20 bg-gradient-to-b from-black/45 to-transparent md:block"
+          />
         </section>
 
-        <section className="space-y-14 px-4 pb-20 pt-16 md:space-y-20 md:pb-28 md:pt-24">
-          <div className="flex flex-wrap items-baseline justify-between gap-4">
+        <section className="space-y-12 px-4 pb-20 pt-12 md:space-y-20 md:pb-28 md:pt-24">
+          <div className="grid gap-4 md:grid-cols-2 md:items-end md:gap-10">
             <h2 className="font-serif text-5xl leading-none md:text-7xl">Photographed twice.</h2>
-            <Link
-              href={placesHref({ area: STORIES_AREA })}
-              className="-my-2 py-2 underline underline-offset-4"
-            >
-              All {originals.length} stories
-            </Link>
+            <p className="max-w-lg leading-snug text-muted-foreground">
+              These are the {originals.length} original stories. The other {sampleCount} places in
+              this preview are{" "}
+              <Link href="/about" className="underline underline-offset-2 hover:text-foreground">
+                fictional samples
+              </Link>
+              .{" "}
+              <Link
+                href={placesHref({ area: STORIES_AREA })}
+                className="whitespace-nowrap text-foreground underline underline-offset-2"
+              >
+                All {originals.length} stories
+              </Link>
+            </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-[3fr_1fr] md:gap-8">
-            <figure className="min-w-0">
-              <SeamTile
-                href={`/${lead.slug}`}
-                name={lead.name}
-                thenSrc={lead.b_imageUrl}
-                nowSrc={lead.a_imageUrl}
-                ratio={lead.w / lead.h}
-                sizes="(min-width: 768px) 75vw, 100vw"
-              />
-              <figcaption>
-                <StoryCaption story={lead} />
-              </figcaption>
-            </figure>
-            <dl className="space-y-6 md:self-end md:pb-12">
-              {leadSections.map((section) => (
-                <div key={section.year} className="border-t pt-2">
-                  <dt className="font-serif text-4xl">{section.year}</dt>
-                  <dd className="mt-2 space-y-1 text-[15px] leading-snug text-muted-foreground">
-                    {section.lines.map((line) => (
-                      <p key={line}>{line}</p>
-                    ))}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+          <figure>
+            <SeamTile
+              href={`/${lead.slug}`}
+              name={lead.name}
+              thenSrc={lead.b_imageUrl}
+              nowSrc={lead.a_imageUrl}
+              ratio={lead.w / lead.h}
+              sizes="100vw"
+            />
+            <figcaption className="grid gap-x-6 gap-y-4 md:grid-cols-[2fr_3fr]">
+              <StoryCaption story={lead} />
+              <dl className="grid grid-cols-2 gap-4 md:mt-3 md:gap-6">
+                {leadSections.map((section) => (
+                  <div key={section.year}>
+                    <dt className="font-serif text-3xl leading-none">{section.year}</dt>
+                    <dd className="mt-2 space-y-1 text-[15px] leading-snug text-muted-foreground">
+                      {section.lines.map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </figcaption>
+          </figure>
 
           <StoryRow stories={rest.slice(0, 2)} />
           <StoryRow stories={rest.slice(2, 4)} />
         </section>
 
-        <section className="grid gap-12 border-t px-4 pb-20 pt-10 md:grid-cols-2 md:gap-10 md:pb-28">
-          <div className="space-y-6">
+        <section className="grid gap-10 border-t px-4 pb-20 pt-10 md:grid-cols-2 md:gap-10 md:pb-28">
+          <div className="space-y-5">
             <h2 className="font-serif text-5xl leading-none md:text-7xl">Find a place</h2>
             <Form action="/places" className="relative max-w-xl">
               <Search
@@ -205,34 +208,32 @@ export default async function IndexPage() {
                 className="h-14 w-full border border-input bg-popover pl-12 pr-5 text-lg placeholder:text-muted-foreground"
               />
             </Form>
-            <Link href="/places" className="inline-block py-2 underline underline-offset-4">
-              Browse all {posts.length} places
-            </Link>
-          </div>
-          <div>
-            <p className="mb-5 max-w-lg text-[15px] leading-snug text-muted-foreground">
-              Beyond the {originals.length} original stories, this preview holds {sampleCount} sample
-              places: fictional Auckland-area locations that repeat these photographs as placeholders.{" "}
+            <p className="max-w-xl leading-snug text-muted-foreground">
+              The {sampleCount} sample places are fictional Auckland-area locations that repeat these
+              photographs as placeholders; those photographs do not show them.{" "}
               <Link href="/about" className="underline underline-offset-2 hover:text-foreground">
                 More about the project
               </Link>
             </p>
-            <ul>
-              {Array.from(areas).map(([area, count]) => (
-                <li key={area} className="border-b first:border-t">
-                  <Link
-                    href={placesHref({ area })}
-                    className="flex items-baseline justify-between gap-4 py-2.5 font-serif text-2xl underline-offset-4 hover:underline"
-                  >
-                    {area}
-                    <span className="font-sans text-sm tabular-nums text-muted-foreground">
-                      {count} samples
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <Link href="/places" className="inline-block py-2 underline underline-offset-4">
+              Browse all {posts.length} places
+            </Link>
           </div>
+          <ul className="md:mt-1">
+            {Array.from(areas).map(([area, count]) => (
+              <li key={area} className="border-b first:border-t">
+                <Link
+                  href={placesHref({ area })}
+                  className="flex items-baseline justify-between gap-4 py-2.5 font-serif text-3xl underline-offset-4 hover:underline"
+                >
+                  {area}
+                  <span className="font-sans text-[15px] tabular-nums text-muted-foreground">
+                    {count} samples
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       </main>
       <SiteFooter />

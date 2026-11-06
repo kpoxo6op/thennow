@@ -76,7 +76,7 @@
   --background: 36 10% 7%;
   --foreground: 42 30% 92%;
   --muted: 36 8% 15%;
-  --muted-foreground: 40 10% 68%;
+  --muted-foreground: 40 12% 74%;
   --popover: 36 9% 11%;
   --popover-foreground: 42 30% 92%;
   --border: 38 8% 24%;
@@ -98,10 +98,45 @@ body:has(.tn-home) {
   background: hsl(36 10% 7%);
 }
 
-.tn-seam-year {
-  text-shadow:
-    0 1px 2px rgb(0 0 0 / 0.55),
-    0 0 28px rgb(0 0 0 / 0.55);
+/* The same small zoom on both layers trims the scan's torn edge and keeps them registered. */
+.tn-home [data-testid="compare-stage"] img {
+  transform: scale(1.04);
+  transform-origin: 50% 100%;
+}
+
+.tn-hero-copy {
+  position: relative;
+}
+
+@media (min-width: 768px) {
+  .tn-hero-copy {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 50%;
+    pointer-events: none;
+    color: white;
+    isolation: isolate;
+    transition: opacity 200ms ease-out;
+  }
+
+  /* Quiets the road markings behind the words; feathered so no edge shows when the line moves left. */
+  .tn-hero-copy::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.78), rgb(0 0 0 / 0.68) 62%, transparent);
+    mask-image: linear-gradient(to right, transparent, black 14%);
+  }
+
+  .tn-hero-copy[data-clear="true"]:not(:focus-within) {
+    opacity: 0;
+  }
+
+  .tn-hero-copy[data-clear="true"]:not(:focus-within) a {
+    pointer-events: none;
+  }
 }
 
 /* Then over now, cut along a line that a mouse can move. */
