@@ -118,6 +118,7 @@ function Chapter({ alt, src, w, h, year, lines }: { alt: string; src: string; w:
 
 export default function Post({ post, next, nearby }: PostProps) {
   const [position, setPosition] = useState(DEFAULT_POSITION)
+  const [lineHidden, setLineHidden] = useState(false)
   const glideRef = useRef<number | null>(null)
   // Where the line was before a whole photograph was asked for; asking again returns there.
   const returnRef = useRef(DEFAULT_POSITION)
@@ -256,6 +257,7 @@ export default function Post({ post, next, nearby }: PostProps) {
               position={position}
               onPositionChange={applyPosition}
               onInteract={stopGlide}
+              onLineStepsAside={setLineHidden}
               priority
               className="tn-story-stage"
             />
@@ -287,7 +289,7 @@ export default function Post({ post, next, nearby }: PostProps) {
                 : "Drag the line, or choose then or now to see a whole photograph"}
             </p>
             <p className="tn-hint-short px-2 text-center text-sm text-muted-foreground">
-              {wholeShown ? "Tap to compare" : "Drag the line"}
+              {lineHidden ? "Tap to compare" : "Drag the line"}
             </p>
             <button
               type="button"

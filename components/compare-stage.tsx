@@ -15,6 +15,7 @@ interface Props {
   position: number
   onPositionChange: (position: number) => void
   onInteract?: () => void
+  onLineStepsAside?: (hidden: boolean) => void
   fit?: "contain" | "cover"
   priority?: boolean
   className?: string
@@ -49,9 +50,15 @@ function getGutter(imageLeft: number) {
   return Math.max(COMPARE_SIDE_GUTTER_PX, imageLeft)
 }
 
-// A line a drag parked at the limit must count as safe, whatever the rounding on the way back to a percentage.
-function isSafeForFinger(viewportX: number, viewportWidth: number) {
-  return viewportX >= COMPARE_LINE_SAFE_PX - 1 && viewportX <= viewportWidth - COMPARE_LINE_SAFE_PX + 1
+// A line a drag parked at the limit must still count as safe once its position has been rounded
+// to a whole percent for the address, so half a percent of the photograph is forgiven.
+function isSafeForFinger(viewportX: number, viewportWidth: number, imageWidth: number) {
+  const forgiven = Math.max(1, imageWidth * 0.005)
+
+  return (
+    viewportX >= COMPARE_LINE_SAFE_PX - forgiven &&
+    viewportX <= viewportWidth - COMPARE_LINE_SAFE_PX + forgiven
+  )
 }
 
 function pointerDividerX(
@@ -79,6 +86,7 @@ export function CompareStage({
   position,
   onPositionChange,
   onInteract,
+  onLineStepsAside,
   fit = "contain",
   priority = false,
   className,
@@ -153,7 +161,26 @@ export function CompareStage({
   const lineLeft = measured ? `${revealX}px` : `${bounded}%`
   // A whole photograph can still be asked for by button, address or keyboard. On a touch screen
   // the line then has nothing to offer at the edge but a target inside the system's gesture zone.
-  const lineStepsAside = measured && coarsePointer && !isSafeForFinger(size.left + revealX, size.viewport)
+  const lineStepsAside =
+    measured && coarsePointer && !isSafeForFinger(size.left + revealX, size.viewport, image.width)
+  const lastWidthRef = useRef(0)
+
+  useEffect(() => {
+    onLineStepsAside?.(lineStepsAside)
+  }, [lineStepsAside, onLineStepsAside])
+
+  // A rotation can strand a compared line in the edge zone. A whole photograph stays as asked.
+  useEffect(() => {
+    const widthChanged = lastWidthRef.current !== 0 && lastWidthRef.current !== size.width
+
+    lastWidthRef.current = size.width
+
+    if (widthChanged && lineStepsAside && bounded !== 0 && bounded !== 100) {
+      const safe = Math.min(size.viewport - COMPARE_LINE_SAFE_PX, Math.max(COMPARE_LINE_SAFE_PX, size.left + revealX))
+
+      onPositionChange(((safe - size.left - image.left) / image.width) * 100)
+    }
+  }, [bounded, image.left, image.width, lineStepsAside, onPositionChange, revealX, size.left, size.viewport, size.width])
   const imageClass = fit === "cover" ? "absolute inset-0" : "tn-compare-image"
   const sizes = "100vw"
 
@@ -174,20 +201,25 @@ export function CompareStage({
         const rect = event.currentTarget.getBoundingClientRect()
         const bounds = getImageBounds(rect.width, rect.height, ratio, fit)
         const edge = getGutter(bounds.left)
+        const dividerX = rect.left + bounds.left + (bounded / 100) * bounds.width
+        const offset = dividerX - event.clientX
+        const lineIsSafe = isSafeForFinger(dividerX, document.documentElement.clientWidth, bounds.width)
+        const onGrip =
+          !(touch && !lineIsSafe) &&
+          Math.hypot(offset, rect.top + rect.height / 2 - event.clientY) <= GRIP_RADIUS_PX
+        const inScreenMargin =
+          event.clientX < rect.left + COMPARE_SIDE_GUTTER_PX || event.clientX > rect.right - COMPARE_SIDE_GUTTER_PX
+        const besidePhotograph = event.clientX < rect.left + edge || event.clientX > rect.right - edge
 
-        // Touches starting in the margins are left to the OS edge gestures.
-        if (touch && (event.clientX < rect.left + edge || event.clientX > rect.right - edge)) {
+        // Touches in the screen margins are left to the OS edge gestures. Space beside the
+        // photograph is ignored too, except for the part of the grip that overhangs it.
+        if (touch && (inScreenMargin || (besidePhotograph && !onGrip))) {
           return
         }
 
         event.currentTarget.setPointerCapture(event.pointerId)
         onInteract?.()
 
-        const dividerX = rect.left + bounds.left + (bounded / 100) * bounds.width
-        const offset = dividerX - event.clientX
-        const onGrip =
-          !(touch && !isSafeForFinger(dividerX, document.documentElement.clientWidth)) &&
-          Math.hypot(offset, rect.top + rect.height / 2 - event.clientY) <= GRIP_RADIUS_PX
         const edgeRoom =
           offset > 0
             ? event.clientX - rect.left - bounds.left

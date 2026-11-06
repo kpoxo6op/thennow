@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type CDPSession, type Page } from "@playwright/test"
 
 test.describe("a story page", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } })
@@ -145,6 +145,33 @@ for (const width of [320, 390, 768]) {
       await expect(input).toHaveValue("50")
     })
 
+    test("a line parked at the limit is still there after a reload, and the hint fits what shows", async ({ page, context }) => {
+      await page.goto("/mill-house")
+      const cdp = await context.newCDPSession(page)
+      const knob = page.getByTestId("compare-slider-knob")
+      const box = (await knob.boundingBox())!
+      const y = box.y + box.height / 2
+
+      for (const [from, to] of [[width / 2, width - 1], [width - 56, 1]]) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] })
+        for (let i = 1; i <= 8; i += 1) {
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from + ((to - from) * i) / 8, y }] })
+        }
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+        await page.waitForTimeout(100)
+        await page.reload()
+        await expect(page).toHaveURL(/p=\d+$/)
+        await page.waitForTimeout(300)
+        await expect.poll(() => knobOpacity(page)).toBe("1")
+        await expect(page.getByText("Drag the line", { exact: true })).toBeVisible()
+      }
+
+      await page.goto("/mill-house?p=2")
+      await expect(page.getByTestId("compare-slider-input")).toHaveValue("2")
+      await expect.poll(() => knobOpacity(page)).toBe("0")
+      await expect(page.getByText("Tap to compare", { exact: true })).toBeVisible()
+    })
+
     test("addresses at the ends keep their meaning without a line at the edge", async ({ page }) => {
       for (const position of [0, 100]) {
         await page.goto(`/mill-house?p=${position}`)
@@ -189,3 +216,57 @@ for (const width of [320, 390, 768]) {
     })
   })
 }
+
+test.describe("turning a touch screen", () => {
+  test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, contextOptions: { reducedMotion: "reduce" } })
+
+  const swipe = async (page: Page, cdp: CDPSession, from: number, to: number) => {
+    const box = (await page.getByTestId("compare-slider-knob").boundingBox())!
+    const y = box.y + box.height / 2
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] })
+    for (let i = 1; i <= 8; i += 1) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from + ((to - from) * i) / 8, y }] })
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  }
+
+  test("a line stranded in the edge zone returns to the safe limit, visible", async ({ page, context }) => {
+    await page.goto("/")
+    const knob = page.getByTestId("compare-slider-knob")
+    const cdp = await context.newCDPSession(page)
+    await swipe(page, cdp, 422, 843)
+    await expect.poll(async () => (await knob.boundingBox())!.x + 24).toBeCloseTo(844 - 56, 0)
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect.poll(async () => {
+      const now = (await knob.boundingBox())!
+      return now.x + now.width / 2
+    }).toBeCloseTo(390 - 56, 0)
+    await expect.poll(() => knob.evaluate((el) => getComputedStyle(el).opacity)).toBe("1")
+  })
+
+  test("a whole photograph stays whole when turned", async ({ page }) => {
+    await page.goto("/mill-house?p=100")
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("100")
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.waitForTimeout(250)
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("100")
+  })
+
+  test("with space beside a story photograph, the whole grip can be picked up at its edge", async ({ page, context }) => {
+    await page.goto("/mill-house")
+    const input = page.getByTestId("compare-slider-input")
+    const knob = page.getByTestId("compare-slider-knob")
+    const cdp = await context.newCDPSession(page)
+    await swipe(page, cdp, 422, 843)
+    await expect(input).toHaveValue("100")
+
+    const box = (await knob.boundingBox())!
+    const y = box.y + box.height / 2
+    const outerHalf = box.x + box.width * 0.75
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: outerHalf, y }] })
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: outerHalf - 40, y }] })
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await expect.poll(async () => Number(await input.inputValue())).toBeLessThan(100)
+  })
+})
