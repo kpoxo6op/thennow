@@ -19,6 +19,8 @@ type StoryCluster = {
 }
 
 const MAX_ZOOM = 16
+// Close enough that neighbouring stories have come apart.
+const FOCUS_ZOOM = 15
 // Clear of the controls, so no marker hugs an edge.
 const FIT_PADDING = { top: 96, bottom: 96, left: 72, right: 72 }
 const CLUSTER_RADIUS_PX = 34
@@ -74,6 +76,7 @@ type Props = {
   onSelect?: (stories: StorySummary[] | null) => void
   onFail?: (failed: boolean) => void
   highlightRef?: RefObject<MapHighlight | null>
+  focusRef?: RefObject<((story: StorySummary) => void) | null>
   viewport?: MapViewport | null
 }
 
@@ -85,6 +88,7 @@ export function PlacesMap({
   onSelect,
   onFail,
   highlightRef,
+  focusRef,
   viewport,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -227,6 +231,16 @@ export function PlacesMap({
 
       applyActiveRef.current = applyActive
 
+      if (focusRef) {
+        focusRef.current = (story) => {
+          activeMap.easeTo({
+            center: [story.location.lng, story.location.lat],
+            zoom: Math.max(activeMap.getZoom(), FOCUS_ZOOM),
+            duration: 600,
+          })
+        }
+      }
+
       const createMarker = (cluster: StoryCluster) => {
         const isSingle = cluster.stories.length === 1
         const element = document.createElement("a")
@@ -235,6 +249,7 @@ export function PlacesMap({
         element.ariaLabel = isSingle
           ? cluster.stories[0].name
           : `${cluster.stories.length} places`
+        element.title = cluster.stories.map((story) => story.name).join(", ")
         element.dataset.testid = "home-map-marker"
         element.dataset.count = String(cluster.stories.length)
 
@@ -359,12 +374,15 @@ export function PlacesMap({
       isMounted = false
       refreshRef.current = null
       applyActiveRef.current = null
+      if (focusRef) {
+        focusRef.current = null
+      }
       if (highlightRef) {
         highlightRef.current = null
       }
       map?.remove()
     }
-  }, [highlightRef])
+  }, [focusRef, highlightRef])
 
   // A new search or area re-frames the map on what it found.
   useEffect(() => {

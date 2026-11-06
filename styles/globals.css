@@ -45,7 +45,10 @@
     --sticky-top: 0rem;
     --toolbar-h: 10rem;
     --hero-caption-h: 2.5rem;
-    --hero-band-h: 11rem;
+    --hero-band-h: 9.5rem;
+    /* Enough of the next section shows that the page plainly goes on. */
+    --hero-peek: 5.5rem;
+    --footer-h: 3.8125rem;
   }
 
   @media (min-width: 768px) {
@@ -91,7 +94,7 @@
 }
 
 .tn-year {
-  --pill: 3.25rem;
+  --pill: 3rem;
   width: var(--pill);
 }
 
@@ -116,6 +119,7 @@
 @media (min-width: 768px) {
   .tn-inline-compare [data-testid="inline-stage"] {
     aspect-ratio: 2 / 1;
+    max-height: 68svh;
   }
 }
 
@@ -269,9 +273,12 @@
   visibility: hidden;
 }
 
-.tn-map-view {
-  height: calc(100dvh - var(--header-h) - var(--toolbar-h));
-  min-height: 22rem;
+@media (min-width: 1024px) {
+  /* The map and its list fill exactly what's left, so the workspace doesn't nudge. */
+  .tn-map-view {
+    height: calc(100dvh - var(--header-h) - var(--toolbar-h) - var(--footer-h));
+    min-height: 22rem;
+  }
 }
 
 /* The tiles are light; the room is not. */

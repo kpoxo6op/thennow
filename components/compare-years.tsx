@@ -14,12 +14,12 @@ export function CompareYears({
   return (
     <>
       {thenYear ? (
-        <span className={pill} style={{ left: `max(0.5rem, calc(${position}% - 0.5rem - var(--pill)))` }}>
+        <span className={pill} style={{ left: `max(0.25rem, calc(${position}% - 0.5rem - var(--pill)))` }}>
           {thenYear}
         </span>
       ) : null}
       {nowYear ? (
-        <span className={pill} style={{ left: `min(calc(100% - 0.5rem - var(--pill)), calc(${position}% + 0.5rem))` }}>
+        <span className={pill} style={{ left: `min(calc(100% - 0.25rem - var(--pill)), calc(${position}% + 0.5rem))` }}>
           {nowYear}
         </span>
       ) : null}

@@ -59,7 +59,7 @@ export default async function AboutPage() {
       </figure>
 
       <section id="sources" className="mt-14 grid scroll-mt-20 gap-6 border-t pt-6 md:mt-20 lg:grid-cols-2 lg:gap-10">
-        <h2 className="font-serif text-5xl leading-none md:text-7xl">Sources</h2>
+        <h2 className="font-serif text-4xl leading-none md:text-5xl">Sources</h2>
         <ul>
           {sources.map(({ source, slug, name }) => {
             const slash = source.indexOf("/")

@@ -1,6 +1,4 @@
-import Form from "next/form"
 import Link from "next/link"
-import { ArrowRight, Search } from "lucide-react"
 import type PostType from "@/interfaces/post"
 
 import { fetchPosts } from "@/lib/api"
@@ -52,7 +50,7 @@ export default async function IndexPage() {
               </Link>
             }
           />
-          <div className="flex flex-col gap-4 border-t px-4 pb-10 pt-4 md:min-h-[var(--hero-band-h)] md:flex-row md:items-center md:gap-12 md:py-4">
+          <div className="flex flex-col gap-4 px-4 pb-6 pt-2 md:min-h-[var(--hero-band-h)] md:flex-row md:items-center md:gap-12 md:py-0">
             <h1 className="text-balance font-serif text-[2.125rem] leading-[1.04] min-[360px]:text-[2.4rem] md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
               <span className="md:block">The same corner, </span>
               <span className="md:block">
@@ -70,34 +68,21 @@ export default async function IndexPage() {
           </div>
         </section>
 
-        <section className="px-4 pb-20 pt-10 md:pb-28 md:pt-16">
-          <div className="flex flex-col gap-4 border-t pt-5 lg:flex-row lg:items-center lg:gap-8">
-            <h2 className="font-serif text-4xl leading-none md:text-5xl lg:mr-auto">Photographed twice.</h2>
-            <Form action="/places" className="relative lg:w-96">
-              <Search
-                aria-hidden
-                className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <input
-                type="search"
-                name="q"
-                aria-label="Search places"
-                placeholder="A street, a bay, a building"
-                className="h-12 w-full rounded-full border border-input bg-popover pl-11 pr-5 placeholder:text-muted-foreground"
-              />
-            </Form>
-            <Link href={placesHref({ view: "map" })} className="-my-1 self-start py-1 underline underline-offset-4 lg:self-auto">
+        <section className="px-4 pb-20 md:pb-28">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2 border-t pt-4 md:pt-5">
+            <h2 className="font-serif text-4xl leading-none md:text-5xl">Photographed twice.</h2>
+            <Link href={placesHref({ view: "map" })} className="-my-1 py-1 underline underline-offset-4">
               Look around the map
             </Link>
           </div>
 
-          <ul className="mt-6 grid grid-cols-2 gap-x-3 gap-y-8 md:mt-8 md:gap-x-6 md:gap-y-12 lg:grid-cols-6">
+          <ul className="mt-5 grid grid-cols-1 gap-x-3 gap-y-8 sm:grid-cols-2 md:mt-8 md:gap-x-6 md:gap-y-12 lg:grid-cols-6">
             {[lead, ...rest].map((story, index) => (
               <li
                 key={story.slug}
-                className={index === 0 ? "col-span-2 lg:col-span-3" : index === 1 ? "col-span-2 max-lg:col-span-1 lg:col-span-3" : "lg:col-span-2"}
+                className={index === 0 ? "sm:col-span-2 lg:col-span-3" : index === 1 ? "lg:col-span-3" : "lg:col-span-2"}
               >
-                <StoryTile story={story} sizes={index < 2 ? "(min-width: 1024px) 50vw, 100vw" : "(min-width: 1024px) 33vw, 50vw"} />
+                <StoryTile story={story} sizes={index < 2 ? "(min-width: 1024px) 50vw, 100vw" : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"} />
               </li>
             ))}
           </ul>

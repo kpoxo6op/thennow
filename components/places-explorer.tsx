@@ -38,7 +38,7 @@ const VIEWPORT_LIMITS = {
 }
 
 const TILE_SIZES =
-  "(min-width: 1024px) 33vw, 50vw"
+  "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
 
 function normalize(text: string) {
   return text
@@ -66,7 +66,7 @@ const PhotoGrid = memo(function PhotoGrid({
   return (
     <ul
       data-testid="story-list"
-      className="grid grid-cols-2 gap-x-3 gap-y-6 px-4 pb-16 pt-3 md:gap-x-6 md:gap-y-10 md:pb-24 lg:grid-cols-3"
+      className="grid grid-cols-1 gap-x-3 gap-y-6 px-4 pb-16 pt-3 sm:grid-cols-2 md:gap-x-6 md:gap-y-10 md:pb-24 lg:grid-cols-3"
     >
       {stories.map((story, index) => (
         <li key={story.slug}>
@@ -85,19 +85,21 @@ const PhotoGrid = memo(function PhotoGrid({
 function StoryRow({
   story,
   chosen,
+  onChoose,
   onHighlight,
 }: {
   story: StorySummary
   chosen?: boolean
+  onChoose: (story: StorySummary) => void
   onHighlight?: (slug: string | null) => void
 }) {
   return (
-    <Link
-      href={`/${story.slug}`}
-      prefetch={false}
+    <button
+      type="button"
       data-testid="map-list-item"
-      aria-current={chosen ? "true" : undefined}
-      className="group flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted aria-[current=true]:bg-muted aria-[current=true]:ring-1 aria-[current=true]:ring-accent"
+      aria-pressed={Boolean(chosen)}
+      className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted aria-pressed:bg-muted aria-pressed:ring-1 aria-pressed:ring-accent"
+      onClick={() => onChoose(story)}
       onPointerEnter={() => onHighlight?.(story.slug)}
       onPointerLeave={() => onHighlight?.(null)}
       onFocus={() => onHighlight?.(story.slug)}
@@ -111,10 +113,8 @@ function StoryRow({
         sizes="96px"
         className="aspect-[3/2] w-24 shrink-0 bg-muted object-cover"
       />
-      <span className="line-clamp-2 text-[15px] font-medium leading-snug">
-        {story.name}
-      </span>
-    </Link>
+      <span className="line-clamp-2 text-[15px] font-medium leading-snug">{story.name}</span>
+    </button>
   )
 }
 
@@ -165,6 +165,7 @@ export function PlacesExplorer({ stories }: Props) {
   })
   const [mapFailed, setMapFailed] = useState(false)
   const highlightRef = useRef<MapHighlight | null>(null)
+  const focusRef = useRef<((story: StorySummary) => void) | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const selectedRef = useRef<HTMLDivElement | null>(null)
 
@@ -256,6 +257,16 @@ export function PlacesExplorer({ stories }: Props) {
 
   const handleHighlight = useCallback((slug: string | null) => {
     highlightRef.current?.(slug)
+  }, [])
+
+  // A row chooses its place on the map; the card that opens is the way into the story.
+  const handleChoose = useCallback((story: StorySummary) => {
+    setSelected([story])
+    focusRef.current?.(story)
+
+    if (!window.matchMedia("(min-width: 1024px)").matches) {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
   }, [])
 
   const handlePrefetch = useCallback(
@@ -409,8 +420,8 @@ export function PlacesExplorer({ stories }: Props) {
           <PhotoGrid stories={filtered} onPrefetch={handlePrefetch} />
         )
       ) : (
-        <div className="tn-map-view flex" data-testid="map-view">
-          <aside className="hidden w-[23rem] shrink-0 overflow-y-auto border-r lg:block">
+        <div className="tn-map-view flex flex-col-reverse lg:flex-row" data-testid="map-view">
+          <aside className="shrink-0 border-t lg:w-[23rem] lg:overflow-y-auto lg:border-r lg:border-t-0">
             {filtered.length > 0 ? (
               <ul className="p-2">
                 {filtered.map((story) => (
@@ -418,21 +429,21 @@ export function PlacesExplorer({ stories }: Props) {
                     <StoryRow
                       story={story}
                       chosen={Boolean(selected?.some((other) => other.slug === story.slug))}
+                      onChoose={handleChoose}
                       onHighlight={handleHighlight}
                     />
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="p-4 text-[17px] text-muted-foreground">No places match.</p>
-            )}
+            ) : null}
           </aside>
-          <div className="tn-map relative min-w-0 flex-1">
+          <div className="tn-map relative h-[62svh] min-h-[22rem] min-w-0 shrink-0 lg:h-auto lg:flex-1 lg:shrink">
             <PlacesMap
               stories={filtered}
               viewport={viewport}
               selected={selected}
               highlightRef={highlightRef}
+              focusRef={focusRef}
               onViewportChange={handleViewportChange}
               onSelect={setSelected}
               onFail={setMapFailed}

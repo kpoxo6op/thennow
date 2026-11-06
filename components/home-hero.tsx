@@ -92,7 +92,7 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, capt
           onInteract={handleInteract}
           fit="cover"
           priority
-          className="h-[46svh] min-h-56 md:h-[min(calc(100svh-var(--header-h)-var(--hero-caption-h)-var(--hero-band-h)),66vw)] md:min-h-72"
+          className="h-[44svh] min-h-56 md:h-[min(calc(100svh-var(--header-h)-var(--hero-caption-h)-var(--hero-band-h)-var(--hero-peek)),66vw)] md:min-h-72"
         />
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           <CompareYears position={position} thenYear={thenYear} nowYear={nowYear} />

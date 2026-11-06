@@ -106,12 +106,10 @@ test("search filters by name, survives reload, and has a way out when empty", as
   await expect(search).toBeFocused()
 })
 
-test("the homepage search arrives filtered", async ({ page }) => {
-  await page.goto("/")
-  const search = page.getByRole("searchbox", { name: "Search places" })
-  await search.fill("mission")
-  await search.press("Enter")
-  await expect(page).toHaveURL(/\/places\?q=mission/)
+// The homepage search box is gone: its stories are already on screen. An address with a search still works.
+test("an address with a search arrives filtered", async ({ page }) => {
+  await page.goto("/places?q=mission")
+  await expect(page.getByRole("searchbox", { name: "Search places" })).toHaveValue("mission")
   await expect(cards(page)).toHaveCount(3)
 })
 
@@ -422,9 +420,33 @@ test("a place chosen on the map is still chosen after visiting its story", async
   await page.goto("/mill-house")
   await page.getByRole("link", { name: "See it on the map" }).click()
   const selection = page.getByTestId("map-selection")
-  await expect(page.locator('[aria-current="true"]')).toContainText("Mill House")
+  await expect(page.getByTestId("map-list-item").filter({ hasText: "Mill House" })).toHaveAttribute("aria-pressed", "true")
   await selection.getByRole("link").click()
   await expect(page.getByRole("heading", { level: 1, name: "Mill House, Auckland" })).toBeVisible()
   await page.goBack()
   await expect(selection).toContainText("Mill House")
+})
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`at ${viewport.width}px a list row chooses its place on the map, and the card leads to the story`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.goto("/places?view=map")
+    await expect(markers(page).first()).toBeVisible()
+    await page.getByTestId("map-list-item").filter({ hasText: "Mission House" }).click()
+    await expect(page).toHaveURL(/\/places\?.*story=mission-house/)
+    await expect(page.locator(".tn-map-marker.is-active")).toHaveCount(1)
+    const selection = page.getByTestId("map-selection")
+    await expect(selection).toBeInViewport()
+    await selection.getByRole("link").click()
+    await expect(page.getByRole("heading", { level: 1, name: "Mission House, Auckland" })).toBeVisible()
+  })
+}
+
+test("the phone map has real height and draws", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto("/places?view=map")
+  await expect(markers(page).first()).toBeInViewport()
+  const canvas = (await page.locator(".maplibregl-canvas").boundingBox())!
+  expect(canvas.height).toBeGreaterThan(400)
+  expect(canvas.width).toBeGreaterThan(380)
 })
