@@ -7,7 +7,7 @@ interface RootLayoutProps {
 export default function PostLayout({ children }: RootLayoutProps) {
   return (
     <>
-      <SiteHeader className="fixed bg-background/50"></SiteHeader>
+      <SiteHeader />
       {children}
     </>
   )

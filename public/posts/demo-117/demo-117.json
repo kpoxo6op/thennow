@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0002-historic-helensville-post-office/post1-then-2003x1241.jpg",
+  "a_imageUrl": "/posts/0002-historic-helensville-post-office/now-post-2003x1241.jpg",
+  "ba_imageUrl": "/posts/0002-historic-helensville-post-office/preview-post-2003x1241.jpg",
+  "w": 2003,
+  "h": 1241,
+  "name": "Te Ara / the waterfront path · 117",
+  "description": "Trees frame the view.\n\nA familiar view, with a different foreground.",
+  "slug": "demo-117",
+  "location": {
+    "lat": -36.835085,
+    "lng": 174.719048
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Western bays",
+  "_image_source_slug": "historic-post-office"
+}

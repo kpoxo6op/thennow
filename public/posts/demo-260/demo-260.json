@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0001-sheep/then-sheep-4018x2298.jpg",
+  "a_imageUrl": "/posts/0001-sheep/now-sheep-4018x2298.jpg",
+  "ba_imageUrl": "/posts/0001-sheep/preview-sheep-4018x2298.jpg",
+  "w": 4018,
+  "h": 2298,
+  "name": "Te Ara / the waterfront path · 260",
+  "description": "Changes around an everyday place.",
+  "slug": "demo-260",
+  "location": {
+    "lat": -36.918866,
+    "lng": 174.82264
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Southern neighbourhoods",
+  "_image_source_slug": "sheep"
+}

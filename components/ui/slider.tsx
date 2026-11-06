@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { ChevronsLeftRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -52,23 +53,53 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
 
     const renderedValue = isControlled ? currentValue : internalValue
 
+    const setFromTouch = (event: React.PointerEvent<HTMLDivElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect()
+      const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+      const span = Number(max) - Number(min)
+      const nextValue = Number(min) + Math.round((ratio * span) / Number(step)) * Number(step)
+
+      if (!isControlled) {
+        setInternalValue(nextValue)
+      }
+
+      onValueChange?.([nextValue])
+    }
+
     return (
-      <div data-testid="compare-slider-root" className={cn("relative flex w-full items-center", className)}>
-        <div className="pointer-events-none absolute inset-x-0 h-2 rounded-full bg-secondary" />
+      <div
+        data-testid="compare-slider-root"
+        className={cn("group relative flex w-full touch-none items-center", className)}
+        onPointerDown={(event) => {
+          // The native range has no thumb to grab on touch screens.
+          if (event.pointerType !== "mouse") {
+            event.currentTarget.setPointerCapture(event.pointerId)
+            setFromTouch(event)
+          }
+        }}
+        onPointerMove={(event) => {
+          if (event.pointerType !== "mouse" && event.currentTarget.hasPointerCapture(event.pointerId)) {
+            setFromTouch(event)
+          }
+        }}
+      >
+        <div className="pointer-events-none absolute inset-x-0 h-px bg-border" />
         <div
           data-testid="compare-slider-progress"
-          className="pointer-events-none absolute left-0 h-2 rounded-full bg-primary"
+          className="pointer-events-none absolute left-0 h-px bg-foreground"
           style={{
             width: `${((renderedValue - Number(min)) / (Number(max) - Number(min))) * 100}%`,
           }}
         />
         <div
           data-testid="compare-slider-knob"
-          className="pointer-events-none absolute top-1/2 z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-background"
+          className="pointer-events-none absolute top-1/2 z-20 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-foreground text-background shadow-md transition-transform duration-150 group-has-[:active]:scale-110 group-has-[:focus-visible]:outline group-has-[:focus-visible]:outline-2 group-has-[:focus-visible]:outline-offset-2 group-has-[:focus-visible]:outline-ring"
           style={{
             left: `${((renderedValue - Number(min)) / (Number(max) - Number(min))) * 100}%`,
           }}
-        />
+        >
+          <ChevronsLeftRight aria-hidden className="size-4" />
+        </div>
         <input
           ref={setRefs}
           type="range"
@@ -79,7 +110,7 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
           value={renderedValue}
           onChange={handleValueChange}
           onInput={handleInput}
-          className="tn-slider relative z-10 h-5 w-full appearance-none bg-transparent"
+          className="tn-slider relative z-10 h-11 w-full appearance-none bg-transparent outline-none"
           {...props}
         />
       </div>

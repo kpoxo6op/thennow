@@ -9,7 +9,7 @@ export default async function OSMExperimentsPage() {
   return (
     <>
       <SiteHeader />
-      <main className="pb-16 pt-24 sm:pt-28">
+      <main className="pb-16 pt-6">
         <section className="container space-y-8 px-4 sm:px-6">
           <div className="space-y-5 pt-2">
             <h1 className="max-w-4xl text-4xl font-black tracking-tight text-foreground sm:text-5xl lg:text-6xl">

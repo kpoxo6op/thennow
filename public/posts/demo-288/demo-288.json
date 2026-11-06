@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0005-mission-house/mission-house-then-768x512.jpg",
+  "a_imageUrl": "/posts/0005-mission-house/mission-house-now-768x512.jpg",
+  "ba_imageUrl": "/posts/0005-mission-house/mission-house-preview-768x512.jpg",
+  "w": 768,
+  "h": 512,
+  "name": "Gardens and houses · 288",
+  "description": "A familiar view, with a different foreground.\n\nThe same corner, seen across time.",
+  "slug": "demo-288",
+  "location": {
+    "lat": -36.765813,
+    "lng": 174.705722
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Upper harbour",
+  "_image_source_slug": "mission-house"
+}

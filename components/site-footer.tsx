@@ -1,33 +1,29 @@
 import * as React from "react"
-import Link from "next/link"
 
-import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
 import { appVersion } from "@/lib/version"
-import { MainNav } from "@/components/main-nav"
 
-const SiteFooter = React.forwardRef<
-  HTMLElement,
-  React.HTMLAttributes<HTMLElement>
->(({ className, ...props }, ref) => {
-  return (
-    <footer
-      ref={ref}
-      className={cn(
-        "container flex flex-col items-center gap-4 text-left",
-        className
-      )}
-      {...props}
-    >
-      <div className="flex h-16 flex-col items-center justify-center gap-1 text-center sm:justify-between sm:space-x-0">
-        <div>{siteConfig.name}</div>
-        <div className="text-sm font-medium tracking-wide text-muted-foreground">
-          Version {appVersion}
-        </div>
-      </div>
-    </footer>
-  )
-})
+interface SiteFooterProps extends React.HTMLAttributes<HTMLElement> {
+  note?: string
+}
+
+const SiteFooter = React.forwardRef<HTMLElement, SiteFooterProps>(
+  ({ className, note, ...props }, ref) => {
+    return (
+      <footer
+        ref={ref}
+        className={cn(
+          "mt-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-6 text-xs text-muted-foreground",
+          className
+        )}
+        {...props}
+      >
+        <span>{note}</span>
+        <span>Version {appVersion}</span>
+      </footer>
+    )
+  }
+)
 SiteFooter.displayName = "SiteFooter"
 
 export { SiteFooter }

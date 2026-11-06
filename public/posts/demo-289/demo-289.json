@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0000-mill-house/t1-mill-house-750x580.jpg",
+  "a_imageUrl": "/posts/0000-mill-house/n1-mill-house-750x580.jpg",
+  "ba_imageUrl": "/posts/0000-mill-house/tn1-mill-house-750x580.jpg",
+  "w": 750,
+  "h": 580,
+  "name": "From the old railway approach towards the harbour and surrounding streets · 289",
+  "description": "The street and its buildings, side by side.",
+  "slug": "demo-289",
+  "location": {
+    "lat": -36.756188,
+    "lng": 174.703894
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Upper harbour",
+  "_image_source_slug": "mill-house"
+}

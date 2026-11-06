@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0004-mission-bay-yacht-club/then-mission-bay-yacht-club-1000x675.jpg",
+  "a_imageUrl": "/posts/0004-mission-bay-yacht-club/now-mission-bay-yacht-club-1000x675.jpg",
+  "ba_imageUrl": "/posts/0004-mission-bay-yacht-club/preview-mission-bay-yacht-club-1000x675.jpg",
+  "w": 1080,
+  "h": 675,
+  "name": "Railway crossing · 047",
+  "description": "The road leads through the photograph.",
+  "slug": "demo-047",
+  "location": {
+    "lat": -36.869079,
+    "lng": 174.750168
+  },
+  "_preview_fixture": true,
+  "_preview_area": "City fringe",
+  "_image_source_slug": "mission-bay-yacht-club"
+}

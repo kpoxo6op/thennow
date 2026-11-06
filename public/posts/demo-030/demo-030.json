@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0005-mission-house/mission-house-then-768x512.jpg",
+  "a_imageUrl": "/posts/0005-mission-house/mission-house-now-768x512.jpg",
+  "ba_imageUrl": "/posts/0005-mission-house/mission-house-preview-768x512.jpg",
+  "w": 768,
+  "h": 512,
+  "name": "Market frontage · 030",
+  "description": "A stretch of waterfront and the paths beside it.",
+  "slug": "demo-030",
+  "location": {
+    "lat": -36.867241,
+    "lng": 174.757222
+  },
+  "_preview_fixture": true,
+  "_preview_area": "City fringe",
+  "_image_source_slug": "mission-house"
+}

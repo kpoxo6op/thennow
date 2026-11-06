@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0004-mission-bay-yacht-club/then-mission-bay-yacht-club-1000x675.jpg",
+  "a_imageUrl": "/posts/0004-mission-bay-yacht-club/now-mission-bay-yacht-club-1000x675.jpg",
+  "ba_imageUrl": "/posts/0004-mission-bay-yacht-club/preview-mission-bay-yacht-club-1000x675.jpg",
+  "w": 1080,
+  "h": 675,
+  "name": "The main road · 251",
+  "description": "The same corner, seen across time.",
+  "slug": "demo-251",
+  "location": {
+    "lat": -36.791409,
+    "lng": 174.766857
+  },
+  "_preview_fixture": true,
+  "_preview_area": "North shore",
+  "_image_source_slug": "mission-bay-yacht-club"
+}

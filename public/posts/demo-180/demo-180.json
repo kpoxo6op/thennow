@@ -1,0 +1,17 @@
+{
+  "b_imageUrl": "/posts/0005-mission-house/mission-house-then-768x512.jpg",
+  "a_imageUrl": "/posts/0005-mission-house/mission-house-now-768x512.jpg",
+  "ba_imageUrl": "/posts/0005-mission-house/mission-house-preview-768x512.jpg",
+  "w": 768,
+  "h": 512,
+  "name": "Harbour Terrace · 180",
+  "description": "Changes around an everyday place.\n\nThe road leads through the photograph.",
+  "slug": "demo-180",
+  "location": {
+    "lat": -36.838793,
+    "lng": 174.816028
+  },
+  "_preview_fixture": true,
+  "_preview_area": "Eastern waterfront",
+  "_image_source_slug": "mission-house"
+}

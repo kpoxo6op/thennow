@@ -13,6 +13,12 @@ type PostType = {
   h: number
   slug: string
   location: PostLocation
+  sample?: boolean
 }
+
+export type StorySummary = Pick<
+  PostType,
+  "name" | "ba_imageUrl" | "w" | "h" | "slug" | "location"
+>
 
 export default PostType
