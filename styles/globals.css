@@ -271,6 +271,17 @@ body:has(.tn-home) {
   }
 }
 
+/* The full instruction only where the legend has the room for it on one line. */
+@media (min-width: 1024px) and (min-height: 800px) {
+  .tn-hint-long {
+    display: block;
+  }
+
+  .tn-hint-short {
+    display: none;
+  }
+}
+
 .tn-reading {
   font-family: var(--font-reading), Georgia, serif;
 }

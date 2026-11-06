@@ -11,7 +11,10 @@ import { SOURCE_LINE, toSections } from "@/components/Desc"
 import { ResetScroll } from "@/components/reset-scroll"
 import { SeamTile } from "@/components/seam-tile"
 
-export type StoryLink = Pick<PostType, "name" | "slug" | "b_imageUrl" | "a_imageUrl" | "w" | "h" | "sample">
+export type StoryLink = Pick<PostType, "name" | "slug" | "b_imageUrl" | "a_imageUrl" | "w" | "h" | "sample"> & {
+  // Whether the story has any dated text yet, or only its photographs.
+  written: boolean
+}
 
 interface PostProps {
   post: PostType
@@ -87,7 +90,7 @@ function Chapter({ alt, src, w, h, year, lines }: { alt: string; src: string; w:
     <section className="flex min-w-0 flex-col gap-4">
       <div className="space-y-2 md:order-2">
         {year ? <h2 className="tn-reading text-[1.75rem] leading-none tabular-nums text-muted-foreground">{year}</h2> : null}
-        {lead ? <p className="tn-reading text-[1.375rem] leading-snug md:text-2xl">{lead}</p> : null}
+        {lead ? <p className="tn-reading text-xl leading-snug md:text-[1.375rem]">{lead}</p> : null}
       </div>
       <Image
         src={src}
@@ -211,6 +214,7 @@ export default function Post({ post, next, nearby }: PostProps) {
   const yearsApart = thenYear && nowYear ? Number(nowYear) - Number(thenYear) : undefined
   const mapHref = `/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=15`
   const rounded = Math.round(position)
+  const wholeShown = rounded === ALL_THEN || rounded === ALL_NOW
 
   const showWhole = (target: number) => {
     if (rounded === target) {
@@ -268,7 +272,7 @@ export default function Post({ post, next, nearby }: PostProps) {
               type="button"
               data-testid="story-show-then"
               aria-pressed={rounded === ALL_THEN}
-              aria-label={`then${thenYear ? ` ${thenYear}` : ""}: show this whole photograph`}
+              aria-label={`then${thenYear ? ` ${thenYear}` : ""}: ${rounded === ALL_THEN ? "return to the comparison" : "show this whole photograph"}`}
               className={legendClass}
               onClick={() => showWhole(ALL_THEN)}
             >
@@ -277,15 +281,21 @@ export default function Post({ post, next, nearby }: PostProps) {
                 {thenYear ? <span className="tn-reading text-base leading-none tabular-nums">{thenYear}</span> : null}
               </span>
             </button>
-            <p className="hidden min-w-0 px-3 text-center text-sm text-muted-foreground sm:block">
-              Drag the line, or choose then or now to see a whole photograph
-            </p>
-            <p className="px-2 text-center text-sm text-muted-foreground sm:hidden">Drag the line</p>
+            {wholeShown ? (
+              <p className="min-w-0 px-2 text-center text-sm text-muted-foreground">Press again to compare</p>
+            ) : (
+              <>
+                <p className="tn-hint-long hidden min-w-0 px-3 text-center text-sm text-muted-foreground">
+                  Drag the line, or choose then or now to see a whole photograph
+                </p>
+                <p className="tn-hint-short px-2 text-center text-sm text-muted-foreground">Drag the line</p>
+              </>
+            )}
             <button
               type="button"
               data-testid="story-show-now"
               aria-pressed={rounded === ALL_NOW}
-              aria-label={`now${nowYear ? ` ${nowYear}` : ""}: show this whole photograph`}
+              aria-label={`now${nowYear ? ` ${nowYear}` : ""}: ${rounded === ALL_NOW ? "return to the comparison" : "show this whole photograph"}`}
               className={legendClass}
               onClick={() => showWhole(ALL_NOW)}
             >
@@ -302,8 +312,8 @@ export default function Post({ post, next, nearby }: PostProps) {
             <h1
               className={
                 post.sample
-                  ? "text-pretty font-serif text-[2rem] leading-[1.08] md:text-balance md:text-[clamp(2rem,4.5svh,2.5rem)]"
-                  : "text-pretty font-serif text-[2.5rem] leading-[1.05] md:text-balance md:text-[clamp(2.25rem,5.8svh,3.25rem)]"
+                  ? "text-pretty font-serif text-[1.75rem] leading-[1.1] md:text-balance md:text-[clamp(2rem,4.5svh,2.5rem)]"
+                  : "text-pretty font-serif text-[2.125rem] leading-[1.06] md:text-balance md:text-[clamp(2.25rem,5.8svh,3.25rem)]"
               }
             >
               {post.name}
@@ -314,7 +324,7 @@ export default function Post({ post, next, nearby }: PostProps) {
           </header>
 
           {post.sample ? (
-            <div className="mt-2 max-w-2xl space-y-1">
+            <div className="mt-2 max-w-3xl space-y-1">
               <p className="text-[17px] leading-snug">
                 Sample place. The photographs are repeated placeholders and do not show this location.
               </p>
@@ -364,21 +374,24 @@ export default function Post({ post, next, nearby }: PostProps) {
         <div className="grid gap-10 md:grid-cols-2 md:gap-8">
           {next ? (
             <div>
-              <SeamTile
-                href={`/${next.slug}`}
-                name={next.name}
-                thenSrc={next.b_imageUrl}
-                nowSrc={next.a_imageUrl}
-                ratio={16 / 9}
-                trim={STORY_TRIM[next.slug]}
-                sizes="(min-width: 768px) 50vw, 100vw"
-              />
+              {post.sample ? null : (
+                <SeamTile
+                  href={`/${next.slug}`}
+                  name={next.name}
+                  thenSrc={next.b_imageUrl}
+                  nowSrc={next.a_imageUrl}
+                  ratio={16 / 9}
+                  trim={STORY_TRIM[next.slug]}
+                  sizes="(min-width: 768px) 50vw, 100vw"
+                />
+              )}
               <Link
                 href={`/${next.slug}`}
-                className="mt-2 block py-1 text-xl font-medium leading-snug underline-offset-4 hover:underline"
+                className={`block py-1 text-xl font-medium leading-snug underline underline-offset-4 ${post.sample ? "" : "mt-2 no-underline hover:underline"}`}
               >
                 {next.name}
               </Link>
+              {next.written ? null : <p className="text-[15px] text-muted-foreground">Text coming soon</p>}
             </div>
           ) : null}
           <div>
@@ -390,9 +403,14 @@ export default function Post({ post, next, nearby }: PostProps) {
                 <li key={story.slug} className="border-b first:border-t">
                   <Link
                     href={`/${story.slug}`}
-                    className="flex items-baseline justify-between gap-4 py-3 text-lg leading-snug underline-offset-4 hover:underline"
+                    className="flex items-baseline justify-between gap-4 py-3 text-lg leading-snug transition-colors hover:text-accent"
                   >
-                    <span className="min-w-0">{story.name}</span>
+                    <span className="min-w-0">
+                      {story.name}
+                      {story.sample || story.written ? null : (
+                        <span className="block text-[15px] text-muted-foreground">Text coming soon</span>
+                      )}
+                    </span>
                     <span className="shrink-0 text-[15px] tabular-nums text-muted-foreground">
                       {story.sample ? "Sample" : distanceLabel(story.km)}
                     </span>

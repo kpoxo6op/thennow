@@ -13,6 +13,7 @@ test.describe("a story page", () => {
     await expect(input).toHaveValue("100")
     await expect(page).toHaveURL(/\/sheep\?p=100$/)
     await expect(then).toHaveAttribute("aria-pressed", "true")
+    await expect(then).toHaveAccessibleName(/return to the comparison/)
 
     await now.focus()
     await page.keyboard.press("Enter")

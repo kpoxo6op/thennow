@@ -5,8 +5,14 @@ import { fetchPosts } from "@/lib/api"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
 import Post, { type StoryLink } from "@/components/Post"
 
-function toLink({ name, slug, b_imageUrl, a_imageUrl, w, h, sample }: PostType): StoryLink {
-  return { name, slug, b_imageUrl, a_imageUrl, w, h, sample }
+function isWritten(story: PostType) {
+  return toSections(story.description).some((section) => section.year)
+}
+
+function toLink(story: PostType): StoryLink {
+  const { name, slug, b_imageUrl, a_imageUrl, w, h, sample } = story
+
+  return { name, slug, b_imageUrl, a_imageUrl, w, h, sample, written: isWritten(story) }
 }
 
 interface PostProps {
@@ -57,7 +63,7 @@ export async function generateStaticParams(): Promise<StaticParams> {
 // Written and unwritten stories take turns, so "Next story" never strings together pages
 // that say only "Coming soon...", and the loop still visits all of them.
 function storyLoop(originals: PostType[]) {
-  const dated = originals.filter((story) => toSections(story.description).some((section) => section.year))
+  const dated = originals.filter(isWritten)
   const undated = originals.filter((story) => !dated.includes(story))
   const longest = Math.max(dated.length, undated.length)
 
