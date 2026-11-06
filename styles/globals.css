@@ -100,14 +100,14 @@ body:has(.tn-home) {
 
 /* A little extra height on both layers trims the scan's torn top edge.
    Their left and right stay on the stage, so the line still maps exactly onto the photograph. */
-.tn-home [data-testid="compare-stage"] img {
+.tn-home-hero [data-testid="compare-stage"] img {
   top: -4% !important;
   height: 104% !important;
 }
 
 @media (max-width: 767px) {
   /* A phone sees under half the photograph's width: keep the rider and the house in it. */
-  .tn-home [data-testid="compare-stage"] img {
+  .tn-home-hero [data-testid="compare-stage"] img {
     object-position: 15% 50%;
   }
 }
@@ -222,9 +222,9 @@ body:has(.tn-home) {
   pointer-events: none;
 }
 
-/* Story: the whole photograph, its legend, then its words. */
+/* Story: the whole photograph, its controls, its name; then its words. */
 .tn-story {
-  --legend-h: 2.25rem;
+  --legend-h: 2.75rem;
   --peek: 5rem;
   --stage-h: min(
     calc(100cqw / var(--ratio)),
@@ -235,10 +235,20 @@ body:has(.tn-home) {
   container-type: inline-size;
 }
 
+@media (min-width: 768px) {
+  .tn-story {
+    --peek: 7rem;
+  }
+}
+
 @media (max-height: 520px) {
   .tn-story {
     --peek: 0rem;
   }
+}
+
+.tn-reading {
+  font-family: var(--font-reading), Georgia, serif;
 }
 
 .tn-story-stage {

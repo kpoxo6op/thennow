@@ -1,7 +1,12 @@
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { fetchPosts, toSummary } from "@/lib/api"
-import Post from "@/components/Post"
+import type PostType from "@/interfaces/post"
+import { fetchPosts } from "@/lib/api"
+import Post, { type StoryLink } from "@/components/Post"
+
+function toLink({ name, slug, b_imageUrl, a_imageUrl, w, h, sample }: PostType): StoryLink {
+  return { name, slug, b_imageUrl, a_imageUrl, w, h, sample }
+}
 
 interface PostProps {
   params: Promise<{
@@ -45,6 +50,15 @@ export async function generateStaticParams(): Promise<StaticParams> {
   }))
 }
 
+function kilometres(a: PostType, b: PostType) {
+  const radians = Math.PI / 180
+  const midLat = ((a.location.lat + b.location.lat) / 2) * radians
+  const x = (b.location.lng - a.location.lng) * radians * Math.cos(midLat)
+  const y = (b.location.lat - a.location.lat) * radians
+
+  return Math.hypot(x, y) * 6371
+}
+
 export default async function PostPage({ params }: PostProps) {
   const post = await getPostFromParams(params)
 
@@ -53,17 +67,27 @@ export default async function PostPage({ params }: PostProps) {
   }
 
   const posts = await fetchPosts()
-  const scale = Math.cos((post.location.lat * Math.PI) / 180)
-  const distance = (other: (typeof posts)[number]) =>
-    Math.hypot(
-      other.location.lat - post.location.lat,
-      (other.location.lng - post.location.lng) * scale
-    )
-  const nearby = posts
-    .filter((other) => other.slug !== post.slug)
-    .sort((a, b) => distance(a) - distance(b))
-    .slice(0, 4)
-    .map(toSummary)
+  const originals = posts.filter((other) => !other.sample)
+  const byDistance = (candidates: PostType[]) =>
+    candidates
+      .filter((other) => other.slug !== post.slug)
+      .map((other) => ({ story: other, km: kilometres(post, other) }))
+      .sort((a, b) => a.km - b.km)
 
-  return <Post post={post} nearby={nearby} />
+  // A sample leads to the real story behind its photographs; a story to the next one.
+  const source = post.sample ? originals.find((other) => other.slug === post.imageSourceSlug) : undefined
+  const next = post.sample
+    ? source
+    : originals[(originals.findIndex((other) => other.slug === post.slug) + 1) % originals.length]
+  const nearby = post.sample
+    ? byDistance(posts.filter((other) => other.sample)).slice(0, 4)
+    : byDistance(originals).filter(({ story }) => story.slug !== next?.slug)
+
+  return (
+    <Post
+      post={post}
+      next={next ? toLink(next) : undefined}
+      nearby={nearby.map(({ story, km }) => ({ ...toLink(story), km }))}
+    />
+  )
 }

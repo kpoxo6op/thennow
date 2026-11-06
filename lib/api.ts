@@ -29,6 +29,7 @@ export async function fetchPosts(): Promise<PostType[]> {
       location: jsonContent.location,
       sample: jsonContent._preview_fixture === true,
       area: jsonContent._preview_area,
+      imageSourceSlug: jsonContent._image_source_slug,
     }
   })
 

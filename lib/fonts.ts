@@ -33,3 +33,10 @@ export const fontHomeSans = FontHomeSans({
   subsets: ["latin"],
   variable: "--font-sans",
 })
+
+// Long passages on a story page: a text face, where the display serif would pinch.
+export const fontReading = FontSerif({
+  subsets: ["latin"],
+  variable: "--font-reading",
+  axes: ["opsz"],
+})

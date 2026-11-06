@@ -82,6 +82,7 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, chil
 
   return (
     <div
+      className="tn-home-hero"
       onPointerEnter={(event) => setMouseOnPhoto(event.pointerType === "mouse")}
       onPointerLeave={() => setMouseOnPhoto(false)}
     >

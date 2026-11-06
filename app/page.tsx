@@ -6,7 +6,7 @@ import type PostType from "@/interfaces/post"
 
 import { fetchPosts } from "@/lib/api"
 import { fontHomeSans, fontHomeSerif } from "@/lib/fonts"
-import { placesHref, STORIES_AREA } from "@/lib/places"
+import { placesHref, STORIES_AREA, STORY_TRIM } from "@/lib/places"
 import { cn } from "@/lib/utils"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
 import { HomeHero } from "@/components/home-hero"
@@ -16,8 +16,6 @@ import { SiteHeader } from "@/components/site-header"
 
 const HERO_SLUG = "sheep"
 const LEAD_SLUG = "historic-post-office"
-// The fountain's negative has a heavy black border and notched corners.
-const TRIM: Record<string, number> = { "mission-bay-fountain": 1.16 }
 
 export const viewport: Viewport = {
   themeColor: "#13120f",
@@ -46,7 +44,7 @@ function StoryRow({ stories }: { stories: PostType[] }) {
             thenSrc={story.b_imageUrl}
             nowSrc={story.a_imageUrl}
             ratio={story.w / story.h}
-            trim={TRIM[story.slug]}
+            trim={STORY_TRIM[story.slug]}
             sizes="(min-width: 768px) 50vw, 100vw"
           />
           <figcaption className="mt-2">

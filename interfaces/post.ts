@@ -15,6 +15,8 @@ type PostType = {
   location: PostLocation
   sample?: boolean
   area?: string
+  // Sample places only: the original story whose photographs they repeat.
+  imageSourceSlug?: string
 }
 
 export type StorySummary = Pick<

@@ -2,6 +2,9 @@ import type { StorySummary } from "@/interfaces/post"
 
 export const STORIES_AREA = "stories"
 
+// The fountain's negative has a heavy black border and notched corners.
+export const STORY_TRIM: Record<string, number> = { "mission-bay-fountain": 1.16 }
+
 export type PlaceGroup = {
   id: string
   title: string
