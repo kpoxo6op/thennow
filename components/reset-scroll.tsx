@@ -6,7 +6,10 @@ import { useLayoutEffect } from "react"
 // would otherwise open clamped partway down, with its top under the header.
 export function ResetScroll() {
   useLayoutEffect(() => {
-    window.scrollTo(0, 0)
+    // An address like /about#sources has asked for a specific place.
+    if (!window.location.hash) {
+      window.scrollTo(0, 0)
+    }
   }, [])
 
   return null

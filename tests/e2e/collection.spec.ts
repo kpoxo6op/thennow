@@ -50,6 +50,7 @@ for (const viewport of [
 
     test("a card deep in the list opens at the top and Places returns to the same place", async ({ page }) => {
       await page.goto("/places")
+      await expect(page.getByTestId("places-toolbar")).toBeVisible()
       const card = cards(page).nth(200)
       await card.scrollIntoViewIfNeeded()
       const name = (await card.textContent())?.trim() ?? ""
