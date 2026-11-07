@@ -24,7 +24,7 @@ function readAll() {
       slug: jsonContent.slug,
       location: jsonContent.location,
       sample: jsonContent._preview_fixture === true,
-      area: jsonContent._preview_area,
+      area: jsonContent.area ?? jsonContent._preview_area,
       imageSourceSlug: jsonContent._image_source_slug,
     }
 

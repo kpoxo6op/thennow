@@ -278,7 +278,7 @@ export function PlacesMap({
         element.className = `tn-map-marker tn-map-marker--${isSingle ? "point" : "cluster"}${allPending ? " tn-map-marker--pending" : ""}`
         element.href = `/${cluster.stories[0].slug}`
         element.ariaLabel = isSingle
-          ? `${cluster.stories[0].name}${allPending ? ", modern photograph pending" : ""}`
+          ? `${cluster.stories[0].name}${allPending ? ", upcoming" : ""}`
           : `${cluster.stories.length} places`
         element.title = cluster.stories.map((story) => story.name).join(", ")
         element.dataset.testid = "home-map-marker"

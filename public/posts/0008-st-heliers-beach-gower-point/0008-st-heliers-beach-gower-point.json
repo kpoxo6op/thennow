@@ -1,21 +1,22 @@
 {
   "status": "pending",
-  "name": "St Heliers Bay beach towards Gower Point, St Heliers",
+  "name": "Beach towards Gower Point, St Heliers",
   "slug": "st-heliers-beach-gower-point",
   "description": "Looking from St Heliers Bay beach towards Gower Point, with Long Drive going up the hill on the left.",
   "b_imageUrl": "/posts/0008-st-heliers-beach-gower-point/then-st-heliers-beach-gower-point.jpg",
   "w": 2000,
   "h": 1557,
   "location": {
-    "lat": -36.8505,
-    "lng": 174.854
+    "lat": -36.85087,
+    "lng": 174.8545
   },
   "archive": {
-    "date": "1959",
-    "photographer": "Auckland City Council",
+    "date": "About 1959",
+    "photographer": "Auckland City Council, probably Ernest Ian MacLaren",
     "credit": "Auckland Libraries Heritage Collections 580-03893",
     "rights": "Creative Commons Attribution (CC BY)",
     "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/160638",
     "sourceId": "580-03893"
-  }
+  },
+  "area": "Auckland"
 }

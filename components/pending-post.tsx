@@ -61,14 +61,14 @@ export function PendingPost({ post, stories, pending }: Props) {
           />
         </div>
       </figure>
-      <div className="tn-story-edge flex min-h-11 flex-wrap items-center justify-between gap-x-4">
+      <div className="tn-story-edge flex min-h-11 flex-wrap items-center gap-x-5 py-1">
         <p className="inline-flex items-center gap-1.5 text-sm">
           <span className="text-muted-foreground">then</span>
           <span className="tn-reading text-base leading-none">{archive.date}</span>
         </p>
-        <p data-testid="pending-status" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <p data-testid="pending-status" className="inline-flex items-center gap-2 text-sm font-medium">
           <span aria-hidden className="size-2.5 rounded-full border-2 border-foreground" />
-          Modern photograph pending
+          Upcoming: modern photograph to come
         </p>
       </div>
 
@@ -79,7 +79,7 @@ export function PendingPost({ post, stories, pending }: Props) {
         <div className="mt-6 max-w-2xl space-y-4">
           <p className="tn-reading text-xl leading-snug md:text-[1.375rem]">{post.description}</p>
           <p className="text-[15px] leading-snug text-muted-foreground">
-            {archive.photographer === "Unknown" ? "Photographer unknown" : `Photograph by ${archive.photographer}`}.{" "}
+            {archive.photographer === "Unknown" ? "Photographer unknown" : `Photograph: ${archive.photographer}`}.{" "}
             {archive.credit}. {archive.rights}.{" "}
             <a
               href={archive.sourceUrl}
@@ -92,16 +92,25 @@ export function PendingPost({ post, stories, pending }: Props) {
           </p>
         </div>
         <StoryMap name={post.name} location={post.location} />
+        <p className="mt-2 text-[15px] text-muted-foreground">The pin marks the place, not where the photograph was taken.</p>
       </article>
 
       <section className="tn-story-edge border-t pb-12 pt-8 md:pb-16">
         <div className="grid gap-10 md:grid-cols-2 md:gap-8">
           <OnwardList title="Stories to compare, nearest first" items={stories} />
           <div>
-            <OnwardList title="Also pending" items={pending} />
-            <Link href="/places" className="mt-4 inline-block py-2 underline underline-offset-4">
-              All places
-            </Link>
+            <OnwardList title="Also upcoming" items={pending} />
+            <div className="mt-4 flex flex-wrap gap-x-6">
+              <Link href="/places" className="inline-block py-2 underline underline-offset-4">
+                All places
+              </Link>
+              <Link
+                href={`/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=13&story=${post.slug}`}
+                className="inline-block py-2 underline underline-offset-4"
+              >
+                Map
+              </Link>
+            </div>
           </div>
         </div>
       </section>

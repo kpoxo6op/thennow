@@ -578,7 +578,7 @@ test.describe("a place whose modern photograph is pending", () => {
       const response = await page.goto(`/${entry.slug}`)
       expect(response?.status()).toBe(200)
       await expect(page.getByRole("heading", { level: 1, name: entry.name })).toBeVisible()
-      await expect(page.getByTestId("pending-status")).toHaveText("Modern photograph pending")
+      await expect(page.getByTestId("pending-status")).toHaveText("Upcoming: modern photograph to come")
       await expect(page.getByTestId("pending-photograph")).toHaveAttribute("src", new RegExp(encodeURIComponent(entry.b_imageUrl)))
 
       await expect(page.getByTestId("compare-stage")).toHaveCount(0)
@@ -594,7 +594,7 @@ test.describe("a place whose modern photograph is pending", () => {
   test("is counted apart, listed apart, and never served as a finished story", async ({ page, request }) => {
     await page.goto("/places")
     await expect(cards(page)).toHaveCount(posts.length)
-    await expect(page.getByTestId("places-count")).toHaveText(`${posts.length} stories, ${pendingEntries.length} pending`)
+    await expect(page.getByTestId("places-count")).toHaveText(`${posts.length} stories, ${pendingEntries.length} upcoming`)
     const pendingCards = page.getByTestId("places-pending").getByTestId("pending-card")
     await expect(pendingCards).toHaveCount(pendingEntries.length)
     await pendingCards.first().click()
@@ -606,11 +606,22 @@ test.describe("a place whose modern photograph is pending", () => {
     }
   })
 
-  test("search finds it, and an area of only pending places says so plainly", async ({ page }) => {
-    await page.goto("/places?area=St%20Heliers")
+  test("search finds them by name and by the word upcoming, and an area shows both kinds", async ({ page }) => {
+    await page.goto("/places?q=upcoming")
     await expect(cards(page)).toHaveCount(0)
     await expect(page.getByTestId("pending-card")).toHaveCount(pendingEntries.length)
-    await expect(page.getByTestId("places-count")).toHaveText(`0 stories, ${pendingEntries.length} pending`)
+    await expect(page.getByTestId("places-count")).toHaveText(`0 stories, ${pendingEntries.length} upcoming`)
+
+    await page.goto("/places?area=Auckland")
+    await expect(page.getByTestId("pending-card")).toHaveCount(pendingEntries.length)
+    await expect(page.getByRole("combobox", { name: "Area" })).toHaveValue("Auckland")
+  })
+
+  test("its page reaches the wider map with it chosen", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/${pendingEntries[0].slug}`)
+    await page.getByRole("link", { name: "Map", exact: true }).click()
+    await expect(page.getByTestId("map-selection")).toContainText(pendingEntries[0].name)
   })
 
   test("a finished story never leads to one as its next story", async ({ page }) => {
@@ -629,8 +640,8 @@ test.describe("a place whose modern photograph is pending", () => {
     const entry = pendingEntries[0]
     await page.getByTestId("map-list-item").filter({ hasText: entry.name }).click()
     const active = page.locator(".tn-map-marker.is-active")
-    await expect(active).toHaveAttribute("aria-label", `${entry.name}, modern photograph pending`)
-    await expect(page.getByTestId("map-selection")).toContainText("Modern photograph pending")
+    await expect(active).toHaveAttribute("aria-label", `${entry.name}, upcoming`)
+    await expect(page.getByTestId("map-selection")).toContainText("Open upcoming story")
     await expect(page.getByText(entry.name)).toHaveCount(1)
     await page.getByTestId("map-selection").click()
     await expect(page.getByTestId("pending-status")).toBeVisible()

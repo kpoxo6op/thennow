@@ -51,7 +51,7 @@ function normalize(text: string) {
 
 function matches(story: Place, tokens: string[]) {
   const haystack = ` ${normalize(
-    `${story.name} ${story.area ?? ""} ${story.description}`
+    `${story.name} ${story.area ?? ""} ${story.description} ${story.status === "pending" ? "upcoming" : ""}`
   )}`
 
   // Word starts only: "mission" should not find "decommissioned".
@@ -90,7 +90,7 @@ const PhotoGrid = memo(function PhotoGrid({
         <section data-testid="places-pending" className={finished.length > 0 ? "mt-12 md:mt-16" : undefined}>
           <div className="mx-4 mb-5 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1 border-t pt-4">
             <h2 className="font-serif text-3xl leading-none md:text-4xl">Photographed once, so far.</h2>
-            <p className="text-muted-foreground">Archive photographs whose modern photographs are pending.</p>
+            <p className="text-muted-foreground">Upcoming stories: the archive photograph is here, the modern one is to come.</p>
           </div>
           <ul className={`${GRID_CLASS} lg:grid-cols-4`}>
             {pending.map((place) => (
@@ -148,7 +148,7 @@ function StoryRow({
               {story.name}
             </span>
             <span className="mt-0.5 inline-flex items-center gap-1 text-[15px] text-muted-foreground underline-offset-4 group-hover:underline">
-              {story.status === "pending" ? "Modern photograph pending" : "Open story"}
+              {story.status === "pending" ? "Open upcoming story" : "Open story"}
               <ArrowRight aria-hidden className="size-4" />
             </span>
           </span>
@@ -164,7 +164,7 @@ function StoryRow({
           {picture}
           <span className="min-w-0">
             <span className="line-clamp-2 text-[15px] font-medium leading-snug">{story.name}</span>
-            {story.status === "pending" ? <span className="block text-[15px] text-muted-foreground">Pending</span> : null}
+            {story.status === "pending" ? <span className="block text-[15px] text-muted-foreground">Upcoming</span> : null}
           </span>
         </button>
       )}
@@ -412,7 +412,7 @@ export function PlacesExplorer({ stories }: Props) {
   const isEmpty = filtered.length === 0
   const finishedCount = filtered.filter((story) => story.status === "complete").length
   const pendingCount = filtered.length - finishedCount
-  const resultLabel = `${finishedCount} ${finishedCount === 1 ? "story" : "stories"}${pendingCount ? `, ${pendingCount} pending` : ""}`
+  const resultLabel = `${finishedCount} ${finishedCount === 1 ? "story" : "stories"}${pendingCount ? `, ${pendingCount} upcoming` : ""}`
 
   return (
     <main className="flex-1">
@@ -544,7 +544,7 @@ export function PlacesExplorer({ stories }: Props) {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <span aria-hidden className="size-2.5 rounded-full border-2 border-white" />
-                  Pending
+                  Upcoming
                 </span>
               </p>
             ) : null}

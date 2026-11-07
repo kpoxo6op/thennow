@@ -17,7 +17,7 @@ export function PendingTile({ place, sizes }: Props) {
       <span className="mt-2 block text-[15px] font-medium leading-snug underline-offset-4 group-hover:underline md:text-lg">
         {place.name}
       </span>
-      <span className="block text-[15px] text-muted-foreground">Modern photograph pending</span>
+      <span className="block text-[15px] text-muted-foreground">Upcoming</span>
     </Link>
   )
 }
