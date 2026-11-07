@@ -5,6 +5,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -12,8 +13,8 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ArrowRight, ChevronDown, Grid2x2, Map as MapIcon, Search, X } from "lucide-react"
-import type { StorySummary } from "@/interfaces/post"
+import { ArrowRight, ChevronDown, Grid2x2, Map as MapIcon, Search } from "lucide-react"
+import type { Place } from "@/interfaces/post"
 
 import { cn } from "@/lib/utils"
 import { groupByArea, storyArea } from "@/lib/places"
@@ -22,10 +23,11 @@ import {
   type MapHighlight,
   type MapViewport,
 } from "@/components/places-map"
+import { PendingTile } from "@/components/pending-tile"
 import { StoryTile } from "@/components/story-tile"
 
 type Props = {
-  stories: StorySummary[]
+  stories: Place[]
 }
 
 const VIEWPORT_LIMITS = {
@@ -47,74 +49,126 @@ function normalize(text: string) {
     .toLowerCase()
 }
 
-function matches(story: StorySummary, tokens: string[]) {
+function matches(story: Place, tokens: string[]) {
   const haystack = ` ${normalize(
-    `${story.name} ${story.area ?? ""} ${story.description}`
+    `${story.name} ${story.area ?? ""} ${story.description} ${story.status === "pending" ? "upcoming" : ""}`
   )}`
 
   // Word starts only: "mission" should not find "decommissioned".
   return tokens.every((token) => haystack.includes(` ${token}`))
 }
 
+const GRID_CLASS = "grid grid-cols-1 gap-x-3 gap-y-6 px-4 sm:grid-cols-2 md:gap-x-6 md:gap-y-10 lg:grid-cols-3"
+
 const PhotoGrid = memo(function PhotoGrid({
   stories,
   onPrefetch,
 }: {
-  stories: StorySummary[]
+  stories: Place[]
   onPrefetch?: (slug: string) => void
 }) {
+  const finished = stories.filter((story) => story.status === "complete")
+  const pending = stories.filter((story) => story.status === "pending")
+
   return (
-    <ul
-      data-testid="story-list"
-      className="grid grid-cols-1 gap-x-3 gap-y-6 px-4 pb-16 pt-3 sm:grid-cols-2 md:gap-x-6 md:gap-y-10 md:pb-24 lg:grid-cols-3"
-    >
-      {stories.map((story, index) => (
-        <li key={story.slug}>
-          <StoryTile
-            story={story}
-            sizes={TILE_SIZES}
-            priority={index < 4}
-            onPointerEnter={() => onPrefetch?.(story.slug)}
-          />
-        </li>
-      ))}
-    </ul>
+    <div className="pb-16 pt-3 md:pb-24">
+      {finished.length > 0 ? (
+        <ul data-testid="story-list" className={GRID_CLASS}>
+          {finished.map((story, index) => (
+            <li key={story.slug}>
+              <StoryTile
+                story={story}
+                sizes={TILE_SIZES}
+                priority={index < 4}
+                onPointerEnter={() => onPrefetch?.(story.slug)}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {pending.length > 0 ? (
+        <section data-testid="places-pending" className={finished.length > 0 ? "mt-12 md:mt-16" : undefined}>
+          <div className="mx-4 mb-5 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1 border-t pt-4">
+            <h2 className="font-serif text-3xl leading-none md:text-4xl">Photographed once, so far.</h2>
+            <p className="text-muted-foreground">Upcoming stories: the archive photograph is here, the modern one is to come.</p>
+          </div>
+          <ul className={`${GRID_CLASS} lg:grid-cols-4`}>
+            {pending.map((place) => (
+              <li key={place.slug}>
+                <PendingTile place={place} sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
   )
 })
 
+const ROW_CLASS = "flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors"
+
+// A place in the list. Choosing it finds it on the map; once chosen, it is the way into its story.
 function StoryRow({
   story,
   chosen,
   onChoose,
   onHighlight,
 }: {
-  story: StorySummary
+  story: Place
   chosen?: boolean
-  onChoose: (story: StorySummary) => void
+  onChoose: (story: Place) => void
   onHighlight?: (slug: string | null) => void
 }) {
+  const picture = (
+    <Image
+      src={story.status === "pending" ? story.b_imageUrl : story.ba_imageUrl}
+      alt=""
+      width={story.w}
+      height={story.h}
+      sizes="96px"
+      className="aspect-[3/2] w-24 shrink-0 bg-muted object-cover"
+    />
+  )
+
   return (
-    <button
-      type="button"
+    <div
       data-testid="map-list-item"
-      aria-pressed={Boolean(chosen)}
-      className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted aria-pressed:bg-muted aria-pressed:ring-1 aria-pressed:ring-accent"
-      onClick={() => onChoose(story)}
       onPointerEnter={() => onHighlight?.(story.slug)}
       onPointerLeave={() => onHighlight?.(null)}
-      onFocus={() => onHighlight?.(story.slug)}
-      onBlur={() => onHighlight?.(null)}
     >
-      <Image
-        src={story.ba_imageUrl}
-        alt=""
-        width={story.w}
-        height={story.h}
-        sizes="96px"
-        className="aspect-[3/2] w-24 shrink-0 bg-muted object-cover"
-      />
-      <span className="line-clamp-2 text-[15px] font-medium leading-snug">{story.name}</span>
-    </button>
+      {chosen ? (
+        <Link
+          href={`/${story.slug}`}
+          data-testid="map-selection"
+          className={cn(ROW_CLASS, "group bg-muted ring-1 ring-accent")}
+        >
+          {picture}
+          <span className="min-w-0 flex-1">
+            <span data-testid="map-selection-name" className="block text-[15px] font-medium leading-snug">
+              {story.name}
+            </span>
+            <span className="mt-0.5 inline-flex items-center gap-1 text-[15px] text-muted-foreground underline-offset-4 group-hover:underline">
+              {story.status === "pending" ? "Open upcoming story" : "Open story"}
+              <ArrowRight aria-hidden className="size-4" />
+            </span>
+          </span>
+        </Link>
+      ) : (
+        <button
+          type="button"
+          className={cn(ROW_CLASS, "hover:bg-muted")}
+          onClick={() => onChoose(story)}
+          onFocus={() => onHighlight?.(story.slug)}
+          onBlur={() => onHighlight?.(null)}
+        >
+          {picture}
+          <span className="min-w-0">
+            <span className="line-clamp-2 text-[15px] font-medium leading-snug">{story.name}</span>
+            {story.status === "pending" ? <span className="block text-[15px] text-muted-foreground">Upcoming</span> : null}
+          </span>
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -158,18 +212,19 @@ export function PlacesExplorer({ stories }: Props) {
   }
 
   const deferredQuery = useDeferredValue(query)
-  // Arriving from a story's "See it on the map", that story is already chosen.
-  const [selected, setSelected] = useState<StorySummary[] | null>(() => {
+  // An address can name a chosen place, so coming back from its story finds it still chosen.
+  const [selected, setSelected] = useState<Place[] | null>(() => {
     const arrived = stories.find((story) => story.slug === searchParams.get("story"))
     return arrived ? [arrived] : null
   })
   const [mapFailed, setMapFailed] = useState(false)
   const highlightRef = useRef<MapHighlight | null>(null)
-  const focusRef = useRef<((story: StorySummary) => void) | null>(null)
+  const focusRef = useRef<((story: Place) => void) | null>(null)
   const fitAllRef = useRef<(() => void) | null>(null)
   const [visibleCount, setVisibleCount] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const selectedRef = useRef<HTMLDivElement | null>(null)
+  const listRef = useRef<HTMLUListElement | null>(null)
+  const [lead, setLead] = useState<string | null>(null)
 
   const areas = useMemo(() => groupByArea(stories), [stories])
 
@@ -272,7 +327,7 @@ export function PlacesExplorer({ stories }: Props) {
   }, [])
 
   // A row chooses its place on the map; the card that opens is the way into the story.
-  const handleChoose = useCallback((story: StorySummary) => {
+  const handleChoose = useCallback((story: Place) => {
     setSelected([story])
     focusRef.current?.(story)
 
@@ -294,9 +349,23 @@ export function PlacesExplorer({ stories }: Props) {
     }
 
     const previousFocus = document.activeElement
-    selectedRef.current
-      ?.querySelector("a")
-      ?.focus({ preventScroll: true })
+    const row = listRef.current?.querySelector<HTMLElement>('[data-testid="map-selection"]')
+    row?.focus({ preventScroll: true })
+
+    // Beside the map the list scrolls by itself: the chosen row has to come into its view,
+    // since it is the only way into the story.
+    const list = row?.closest("aside")
+
+    if (row && list && list.scrollHeight > list.clientHeight) {
+      const rowBox = row.getBoundingClientRect()
+      const listBox = list.getBoundingClientRect()
+
+      if (rowBox.bottom > listBox.bottom) {
+        list.scrollTop += rowBox.bottom - listBox.bottom + 8
+      } else if (rowBox.top < listBox.top) {
+        list.scrollTop -= listBox.top - rowBox.top + 8
+      }
+    }
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -330,9 +399,34 @@ export function PlacesExplorer({ stories }: Props) {
     }
   }, [selected, writeParams])
 
+  // Under a phone's map, a chosen place out of reach leads the list, so it shows without being
+  // repeated on the map. One already in view stays put, under the finger that chose it.
+  useLayoutEffect(() => {
+    const row = listRef.current?.querySelector('[data-testid="map-selection"]')
+    const chosen = selected?.[0]?.slug ?? null
+
+    if (!row || !chosen || !window.matchMedia("(max-width: 1023px)").matches) {
+      setLead(null)
+      return
+    }
+
+    const { top, height } = row.getBoundingClientRect()
+
+    const inReach = top + window.scrollY + height <= window.innerHeight
+
+    setLead((current) => (current === chosen || !inReach ? chosen : null))
+  }, [selected])
+
+  const listed = useMemo(
+    () => (lead ? [...filtered].sort((a, b) => Number(b.slug === lead) - Number(a.slug === lead)) : filtered),
+    [filtered, lead]
+  )
+
   const hasFilter = Boolean(deferredQuery.trim() || area)
   const isEmpty = filtered.length === 0
-  const resultLabel = `${filtered.length} ${filtered.length === 1 ? "place" : "places"}`
+  const finishedCount = filtered.filter((story) => story.status === "complete").length
+  const pendingCount = filtered.length - finishedCount
+  const resultLabel = `${finishedCount} ${finishedCount === 1 ? "story" : "stories"}${pendingCount ? `, ${pendingCount} upcoming` : ""}`
 
   return (
     <main className="flex-1">
@@ -438,23 +532,7 @@ export function PlacesExplorer({ stories }: Props) {
           <PhotoGrid stories={filtered} onPrefetch={handlePrefetch} />
         )
       ) : (
-        <div className="tn-map-view flex flex-col-reverse lg:flex-row" data-testid="map-view">
-          <aside className="shrink-0 border-t lg:w-[23rem] lg:overflow-y-auto lg:border-r lg:border-t-0">
-            {filtered.length > 0 ? (
-              <ul className="p-2">
-                {filtered.map((story) => (
-                  <li key={story.slug}>
-                    <StoryRow
-                      story={story}
-                      chosen={Boolean(selected?.some((other) => other.slug === story.slug))}
-                      onChoose={handleChoose}
-                      onHighlight={handleHighlight}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </aside>
+        <div className="tn-map-view flex flex-col lg:flex-row-reverse" data-testid="map-view">
           <div className="tn-map relative h-[50svh] min-h-[20rem] min-w-0 shrink-0 lg:h-auto lg:flex-1 lg:shrink">
             <PlacesMap
               stories={filtered}
@@ -468,6 +546,22 @@ export function PlacesExplorer({ stories }: Props) {
               onSelect={setSelected}
               onFail={setMapFailed}
             />
+
+            {pendingCount > 0 && finishedCount > 0 ? (
+              <p
+                data-testid="map-key"
+                className="pointer-events-none absolute bottom-2 left-2 z-[2] flex gap-3 rounded-full bg-black/75 px-3 py-1.5 text-[13px] text-white"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className="size-2.5 rounded-full bg-white" />
+                  Then and now
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className="size-2.5 rounded-full border-2 border-white" />
+                  Upcoming
+                </span>
+              </p>
+            ) : null}
 
             {!isEmpty && visibleCount !== null && visibleCount < filtered.length ? (
               <button
@@ -516,43 +610,23 @@ export function PlacesExplorer({ stories }: Props) {
               </div>
             ) : null}
 
-            {selected ? (
-              <div
-                ref={selectedRef}
-                data-testid="map-selection"
-                className="absolute inset-x-2 bottom-2 z-[2] max-h-[60%] overflow-y-auto rounded-lg bg-popover shadow-[0_6px_28px_rgb(0_0_0/0.55)] sm:left-auto sm:right-3 sm:bottom-10 sm:w-[28rem]"
-              >
-                <button
-                  type="button"
-                  aria-label="Close"
-                  className="absolute right-1 top-1 z-[1] flex size-10 items-center justify-center rounded-full bg-popover/90"
-                  onClick={() => setSelected(null)}
-                >
-                  <X aria-hidden className="size-4" />
-                </button>
-                {selected.map((story) => (
-                  <Link
-                    key={story.slug}
-                    href={`/${story.slug}`}
-                    className="group flex items-center gap-2.5 p-2 pr-11"
-                  >
-                    <Image
-                      src={story.ba_imageUrl}
-                      alt=""
-                      width={story.w}
-                      height={story.h}
-                      sizes="144px"
-                      className="aspect-[3/2] w-28 sm:w-36 shrink-0 bg-muted object-cover"
-                    />
-                    <span className="min-w-0 text-[17px] font-medium leading-snug underline-offset-4 group-hover:underline">
-                      {story.name}
-                    </span>
-                    <ArrowRight aria-hidden className="size-4 shrink-0" />
-                  </Link>
-                ))}
-              </div>
-            ) : null}
           </div>
+          <aside className="shrink-0 border-t lg:w-[23rem] lg:overflow-y-auto lg:border-r lg:border-t-0">
+            {filtered.length > 0 ? (
+              <ul ref={listRef} className="p-2">
+                {listed.map((story) => (
+                  <li key={story.slug}>
+                    <StoryRow
+                      story={story}
+                      chosen={Boolean(selected?.some((other) => other.slug === story.slug))}
+                      onChoose={handleChoose}
+                      onHighlight={handleHighlight}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </aside>
         </div>
       )}
     </main>

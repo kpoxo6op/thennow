@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, type RefObject } from "react"
-import type { StorySummary } from "@/interfaces/post"
+import type { Place } from "@/interfaces/post"
 
 export type MapViewport = {
   lat: number
@@ -15,7 +15,7 @@ type StoryCluster = {
   key: string
   lat: number
   lng: number
-  stories: StorySummary[]
+  stories: Place[]
 }
 
 const MAX_ZOOM = 16
@@ -37,10 +37,10 @@ function worldPoint(lat: number, lng: number, zoom: number) {
   }
 }
 
-function clusterStories(stories: StorySummary[], zoom: number): StoryCluster[] {
+function clusterStories(stories: Place[], zoom: number): StoryCluster[] {
   const radius =
     zoom >= MAX_ZOOM ? MAX_ZOOM_CLUSTER_RADIUS_PX : CLUSTER_RADIUS_PX
-  const groups: { x: number; y: number; stories: StorySummary[] }[] = []
+  const groups: { x: number; y: number; stories: Place[] }[] = []
 
   stories.forEach((story) => {
     const point = worldPoint(story.location.lat, story.location.lng, zoom)
@@ -69,7 +69,7 @@ function clusterStories(stories: StorySummary[], zoom: number): StoryCluster[] {
 }
 
 // The first level at which a story has its own pin rather than a share of a cluster.
-function zoomShowingAlone(slug: string, stories: StorySummary[], from: number) {
+function zoomShowingAlone(slug: string, stories: Place[], from: number) {
   for (let zoom = Math.ceil(from); zoom <= MAX_ZOOM; zoom += 1) {
     const cluster = clusterStories(stories, zoom).find((group) =>
       group.stories.some((story) => story.slug === slug)
@@ -84,14 +84,14 @@ function zoomShowingAlone(slug: string, stories: StorySummary[], from: number) {
 }
 
 type Props = {
-  stories: StorySummary[]
-  selected?: StorySummary[] | null
+  stories: Place[]
+  selected?: Place[] | null
   onVisibleSlugsChange?: (slugs: string[]) => void
   onViewportChange?: (viewport: MapViewport) => void
-  onSelect?: (stories: StorySummary[] | null) => void
+  onSelect?: (stories: Place[] | null) => void
   onFail?: (failed: boolean) => void
   highlightRef?: RefObject<MapHighlight | null>
-  focusRef?: RefObject<((story: StorySummary) => void) | null>
+  focusRef?: RefObject<((story: Place) => void) | null>
   fitAllRef?: RefObject<(() => void) | null>
   viewport?: MapViewport | null
 }
@@ -143,7 +143,7 @@ export function PlacesMap({
         return
       }
 
-      const boundsOf = (list: StorySummary[]) => {
+      const boundsOf = (list: Place[]) => {
         const bounds = new maplibregl.LngLatBounds()
         list.forEach((story) => {
           bounds.extend([story.location.lng, story.location.lat])
@@ -274,10 +274,11 @@ export function PlacesMap({
       const createMarker = (cluster: StoryCluster) => {
         const isSingle = cluster.stories.length === 1
         const element = document.createElement("a")
-        element.className = `tn-map-marker tn-map-marker--${isSingle ? "point" : "cluster"}`
+        const allPending = cluster.stories.every((story) => story.status === "pending")
+        element.className = `tn-map-marker tn-map-marker--${isSingle ? "point" : "cluster"}${allPending ? " tn-map-marker--pending" : ""}`
         element.href = `/${cluster.stories[0].slug}`
         element.ariaLabel = isSingle
-          ? cluster.stories[0].name
+          ? `${cluster.stories[0].name}${allPending ? ", upcoming" : ""}`
           : `${cluster.stories.length} places`
         element.title = cluster.stories.map((story) => story.name).join(", ")
         element.dataset.testid = "home-map-marker"

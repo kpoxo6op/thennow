@@ -1,10 +1,10 @@
 import fs from "fs"
 import path from "path"
-import PostType, { type StorySummary } from "@/interfaces/post"
+import PostType, { type PendingPost, type PendingSummary, type StorySummary } from "@/interfaces/post"
 
-let postsCache: PostType[] | null = null
+let postsCache: (PostType | PendingPost)[] | null = null
 
-export async function fetchPosts(): Promise<PostType[]> {
+function readAll() {
   if (postsCache) {
     return postsCache
   }
@@ -12,33 +12,49 @@ export async function fetchPosts(): Promise<PostType[]> {
   const postsDirectory = path.join(process.cwd(), "public", "posts")
   const postFolders = fs.readdirSync(postsDirectory).sort()
 
-  const posts = postFolders.map((postFolder) => {
+  postsCache = postFolders.map((postFolder): PostType | PendingPost => {
     const fullPath = path.join(postsDirectory, postFolder, `${postFolder}.json`)
-    const fileContents = fs.readFileSync(fullPath, "utf8")
-
-    const jsonContent = JSON.parse(fileContents)
-    return {
+    const jsonContent = JSON.parse(fs.readFileSync(fullPath, "utf8"))
+    const shared = {
       name: jsonContent.name,
       description: jsonContent.description,
       b_imageUrl: jsonContent.b_imageUrl,
-      a_imageUrl: jsonContent.a_imageUrl,
-      ba_imageUrl: jsonContent.ba_imageUrl,
       w: jsonContent.w,
       h: jsonContent.h,
       slug: jsonContent.slug,
       location: jsonContent.location,
       sample: jsonContent._preview_fixture === true,
-      area: jsonContent._preview_area,
+      area: jsonContent.area ?? jsonContent._preview_area,
       imageSourceSlug: jsonContent._image_source_slug,
+    }
+
+    // No modern photograph means pending, whatever else the file says.
+    if (jsonContent.status === "pending" || !jsonContent.a_imageUrl) {
+      return { ...shared, status: "pending", archive: jsonContent.archive }
+    }
+
+    return {
+      ...shared,
+      status: "complete",
+      a_imageUrl: jsonContent.a_imageUrl,
+      ba_imageUrl: jsonContent.ba_imageUrl,
     }
   })
 
-  postsCache = posts
+  return postsCache
+}
 
-  return posts
+// Finished stories: both photographs, a working comparison.
+export async function fetchPosts(): Promise<PostType[]> {
+  return readAll().filter((post): post is PostType => post.status === "complete")
+}
+
+export async function fetchPending(): Promise<PendingPost[]> {
+  return readAll().filter((post): post is PendingPost => post.status === "pending")
 }
 
 export function toSummary({
+  status,
   name,
   description,
   b_imageUrl,
@@ -51,5 +67,19 @@ export function toSummary({
   sample,
   area,
 }: PostType): StorySummary {
-  return { name, description, b_imageUrl, a_imageUrl, ba_imageUrl, w, h, slug, location, sample, area }
+  return { status, name, description, b_imageUrl, a_imageUrl, ba_imageUrl, w, h, slug, location, sample, area }
+}
+
+export function toPendingSummary({
+  status,
+  name,
+  description,
+  b_imageUrl,
+  w,
+  h,
+  slug,
+  location,
+  area,
+}: PendingPost): PendingSummary {
+  return { status, name, description, b_imageUrl, w, h, slug, location, area }
 }

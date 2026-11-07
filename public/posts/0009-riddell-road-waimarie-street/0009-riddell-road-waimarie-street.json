@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Riddell Road at Waimarie Street, St Heliers",
+  "slug": "riddell-road-waimarie-street",
+  "description": "Looking south down Riddell Road towards Maskell Street, with Waimarie Street on the right.",
+  "b_imageUrl": "/posts/0009-riddell-road-waimarie-street/then-riddell-road-waimarie-street.jpg",
+  "w": 2000,
+  "h": 1603,
+  "location": {
+    "lat": -36.85027,
+    "lng": 174.86942
+  },
+  "archive": {
+    "date": "1954–1955",
+    "photographer": "Auckland City Council",
+    "credit": "Auckland Libraries Heritage Collections 580-01754",
+    "rights": "Creative Commons Attribution (CC BY)",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/161005",
+    "sourceId": "580-01754"
+  },
+  "area": "Auckland"
+}

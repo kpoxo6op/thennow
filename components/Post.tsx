@@ -10,6 +10,7 @@ import { CompareStage } from "@/components/compare-stage"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
 import { ResetScroll } from "@/components/reset-scroll"
 import { SeamTile } from "@/components/seam-tile"
+import { StoryMap } from "@/components/story-map"
 
 export type StoryLink = Pick<PostType, "name" | "slug" | "b_imageUrl" | "a_imageUrl" | "w" | "h" | "sample"> & {
   // Whether the story has any dated text yet, or only its photographs.
@@ -53,13 +54,6 @@ function ease(t: number) {
 
 function distanceLabel(km: number) {
   return km < 1 ? "Under 1 km away" : `${Math.round(km)} km away`
-}
-
-function coordinates({ lat, lng }: PostType["location"]) {
-  const ns = lat < 0 ? "S" : "N"
-  const ew = lng < 0 ? "W" : "E"
-
-  return `${Math.abs(lat).toFixed(4)}° ${ns}, ${Math.abs(lng).toFixed(4)}° ${ew}`
 }
 
 // A source reads by its host. The full address is the link, and stays in the text for
@@ -213,7 +207,6 @@ export default function Post({ post, next, nearby }: PostProps) {
   const thenYear = dated[0]?.year
   const nowYear = dated.length > 1 ? dated[dated.length - 1]?.year : undefined
   const yearsApart = thenYear && nowYear ? Number(nowYear) - Number(thenYear) : undefined
-  const mapHref = `/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=13&story=${post.slug}`
   const rounded = Math.round(position)
   const wholeShown = rounded === ALL_THEN || rounded === ALL_NOW
 
@@ -354,12 +347,7 @@ export default function Post({ post, next, nearby }: PostProps) {
                   {undated.flatMap((section) => section.lines).join(" ")}
                 </p>
               )}
-              <p className="mt-8 flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t pt-4 text-[15px] text-muted-foreground md:mt-10">
-                <span className="tabular-nums">{coordinates(post.location)}</span>
-                <Link href={mapHref} className="-my-2 py-2 text-foreground underline underline-offset-4">
-                  See it on the map
-                </Link>
-              </p>
+              <StoryMap name={post.name} location={post.location} />
             </>
           )}
         </article>
@@ -422,11 +410,12 @@ export default function Post({ post, next, nearby }: PostProps) {
               <Link href="/places" className="inline-block py-2 underline underline-offset-4">
                 All places
               </Link>
-              {post.sample ? (
-                <Link href={mapHref} className="inline-block py-2 underline underline-offset-4">
-                  Map
-                </Link>
-              ) : null}
+              <Link
+                href={`/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=13&story=${post.slug}`}
+                className="inline-block py-2 underline underline-offset-4"
+              >
+                Map
+              </Link>
             </div>
           </div>
         </div>

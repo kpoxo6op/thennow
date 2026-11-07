@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import { Metadata } from "next"
 
-import { fetchPosts, toSummary } from "@/lib/api"
+import { fetchPending, fetchPosts, toPendingSummary, toSummary } from "@/lib/api"
 import {
   PlacesExplorer,
   PlacesFallback,
@@ -15,7 +15,8 @@ export const metadata: Metadata = {
 
 export default async function PlacesPage() {
   const posts = await fetchPosts()
-  const stories = posts.map(toSummary)
+  const pending = await fetchPending()
+  const stories = [...posts.map(toSummary), ...pending.map(toPendingSummary)]
 
   return (
     <>
