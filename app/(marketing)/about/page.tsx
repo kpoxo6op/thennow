@@ -22,7 +22,7 @@ export default async function AboutPage() {
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => SOURCE_LINE.test(line))
-      .map((source) => ({ source, slug: post.slug, name: post.name }))
+      .map((source) => ({ source, slug: post.slug, name: post.name, upcoming: false }))
   )
   const pending = await fetchPending()
   // Their records are addressed in full, and each photograph's source is listed the same way.
@@ -31,6 +31,7 @@ export default async function AboutPage() {
       source: post.archive.sourceUrl.replace(/^https:\/\//, ""),
       slug: post.slug,
       name: post.name,
+      upcoming: true,
     }))
   )
 
@@ -45,7 +46,8 @@ export default async function AboutPage() {
           </p>
           <p className="tn-reading text-lg leading-relaxed md:text-xl md:leading-relaxed">
             Each story pairs an older image with a modern retake so visitors can see what stayed,
-            what disappeared, and what the street looks like now.
+            what disappeared, and what the street looks like now. Upcoming stories have the older image
+            so far, with the modern retake to come.
           </p>
         </div>
       </div>
@@ -70,7 +72,7 @@ export default async function AboutPage() {
       <section id="sources" className="mt-14 grid scroll-mt-20 gap-6 border-t pt-6 md:mt-20 lg:grid-cols-2 lg:gap-10">
         <h2 className="font-serif text-4xl leading-none md:text-5xl">Sources</h2>
         <ul>
-          {sources.map(({ source, slug, name }) => {
+          {sources.map(({ source, slug, name, upcoming }) => {
             const slash = source.indexOf("/")
             const host = slash === -1 ? source : source.slice(0, slash)
             const path = slash === -1 ? "" : source.slice(slash)
@@ -80,6 +82,7 @@ export default async function AboutPage() {
                 <Link href={`/${slug}`} className="block text-lg font-medium leading-snug underline-offset-4 hover:underline">
                   {name}
                 </Link>
+                {upcoming ? <p className="text-[15px] text-muted-foreground">Upcoming</p> : null}
                 <a
                   href={`https://${source}`}
                   target="_blank"

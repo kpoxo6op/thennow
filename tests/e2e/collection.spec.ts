@@ -617,6 +617,21 @@ test.describe("a place whose modern photograph is pending", () => {
     await expect(page.getByRole("combobox", { name: "Area" })).toHaveValue("Auckland")
   })
 
+  test("on a laptop-sized window, the chosen row comes into the list's view", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 760 })
+    for (const entry of pendingEntries) {
+      await page.goto(`/places?view=map&lat=${entry.location.lat}&lng=${entry.location.lng}&z=14&story=${entry.slug}`)
+      await expect(page.getByTestId("map-selection")).toBeInViewport({ ratio: 1 })
+      await expect(page.getByText("Open upcoming story")).toBeInViewport({ ratio: 1 })
+    }
+  })
+
+  test("About says what an upcoming story is, and labels their sources", async ({ page }) => {
+    await page.goto("/about")
+    await expect(page.getByText(/Upcoming stories have the older image/)).toBeVisible()
+    await expect(page.locator("#sources").getByText("Upcoming", { exact: true })).toHaveCount(pendingEntries.length)
+  })
+
   test("its page reaches the wider map with it chosen", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`/${pendingEntries[0].slug}`)

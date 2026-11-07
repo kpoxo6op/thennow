@@ -41,6 +41,10 @@ export async function generateMetadata({ params }: PostProps): Promise<Metadata>
     return {}
   }
 
+  if (post.status === "pending") {
+    return { title: post.name, description: `Upcoming: modern photograph to come. ${post.description}` }
+  }
+
   return {
     title: post.name,
     description: toSections(post.description)

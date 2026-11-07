@@ -349,9 +349,23 @@ export function PlacesExplorer({ stories }: Props) {
     }
 
     const previousFocus = document.activeElement
-    listRef.current
-      ?.querySelector<HTMLElement>('[data-testid="map-selection"]')
-      ?.focus({ preventScroll: true })
+    const row = listRef.current?.querySelector<HTMLElement>('[data-testid="map-selection"]')
+    row?.focus({ preventScroll: true })
+
+    // Beside the map the list scrolls by itself: the chosen row has to come into its view,
+    // since it is the only way into the story.
+    const list = row?.closest("aside")
+
+    if (row && list && list.scrollHeight > list.clientHeight) {
+      const rowBox = row.getBoundingClientRect()
+      const listBox = list.getBoundingClientRect()
+
+      if (rowBox.bottom > listBox.bottom) {
+        list.scrollTop += rowBox.bottom - listBox.bottom + 8
+      } else if (rowBox.top < listBox.top) {
+        list.scrollTop -= listBox.top - rowBox.top + 8
+      }
+    }
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
