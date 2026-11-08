@@ -57,7 +57,9 @@ export function RephotoReview({
   const [file, setFile] = useState<File | null>(null)
   const [renders, setRenders] = useState(0)
   const [renderFailed, setRenderFailed] = useState(false)
-  const [saved, setSaved] = useState(false)
+  // The file that was last saved: a newer framing made after it needs saving again.
+  const [savedFile, setSavedFile] = useState<File | null>(null)
+  const saved = !!file && savedFile === file
   const canShare =
     typeof navigator !== "undefined" &&
     "share" in navigator &&
@@ -126,7 +128,12 @@ export function RephotoReview({
       } catch {
         if (controller.signal.aborted) return
         // The live view had already placed it; that placement stands.
-        if (shot.locked) return setPhase("aligned")
+        if (shot.locked) {
+          const listed = shot.archive?.aspect ?? listedAspect
+          if (!fits(shot.crop, listed, photo))
+            setNote("Step back to include the whole view.")
+          return setPhase("aligned")
+        }
         setPhase("unmatched")
         setNote("Couldn’t align this photo.")
       }
@@ -136,7 +143,7 @@ export function RephotoReview({
       clearTimeout(slow)
       controller.abort()
     }
-  }, [shot, thenSrc])
+  }, [shot, thenSrc, listedAspect])
 
   useEffect(() => {
     if (phase === "aligning") return
@@ -158,8 +165,6 @@ export function RephotoReview({
           if (!current) return
           if (!blob) return fail()
           setRenderFailed(false)
-          // A better framing arrived after saving: offer to save that one too.
-          setSaved(false)
           setFile(
             new File([blob], `${slug}-now-${stamp(shot.takenAt)}.jpg`, {
               type: "image/jpeg",
@@ -181,6 +186,7 @@ export function RephotoReview({
 
   const save = async () => {
     if (!file) return
+    const saving = file
     try {
       if (canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: name })
@@ -192,7 +198,7 @@ export function RephotoReview({
         link.click()
         setTimeout(() => URL.revokeObjectURL(url), 10_000)
       }
-      setSaved(true)
+      setSavedFile(saving)
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError"))
         setNote("Couldn’t save. Try again.")

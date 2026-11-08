@@ -314,6 +314,8 @@ export function RephotoCamera({
           document.visibilityState === "visible"
         ) {
           const photo = { width: video.videoWidth, height: video.videoHeight }
+          // The placement is as old as the frame it was found in, not the answer.
+          const sampled = performance.now()
           const found = await align(archive, video, photo, controller.signal, {
             server: false,
           }).catch(() => null)
@@ -338,7 +340,7 @@ export function RephotoCamera({
               crop: found.crop,
               held: near,
               steady,
-              at: performance.now(),
+              at: sampled,
             })
           } else if (++misses >= 2) {
             previous = null
@@ -359,6 +361,16 @@ export function RephotoCamera({
       setLock(null)
     }
   }, [shot, status])
+
+  // A placement that has gone stale leaves the screen too, so what is shown is what is shot.
+  useEffect(() => {
+    if (!lock) return
+    const timer = setTimeout(
+      () => setLock((current) => (current === lock ? null : current)),
+      Math.max(0, lock.at + lockLife.current - performance.now())
+    )
+    return () => clearTimeout(timer)
+  }, [lock])
 
   const onVideoSize = () => {
     const video = videoRef.current
@@ -405,16 +417,13 @@ export function RephotoCamera({
 
   const capture = () => {
     const video = videoRef.current
-    if (!video?.videoWidth) return
+    if (!video?.videoWidth || video.readyState < 2 || interrupted) return
     const lean = tiltRef.current
     const canvas = grabFrame(video)
     const photo = { width: canvas.width, height: canvas.height }
     // The shot starts where the old photograph sat on screen: where the matcher had just put it
-    // and held it a moment ago, or else the resting guide, levelled. The review refines it from the full picture.
-    const held =
-      lock?.held && performance.now() - lock.at < lockLife.current
-        ? lock.crop
-        : null
+    // and still shows it held, or else the resting guide, levelled. The review refines it from the full picture.
+    const held = lock?.held ? lock.crop : null
     const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
     const crop =
       held ??
