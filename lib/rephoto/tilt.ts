@@ -28,17 +28,18 @@ export function screenAngle() {
 
 type PermissionApi = { requestPermission?: () => Promise<"granted" | "denied"> }
 
-// iPhone asks once, and only from a tap.
-export async function askForMotion() {
+// iPhone asks once, and only from a tap. "retry" means the browser did not count the event as a
+// tap, so the next one should ask again.
+export async function askForMotion(): Promise<"granted" | "denied" | "retry"> {
   const api = (globalThis as unknown as { DeviceMotionEvent?: PermissionApi }).DeviceMotionEvent
   if (api?.requestPermission) {
     try {
-      return (await api.requestPermission()) === "granted"
+      return await api.requestPermission()
     } catch {
-      return false
+      return "retry"
     }
   }
-  return true
+  return "granted"
 }
 
 export function needsMotionPermission() {

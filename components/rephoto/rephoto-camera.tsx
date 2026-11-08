@@ -169,7 +169,9 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
   const askMotionOnce = () => {
     if (askedMotion.current || !needsMotionPermission()) return
     askedMotion.current = true
-    void askForMotion()
+    void askForMotion().then((answer) => {
+      if (answer === "retry") askedMotion.current = false
+    })
   }
 
   // Any start still waiting on the camera will let it go when it arrives.
@@ -347,7 +349,7 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
     <div
       data-testid="rephoto-camera"
       className="fixed inset-0 z-[60] flex flex-col bg-black text-white landscape:flex-row"
-      onPointerDownCapture={askMotionOnce}
+      onClickCapture={askMotionOnce}
     >
       <div
         ref={stageRef}
