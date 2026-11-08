@@ -5,7 +5,7 @@ import { Smartphone, X } from "lucide-react"
 import Link from "next/link"
 
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
-import { shrinkToFit } from "@/lib/rephoto/crop"
+import { releaseCanvas, shrinkToFit } from "@/lib/rephoto/crop"
 import { edgeOverlay, loadImage } from "@/lib/rephoto/pixels"
 import { askForMotion, needsMotionPermission, screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 
@@ -78,44 +78,16 @@ async function openCamera() {
   throw lastError
 }
 
-type ImageCaptureLike = { takePhoto: () => Promise<Blob> }
-
-// A full-resolution still where the browser offers one with the same framing as the preview,
-// otherwise the current video frame.
-async function grabStill(video: HTMLVideoElement, track: MediaStreamTrack | undefined) {
-  const vw = video.videoWidth
-  const vh = video.videoHeight
-  const Capture = (globalThis as unknown as { ImageCapture?: new (t: MediaStreamTrack) => ImageCaptureLike })
-    .ImageCapture
-
-  if (Capture && track) {
-    try {
-      const blob = await Promise.race([
-        new Capture(track).takePhoto(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("slow")), 4000)),
-      ])
-      const bitmap = await createImageBitmap(blob)
-      const sameShape = Math.abs(bitmap.width / bitmap.height - vw / vh) < 0.02
-      if (sameShape && bitmap.width >= vw) {
-        const canvas = document.createElement("canvas")
-        canvas.width = bitmap.width
-        canvas.height = bitmap.height
-        canvas.getContext("2d")?.drawImage(bitmap, 0, 0)
-        bitmap.close()
-        return { canvas, blob }
-      }
-      bitmap.close()
-    } catch {
-      // Fall back to the video frame below.
-    }
-  }
-
+// The video frame on screen at the moment of the tap: exactly what was lined up. A browser's
+// full-resolution still can use a wider view than the preview, which would move the framing.
+function grabFrame(video: HTMLVideoElement) {
   const canvas = document.createElement("canvas")
-  canvas.width = vw
-  canvas.height = vh
-  canvas.getContext("2d")?.drawImage(video, 0, 0, vw, vh)
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95))
-  return { canvas, blob }
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  const context = canvas.getContext("2d")
+  if (!context) throw new Error("No 2D canvas")
+  context.drawImage(video, 0, 0, canvas.width, canvas.height)
+  return canvas
 }
 
 export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
@@ -134,13 +106,20 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
   const [tilt, setTilt] = useState<number | null>(null)
   const tiltRef = useRef<number | null>(null)
   const askedMotion = useRef(false)
+  const attempt = useRef(0)
 
-  // The page is the camera: nothing scrolls behind it.
+  // The page is the camera: nothing scrolls behind it, and a pinch moves the photograph, never
+  // the page (iPhone Safari zooms the page on its own gesture events otherwise).
   useLayoutEffect(() => {
     const { overflow } = document.documentElement.style
     document.documentElement.style.overflow = "hidden"
+    const block = (event: Event) => event.preventDefault()
+    document.addEventListener("gesturestart", block, { passive: false })
+    document.addEventListener("gesturechange", block, { passive: false })
     return () => {
       document.documentElement.style.overflow = overflow
+      document.removeEventListener("gesturestart", block)
+      document.removeEventListener("gesturechange", block)
     }
   }, [])
 
@@ -193,12 +172,20 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
     void askForMotion()
   }
 
+  // Any start still waiting on the camera will let it go when it arrives.
+  const cancelStarts = useCallback(() => {
+    attempt.current++
+  }, [])
+
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
   }, [])
 
   const start = useCallback(async () => {
+    // Only the latest start may keep its camera; an older one that finishes late lets go.
+    const mine = ++attempt.current
+    stop()
     setStatus("starting")
     setError("")
     try {
@@ -206,16 +193,32 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
         throw new Error("no camera api")
       }
       const stream = await openCamera()
-      streamRef.current = stream
       const video = videoRef.current
-      if (!video) {
-        stop()
+      if (mine !== attempt.current || !video) {
+        stream.getTracks().forEach((track) => track.stop())
         return
       }
+      streamRef.current = stream
       video.srcObject = stream
-      await video.play().catch(() => {})
+      try {
+        await video.play()
+      } catch {
+        if (mine !== attempt.current) return
+        // Some browsers only play after a tap; Try again is that tap.
+        setError("Tap Try again to show the camera.")
+        setStatus("error")
+        return
+      }
+      if (mine !== attempt.current) return
       setStatus("live")
+      // The camera can be taken away: the screen locks, a call comes in, another app needs it.
+      stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+        if (mine !== attempt.current) return
+        setError("The camera stopped. Try again.")
+        setStatus("error")
+      })
     } catch (caught) {
+      if (mine !== attempt.current) return
       setError(explain(caught))
       setStatus("error")
     }
@@ -238,12 +241,21 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
         lock = sentinel
       })
       .catch(() => {})
+    // Back from the background, the camera may have been stopped behind the page's back.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return
+      const track = streamRef.current?.getVideoTracks()[0]
+      if (!track || track.readyState === "ended" || track.muted) void start()
+    }
+    document.addEventListener("visibilitychange", onVisible)
     return () => {
       clearTimeout(timer)
+      document.removeEventListener("visibilitychange", onVisible)
+      cancelStarts()
       stop()
       lock?.release().catch(() => {})
     }
-  }, [shot, start, stop])
+  }, [shot, start, stop, cancelStarts])
 
   useEffect(() => {
     const element = stageRef.current
@@ -285,23 +297,26 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
   const capture = async () => {
     const video = videoRef.current
     if (!video || !video.videoWidth || busy) return
+    // The moment of the tap: its frame and its lean, before the phone is lowered.
+    const lean = tiltRef.current
+    const canvas = grabFrame(video)
     setBusy(true)
     try {
-      const track = streamRef.current?.getVideoTracks()[0]
-      const { canvas, blob } = await grabStill(video, track)
       const photo = { width: canvas.width, height: canvas.height }
-      // The framing the person lined up against the guide, carried over to the still.
+      // The framing the person lined up against the guide.
       const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
       // Level with the horizon, as the archive photograph almost certainly was.
-      const rotation = tiltRef.current == null ? 0 : -tiltRef.current
+      const rotation = lean == null ? 0 : -lean
       const crop = shrinkToFit(
         { cx: photo.width / 2, cy: photo.height / 2, width: target.width, rotation },
         aspect,
         photo
       )
+      const uncropped = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95))
+      cancelStarts()
       stop()
       const assist = new URLSearchParams(window.location.search).get("assist") === "1"
-      setShot({ canvas, original: blob, crop, takenAt: new Date(), assist })
+      setShot({ canvas, uncropped, crop, takenAt: new Date(), assist })
     } finally {
       setBusy(false)
     }
@@ -315,18 +330,25 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
         thenSrc={thenSrc}
         aspect={aspect}
         shot={shot}
-        onRetake={() => setShot(null)}
+        onRetake={() => {
+          // iPhone frees canvas memory late; give the old shot's back at once.
+          releaseCanvas(shot.canvas)
+          setShot(null)
+        }}
       />
     )
   }
 
   const nextGhost = () => {
-    askMotionOnce()
     setGhost((current) => GHOSTS[(GHOSTS.indexOf(current) + 1) % GHOSTS.length])
   }
 
   return (
-    <div data-testid="rephoto-camera" className="fixed inset-0 z-[60] flex flex-col bg-black text-white landscape:flex-row">
+    <div
+      data-testid="rephoto-camera"
+      className="fixed inset-0 z-[60] flex flex-col bg-black text-white landscape:flex-row"
+      onPointerDownCapture={askMotionOnce}
+    >
       <div
         ref={stageRef}
         className="relative min-h-0 flex-1 touch-none select-none overflow-hidden"
@@ -444,10 +466,7 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
           data-testid="rephoto-shutter"
           aria-label="Take the photo"
           disabled={status !== "live" || busy}
-          onClick={() => {
-            askMotionOnce()
-            void capture()
-          }}
+          onClick={() => void capture()}
           className="grid size-[4.5rem] place-items-center rounded-full border-4 border-white transition-transform active:scale-95 disabled:opacity-40"
         >
           <span className="size-14 rounded-full bg-white" />

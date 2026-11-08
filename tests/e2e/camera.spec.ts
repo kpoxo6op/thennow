@@ -175,7 +175,7 @@ test.describe("the rephotography camera", () => {
     await expect(ghost).toHaveCSS("opacity", "0.5")
   })
 
-  test("saving gives the aligned photograph at the archive's shape and the camera's original", async ({ page }) => {
+  test("saving gives the aligned photograph at the archive's shape and the uncropped frame", async ({ page }) => {
     const place = archive("mission-house")
     await openCamera(page, "mission-house")
     await shoot(page)
@@ -190,7 +190,7 @@ test.describe("the rephotography camera", () => {
     await page.getByTestId("rephoto-save").click()
     await expect.poll(() => downloads.length).toBe(2)
     expect(downloads[0]).toMatch(/^mission-house-now-\d{4}-\d{2}-\d{2}\.jpg$/)
-    expect(downloads[1]).toMatch(/^mission-house-now-\d{4}-\d{2}-\d{2}-original\.jpg$/)
+    expect(downloads[1]).toMatch(/^mission-house-now-\d{4}-\d{2}-\d{2}-uncropped\.jpg$/)
 
     const text = (await page.getByTestId("rephoto-size").textContent()) ?? ""
     const [width, height] = text.split("×").map(Number)

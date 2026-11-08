@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { align, FRAME_WIDTH, prepareFrame, prepareReference, type Similarity } from "@/lib/rephoto/align"
-import { clampCrop, fits, outputSize, renderCrop, shrinkToFit, type Crop } from "@/lib/rephoto/crop"
+import { clampCrop, fits, outputSize, releaseCanvas, renderCrop, shrinkToFit, type Crop } from "@/lib/rephoto/crop"
 import { dataUrlToFile, loadImage, toGray } from "@/lib/rephoto/pixels"
 
 export type Shot = {
   // The real photograph, upright, at full resolution.
   canvas: HTMLCanvasElement
-  // The camera's own file, saved alongside the aligned copy.
-  original: Blob | null
+  // The whole frame as taken, saved alongside the aligned copy.
+  uncropped: Blob | null
   crop: Crop
   takenAt: Date
   // Experimental automatic fit, on with ?assist=1 while it is being tuned.
@@ -50,6 +50,8 @@ export function RephotoReview({ name, slug, thenSrc, aspect, shot, onRetake }: P
   const tap = useRef<{ x: number; y: number; at: number; moved: boolean } | null>(null)
   const prepared = useRef<{ key: string; files: File[] } | null>(null)
   const touched = useRef(false)
+  const output = useRef<HTMLCanvasElement | null>(null)
+  const outputCanvas = () => (output.current ??= document.createElement("canvas"))
   const photo = { width: shot.canvas.width, height: shot.canvas.height }
   const [crop, setCrop] = useState<Crop>(shot.crop)
   const [stage, setStage] = useState({ width: 0, height: 0 })
@@ -151,7 +153,9 @@ export function RephotoReview({ name, slug, thenSrc, aspect, shot, onRetake }: P
     if (before.length >= 2 && after.length >= 2) {
       const d0 = Math.hypot(before[1].x - before[0].x, before[1].y - before[0].y)
       const d1 = Math.hypot(after[1].x - after[0].x, after[1].y - after[0].y)
-      zoom = d0 > 0 ? d1 / d0 : 1
+      // Fingers that meet or touch the same spot say nothing about zoom or turn.
+      if (d0 < 4 || d1 < 4) return
+      zoom = d1 / d0
       turn =
         Math.atan2(after[1].y - after[0].y, after[1].x - after[0].x) -
         Math.atan2(before[1].y - before[0].y, before[1].x - before[0].x)
@@ -187,16 +191,15 @@ export function RephotoReview({ name, slug, thenSrc, aspect, shot, onRetake }: P
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!pointers.current.has(event.pointerId)) return
-    const before = [...pointers.current.values()]
     const point = local(event)
-    pointers.current.set(event.pointerId, point)
-    const after = [...pointers.current.values()]
-    if (tap.current && Math.hypot(point.x - tap.current.x, point.y - tap.current.y) > TAP_SLOP_PX) {
+    if (tap.current && !tap.current.moved) {
+      // Still a tap: the photograph waits, then moves the whole way once the finger travels.
+      if (Math.hypot(point.x - tap.current.x, point.y - tap.current.y) <= TAP_SLOP_PX) return
       tap.current.moved = true
     }
-    if (!tap.current || tap.current.moved) {
-      gesture(before, after)
-    }
+    const before = [...pointers.current.values()]
+    pointers.current.set(event.pointerId, point)
+    gesture(before, [...pointers.current.values()])
   }
 
   const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -225,7 +228,7 @@ export function RephotoReview({ name, slug, thenSrc, aspect, shot, onRetake }: P
 
   const fileNames = {
     aligned: `${slug}-now-${stamp(shot.takenAt)}.jpg`,
-    original: `${slug}-now-${stamp(shot.takenAt)}-original.jpg`,
+    uncropped: `${slug}-now-${stamp(shot.takenAt)}-uncropped.jpg`,
   }
   const cropKey = `${crop.cx.toFixed(1)},${crop.cy.toFixed(1)},${crop.width.toFixed(1)},${crop.rotation.toFixed(5)}`
 
@@ -233,14 +236,15 @@ export function RephotoReview({ name, slug, thenSrc, aspect, shot, onRetake }: P
   useEffect(() => {
     prepared.current = null
     const timer = setTimeout(() => {
-      const canvas = document.createElement("canvas")
+      const canvas = outputCanvas()
       renderCrop(shot.canvas, crop, aspect, canvas)
       canvas.toBlob(
         (blob) => {
+          releaseCanvas(canvas)
           if (!blob) return
           const files = [new File([blob], fileNames.aligned, { type: "image/jpeg" })]
-          if (shot.original) {
-            files.push(new File([shot.original], fileNames.original, { type: "image/jpeg" }))
+          if (shot.uncropped) {
+            files.push(new File([shot.uncropped], fileNames.uncropped, { type: "image/jpeg" }))
           }
           prepared.current = { key: cropKey, files }
         },
@@ -258,10 +262,11 @@ export function RephotoReview({ name, slug, thenSrc, aspect, shot, onRetake }: P
     try {
       let files = prepared.current?.key === cropKey ? prepared.current.files : null
       if (!files) {
-        const canvas = document.createElement("canvas")
+        const canvas = outputCanvas()
         renderCrop(shot.canvas, crop, aspect, canvas)
         files = [dataUrlToFile(canvas.toDataURL("image/jpeg", 0.92), fileNames.aligned)]
-        if (shot.original) files.push(new File([shot.original], fileNames.original, { type: "image/jpeg" }))
+        releaseCanvas(canvas)
+        if (shot.uncropped) files.push(new File([shot.uncropped], fileNames.uncropped, { type: "image/jpeg" }))
       }
       const share = navigator as Navigator & { canShare?: (data: ShareData) => boolean }
       if (share.canShare?.({ files }) && navigator.share) {

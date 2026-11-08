@@ -7,11 +7,12 @@ export type Tilt = { angle: number; at: number }
 // Gravity in the device's own axes, as the browser reports it with gravity included.
 export function tiltFromGravity(x: number, y: number, screenAngleDegrees: number) {
   const a = (screenAngleDegrees * Math.PI) / 180
-  // Into the axes of the screen as it is currently shown.
-  const sx = x * Math.cos(a) + y * Math.sin(a)
-  const sy = -x * Math.sin(a) + y * Math.cos(a)
+  // Into the axes of the screen as it is currently shown, which is the device's turned by -a.
+  const sx = x * Math.cos(a) - y * Math.sin(a)
+  const sy = x * Math.sin(a) + y * Math.cos(a)
   let angle = Math.atan2(-sx, sy)
-  // Browsers disagree on the sign of gravity; folding to a half turn makes both agree.
+  // Android reports gravity pointing up and older iPhones pointing down, a half turn apart;
+  // folding to within a quarter turn either side makes both read the same small lean.
   while (angle > Math.PI / 2) angle -= Math.PI
   while (angle <= -Math.PI / 2) angle += Math.PI
   return angle

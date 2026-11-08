@@ -1,4 +1,4 @@
-import { Metadata } from "next"
+import { Metadata, Viewport } from "next"
 import { notFound } from "next/navigation"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
@@ -6,6 +6,15 @@ import { RephotoCamera } from "@/components/rephoto/rephoto-camera"
 
 interface Props {
   params: Promise<{ slug: string }>
+}
+
+// The camera fills the screen edge to edge, around the notch, and a pinch belongs to the
+// photograph rather than the page.
+export const viewport: Viewport = {
+  themeColor: "#000000",
+  viewportFit: "cover",
+  maximumScale: 1,
+  userScalable: false,
 }
 
 async function findPlace(params: Props["params"]) {

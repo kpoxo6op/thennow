@@ -41,6 +41,9 @@ export function fits(crop: Crop, aspect: number, photo: Size) {
 // Moves from a crop that fits towards a wanted one and stops at the photograph's edge,
 // so a gesture slides along the border instead of freezing.
 export function clampCrop(from: Crop, to: Crop, aspect: number, photo: Size): Crop {
+  if (![to.cx, to.cy, to.width, to.rotation].every(Number.isFinite)) {
+    return from
+  }
   if (fits(to, aspect, photo)) {
     return to
   }
@@ -101,6 +104,12 @@ export function shrinkToFit(crop: Crop, aspect: number, photo: Size): Crop {
 }
 
 export const MAX_OUTPUT_WIDTH = 4096
+
+// Hands a canvas's memory back straight away; iPhone otherwise holds it until much later.
+export function releaseCanvas(canvas: HTMLCanvasElement) {
+  canvas.width = 0
+  canvas.height = 0
+}
 
 export function outputSize(crop: Crop, aspect: number): Size {
   const width = Math.round(Math.min(MAX_OUTPUT_WIDTH, crop.width))
