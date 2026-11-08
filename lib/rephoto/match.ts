@@ -95,20 +95,27 @@ export function matchPixels(
   return { gray, placement }
 }
 
-// Turns matches in model-input fractions into fractions of each picture, dropping any that fall
-// in the grey border.
 // Size in the new photograph's pixels of one model cell, given where the photograph sat.
 export function cellSize(photo: Size, placement: Placement) {
   return (photo.width / (placement.width * MATCH_WIDTH)) * MATCH_CELL
 }
 
+// Turns matches in model-input fractions into fractions of each picture, dropping any that fall
+// in the grey border.
 export function unplace(
   matches: Match[],
   then: Placement,
   now: Placement
 ): Match[] {
+  // A cell's margin in from the picture's edge, so the step into the grey border, which looks
+  // the same in both pictures, can't vote.
+  const mu = MATCH_CELL / MATCH_WIDTH
+  const mv = MATCH_CELL / MATCH_HEIGHT
   const inside = (u: number, v: number, p: Placement) =>
-    u >= p.x && u <= p.x + p.width && v >= p.y && v <= p.y + p.height
+    u >= p.x + mu &&
+    u <= p.x + p.width - mu &&
+    v >= p.y + mv &&
+    v <= p.y + p.height - mv
   return matches
     .filter(([u0, v0, u1, v1]) => inside(u0, v0, then) && inside(u1, v1, now))
     .map(([u0, v0, u1, v1]) => [

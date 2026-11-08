@@ -16,9 +16,7 @@ const ORT_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/di
 
 type Tensor<T = number> = { data: ArrayLike<T> }
 type Session = {
-  run: (
-    feeds: Record<string, unknown>
-  ) => Promise<{
+  run: (feeds: Record<string, unknown>) => Promise<{
     match: Tensor<number | bigint>
     confidence: Tensor
     mutual: Tensor
@@ -33,6 +31,8 @@ type Ort = {
 }
 
 let loading: Promise<{ ort: Ort; session: Session }> | null = null
+// One run at a time: a WebGPU session can't take two at once.
+let queue: Promise<unknown> = Promise.resolve()
 
 export function canMatchLocally() {
   return (
@@ -44,6 +44,13 @@ export function canMatchLocally() {
 export function prepareLocalMatcher() {
   if (!canMatchLocally()) return null
   loading ??= (async () => {
+    // The model is in half precision; a graphics chip without it goes straight to the server.
+    const gpu = navigator.gpu as {
+      requestAdapter: () => Promise<{ features: Set<string> } | null>
+    }
+    const adapter = await gpu.requestAdapter()
+    if (!adapter?.features.has("shader-f16"))
+      throw new Error("No half-precision WebGPU")
     const ort = (await import(
       /* webpackIgnore: true */ /* turbopackIgnore: true */ `${ORT_BASE}ort.webgpu.min.mjs`
     )) as Ort
@@ -55,6 +62,14 @@ export function prepareLocalMatcher() {
     const session = await ort.InferenceSession.create(bytes, {
       executionProviders: ["webgpu"],
     })
+    // One run on blank pictures compiles the shaders while the shot is still being framed.
+    const blank = new ort.Tensor("float32", new Float32Array(MATCH_BYTES), [
+      1,
+      1,
+      MATCH_HEIGHT,
+      MATCH_WIDTH,
+    ])
+    await session.run({ image0: blank, image1: blank })
     return { ort, session }
   })()
   loading.catch(() => {
@@ -75,10 +90,18 @@ export async function matchLocally(
     for (let i = 0; i < data.length; i++) data[i] = bytes[i] / 255
     return new ort.Tensor("float32", data, [1, 1, MATCH_HEIGHT, MATCH_WIDTH])
   }
-  const result = await session.run({
-    image0: tensor(then),
-    image1: tensor(now),
-  })
+  const run = queue.then(() =>
+    session.run({ image0: tensor(then), image1: tensor(now) })
+  )
+  queue = run.catch(() => {})
+  let result
+  try {
+    result = await run
+  } catch (error) {
+    // A lost graphics device (phone locked, memory pressure) gets a fresh session next time.
+    loading = null
+    throw error
+  }
   return cellsToMatches(
     result.match.data,
     result.confidence.data,

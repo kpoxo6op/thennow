@@ -50,10 +50,12 @@ export function RephotoReview({
   name,
   slug,
   thenSrc,
-  aspect,
+  aspect: listedAspect,
   shot,
   onRetake,
 }: Props) {
+  // The archive file's own shape, once it has loaded; the camera usually knows it already.
+  const [aspect, setAspect] = useState(listedAspect)
   const stageRef = useRef<HTMLDivElement>(null)
   const prepared = useRef<{ key: string; files: File[] } | null>(null)
   const output = useRef<HTMLCanvasElement | null>(null)
@@ -125,9 +127,11 @@ export function RephotoReview({
         )
         if (controller.signal.aborted) return
         const matches = unplace(raw, old.placement, now.placement)
+        const shape = then.naturalHeight / then.naturalWidth
+        setAspect(shape)
         const fit = fitCrop(
           matches,
-          then.naturalHeight / then.naturalWidth,
+          shape,
           photo,
           cellSize(photo, now.placement)
         )
@@ -142,7 +146,7 @@ export function RephotoReview({
         // The fit is kept exactly. Any corner of the old view that the shot didn't reach stays
         // black rather than being shrunk out of line or filled in.
         setCrop(fit.crop)
-        if (!fits(fit.crop, aspect, photo)) {
+        if (!fits(fit.crop, shape, photo)) {
           setNote("Lined up. Step back a little next time to fill the corners.")
         }
         setPhase("aligned")
@@ -154,7 +158,7 @@ export function RephotoReview({
     }
     void run()
     return () => controller.abort()
-  }, [shot, thenSrc, aspect])
+  }, [shot, thenSrc])
 
   // The frame on screen that shows the archive photograph's view.
   const box = (() => {

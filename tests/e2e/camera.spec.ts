@@ -172,6 +172,35 @@ test.describe("the rephotography camera", () => {
     expect(frame!.height / frame!.width).toBeCloseTo(place.h / place.w, 2)
   })
 
+  test("a phone whose own matcher can't load lines the shot up on the server instead", async ({
+    page,
+  }) => {
+    // A graphics chip that says it can, and a runtime download that fails.
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, "gpu", {
+        configurable: true,
+        get: () => ({
+          requestAdapter: async () => ({ features: new Set(["shader-f16"]) }),
+        }),
+      })
+    })
+    await page.route("https://cdn.jsdelivr.net/**", (route) => route.abort())
+    let serverCalls = 0
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/align")) serverCalls++
+    })
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligned",
+      {
+        timeout: 30_000,
+      }
+    )
+    expect(serverCalls).toBe(1)
+  })
+
   test("a shot that can't be matched keeps the levelled framing and says why", async ({
     page,
   }) => {
