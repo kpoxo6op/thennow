@@ -1,5 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
+import { Camera } from "lucide-react"
 
 import type { PendingPost as PendingPostType } from "@/interfaces/post"
 import { ResetScroll } from "@/components/reset-scroll"
@@ -70,6 +71,14 @@ export function PendingPost({ post, stories, pending }: Props) {
           <span aria-hidden className="size-2.5 rounded-full border-2 border-foreground" />
           Upcoming: modern photograph to come
         </p>
+        <Link
+          href={`/${post.slug}/camera`}
+          data-testid="pending-camera"
+          className="inline-flex min-h-11 items-center gap-2 text-sm underline underline-offset-4 transition-colors hover:text-accent"
+        >
+          <Camera className="size-4" aria-hidden />
+          Take it now
+        </Link>
       </div>
 
       <article className="tn-story-edge pb-14 pt-3">
