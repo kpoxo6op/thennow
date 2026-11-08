@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises"
-import { availableParallelism } from "node:os"
+import { availableParallelism, cpus } from "node:os"
 import path from "node:path"
 import * as ort from "onnxruntime-node"
 
@@ -24,19 +24,21 @@ const MODEL = path.join(
 )
 const MIN_CONFIDENCE = 0.2
 
-let session: Promise<ort.InferenceSession> | null = null
+const sessions = new Map<number, Promise<ort.InferenceSession>>()
 
-function model() {
-  session ??= readFile(MODEL).then((bytes) =>
+// TEMPORARY while measuring Vercel speed: x-align-threads picks the thread count.
+function model(threads = Math.max(1, availableParallelism())) {
+  let session = sessions.get(threads)
+  if (session) return session
+  session = readFile(MODEL).then((bytes) =>
     ort.InferenceSession.create(bytes, {
       logSeverityLevel: 3,
       // One thread per CPU the function actually has, not per core of the machine under it.
-      intraOpNumThreads: Math.max(1, availableParallelism()),
+      intraOpNumThreads: threads,
     })
   )
-  session.catch(() => {
-    session = null
-  })
+  sessions.set(threads, session)
+  session.catch(() => sessions.delete(threads))
   return session
 }
 
@@ -57,7 +59,7 @@ export async function POST(request: Request) {
 
   const started = performance.now()
   const result = await (
-    await model()
+    await model(Number(request.headers.get("x-align-threads")) || undefined)
   ).run({
     image0: tensor(body.subarray(0, MATCH_BYTES)),
     image1: tensor(body.subarray(MATCH_BYTES)),
@@ -87,7 +89,7 @@ export async function POST(request: Request) {
       headers: {
         "cache-control": "no-store",
         "server-timing": `match;dur=${Math.round(performance.now() - started)}`,
-        "x-cpus": String(availableParallelism()),
+        "x-cpus": `${availableParallelism()} ${cpus()[0]?.model ?? ""}`,
       },
     }
   )
