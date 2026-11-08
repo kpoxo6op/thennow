@@ -75,7 +75,7 @@ function tensor(bytes: Uint8Array) {
 
 export async function POST(request: Request) {
   if (!sameSite(request)) {
-    return Response.json({ error: "Too many requests" }, { status: 429 })
+    return Response.json({ error: "Forbidden" }, { status: 403 })
   }
   const body = new Uint8Array(await request.arrayBuffer())
   if (body.length !== MATCH_BYTES * 2) {

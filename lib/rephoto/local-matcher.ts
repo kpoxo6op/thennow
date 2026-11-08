@@ -39,9 +39,17 @@ const STUCK_MS = 15_000
 // Set for good once the graphics chip turns out to lack half precision.
 let unsupported = false
 
+// Cellular users who asked to save data aren't sent the 22 MB matcher.
+function saveData() {
+  return !!(navigator as { connection?: { saveData?: boolean } }).connection
+    ?.saveData
+}
+
 export function canMatchLocally() {
   return (
     !unsupported &&
+    typeof navigator !== "undefined" &&
+    !saveData() &&
     typeof navigator !== "undefined" &&
     "gpu" in navigator &&
     !!navigator.gpu
@@ -51,7 +59,20 @@ export function canMatchLocally() {
 function reset() {
   loading = null
   ready = false
+  running = null
   queue = Promise.resolve()
+}
+
+// The run on the graphics chip right now, if any, and since when.
+let running: { since: number } | null = null
+
+function within<T>(promise: Promise<T>, ms: number) {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Timed out")), ms)
+    ),
+  ])
 }
 
 // Starts loading the runtime and the model, once. Safe to call again.
@@ -86,7 +107,8 @@ export function prepareLocalMatcher() {
       MATCH_HEIGHT,
       MATCH_WIDTH,
     ])
-    await session.run({ image0: blank, image1: blank })
+    // A warm-up that never finishes counts as a failed load, so the next try starts afresh.
+    await within(session.run({ image0: blank, image1: blank }), 60_000)
     ready = true
     return { ort, session }
   })()
@@ -115,6 +137,9 @@ export async function matchLocally(
   now: Uint8Array,
   signal: AbortSignal
 ): Promise<Match[]> {
+  // A run that never came back (graphics device lost when the phone locked, memory pressure)
+  // holds up every later one, so past a limit the matcher starts over with a fresh session.
+  if (running && performance.now() - running.since > STUCK_MS) reset()
   const loaded = prepareLocalMatcher()
   if (!loaded) throw new Error("No WebGPU")
   // Giving up doesn't wait for the download; the download carries on for the next shot.
@@ -125,21 +150,17 @@ export async function matchLocally(
     for (let i = 0; i < data.length; i++) data[i] = bytes[i] / 255
     return new ort.Tensor("float32", data, [1, 1, MATCH_HEIGHT, MATCH_WIDTH])
   }
-  const run = queue.then(() => {
+  const run = queue.then(async () => {
     signal.throwIfAborted()
-    return session.run({ image0: tensor(then), image1: tensor(now) })
+    const mine = { since: performance.now() }
+    running = mine
+    try {
+      return await session.run({ image0: tensor(then), image1: tensor(now) })
+    } finally {
+      if (running === mine) running = null
+    }
   })
   queue = run.catch(() => {})
-  // A run that never comes back (graphics device lost when the phone locked, memory pressure)
-  // would hold up every later one, so after a while the next call starts a fresh session.
-  const tail = queue
-  const watchdog = setTimeout(() => {
-    if (queue === tail) reset()
-  }, STUCK_MS)
-  run.then(
-    () => clearTimeout(watchdog),
-    () => clearTimeout(watchdog)
-  )
   let result
   try {
     // A caller that gives up stops waiting; the run itself can't be stopped and finishes alone.

@@ -78,12 +78,6 @@ async function openCamera() {
 
 // The video frame itself, not a full-resolution still: some phones' stills see a wider view than
 // the preview, which would move the framing.
-// Cellular users who asked to save data aren't sent the 22 MB matcher unasked.
-function saveData() {
-  return !!(navigator as { connection?: { saveData?: boolean } }).connection
-    ?.saveData
-}
-
 function grabFrame(video: HTMLVideoElement) {
   const canvas = document.createElement("canvas")
   canvas.width = video.videoWidth
@@ -120,10 +114,17 @@ export function RephotoCamera({
   const [interrupted, setInterrupted] = useState(false)
   const [peek, setPeek] = useState(false)
   // Where the archive view sits in the live picture, once the matcher has found it.
-  const [lock, setLock] = useState<{ crop: Crop; steady: boolean } | null>(null)
+  const [lock, setLock] = useState<{
+    crop: Crop
+    // Found twice running in the same place.
+    held: boolean
+    // Held, and the whole old view is inside the picture: ready to shoot.
+    steady: boolean
+    at: number
+  } | null>(null)
 
   useEffect(() => {
-    if (!saveData()) prepareLocalMatcher()?.catch(() => {})
+    prepareLocalMatcher()?.catch(() => {})
     // Leaving the camera from the review hands the shot's memory back.
     return () => {
       if (shotRef.current) releaseCanvas(shotRef.current.canvas)
@@ -170,6 +171,7 @@ export function RephotoCamera({
     streamRef.current = null
   }, [])
 
+  const restart = useRef(async () => {})
   const start = useCallback(async () => {
     // Only the latest start keeps its camera; an older one that finishes late lets it go.
     const mine = ++attempt.current
@@ -205,7 +207,12 @@ export function RephotoCamera({
         setStatus("error")
       })
       track?.addEventListener("mute", () => {
-        if (mine === attempt.current) setInterrupted(true)
+        if (mine !== attempt.current) return
+        setInterrupted(true)
+        // A picture that stays stopped gets the camera opened again.
+        setTimeout(() => {
+          if (mine === attempt.current && track.muted) void restart.current()
+        }, 3000)
       })
       track?.addEventListener("unmute", () => {
         if (mine === attempt.current) setInterrupted(false)
@@ -216,6 +223,9 @@ export function RephotoCamera({
       setStatus("error")
     }
   }, [stop])
+  useEffect(() => {
+    restart.current = start
+  }, [start])
 
   useEffect(() => {
     if (shot) return
@@ -291,7 +301,7 @@ export function RephotoCamera({
         // A matcher that failed to load or lost its graphics device is tried again, gently.
         if (!localMatcherReady() && canMatchLocally() && started >= nextLoad) {
           nextLoad = started + 15_000
-          if (!saveData()) prepareLocalMatcher()?.catch(() => {})
+          prepareLocalMatcher()?.catch(() => {})
         }
         const video = videoRef.current
         const archive = archiveRef.current
@@ -322,7 +332,12 @@ export function RephotoCamera({
               buzzed = true
               navigator.vibrate?.(10)
             }
-            setLock({ crop: found.crop, steady })
+            setLock({
+              crop: found.crop,
+              held: near,
+              steady,
+              at: performance.now(),
+            })
           } else if (++misses >= 2) {
             previous = null
             setLock(null)
@@ -391,25 +406,29 @@ export function RephotoCamera({
     const lean = tiltRef.current
     const canvas = grabFrame(video)
     const photo = { width: canvas.width, height: canvas.height }
-    // The shot starts where the old photograph sat on screen: where the matcher had put it, or
-    // the resting guide, levelled. The review refines it from the full picture.
+    // The shot starts where the old photograph sat on screen: where the matcher had just put it
+    // and held it a moment ago, or else the resting guide, levelled. The review refines it from the full picture.
+    const held =
+      lock?.held && performance.now() - lock.at < 2500 ? lock.crop : null
     const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
-    const crop = shrinkToFit(
-      lock?.crop ?? {
-        cx: photo.width / 2,
-        cy: photo.height / 2,
-        width: target.width,
-        rotation: lean == null ? 0 : -lean,
-      },
-      aspect,
-      photo
-    )
+    const crop =
+      held ??
+      shrinkToFit(
+        {
+          cx: photo.width / 2,
+          cy: photo.height / 2,
+          width: target.width,
+          rotation: lean == null ? 0 : -lean,
+        },
+        aspect,
+        photo
+      )
     attempt.current++
     stop()
     setShot({
       canvas,
       crop,
-      locked: !!lock,
+      locked: !!held,
       archive: archiveRef.current,
       takenAt: new Date(),
     })
@@ -440,7 +459,15 @@ export function RephotoCamera({
       <div
         ref={stageRef}
         data-testid="rephoto-stage"
-        data-lock={lock ? (lock.steady ? "steady" : "found") : "none"}
+        data-lock={
+          lock
+            ? lock.steady
+              ? "steady"
+              : lock.held
+                ? "held"
+                : "found"
+            : "none"
+        }
         className="relative min-h-0 flex-1 touch-none select-none overflow-hidden [-webkit-touch-callout:none]"
         onPointerDown={() => setPeek(true)}
         onPointerUp={() => setPeek(false)}

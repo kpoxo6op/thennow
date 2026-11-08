@@ -5,7 +5,7 @@ const nextConfig = {
   serverExternalPackages: ['onnxruntime-node'],
   outputFileTracingIncludes: {
     '/api/align': [
-      './public/models/loftr-coarse-352x480-fp16.onnx',
+      './public/models/loftr-coarse-352x480-fp16-be208d87.onnx',
       './node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/*',
     ],
   },
@@ -16,7 +16,7 @@ const nextConfig = {
       '**/onnxruntime-node/bin/napi-v6/linux/arm64/**',
     ],
   },
-  // The matcher's model is renamed whenever it changes, so phones can keep it.
+  // The matcher's model file is named by its content hash, so phones can keep it.
   async headers() {
     return [
       {

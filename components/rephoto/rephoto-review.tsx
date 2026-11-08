@@ -5,13 +5,7 @@ import Link from "next/link"
 import { Check, X } from "lucide-react"
 
 import { align, prepareArchive, type Archive } from "@/lib/rephoto/align"
-import {
-  fits,
-  releaseCanvas,
-  renderCrop,
-  shrinkToFit,
-  type Crop,
-} from "@/lib/rephoto/crop"
+import { fits, releaseCanvas, renderCrop, type Crop } from "@/lib/rephoto/crop"
 import { loadImage } from "@/lib/rephoto/pixels"
 
 export type Shot = {
@@ -93,6 +87,7 @@ export function RephotoReview({
   useEffect(() => {
     const controller = new AbortController()
     const photo = { width: shot.canvas.width, height: shot.canvas.height }
+    let slow: ReturnType<typeof setTimeout> | undefined
     const run = async () => {
       try {
         const archive =
@@ -100,8 +95,12 @@ export function RephotoReview({
           prepareArchive(
             await Promise.race([
               loadImage(thenSrc),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("Slow archive")), 10_000)
+              new Promise<never>(
+                (_, reject) =>
+                  (slow = setTimeout(
+                    () => reject(new Error("Slow archive")),
+                    10_000
+                  ))
               ),
             ])
           )
@@ -115,12 +114,14 @@ export function RephotoReview({
           { server: true }
         )
         if (!found) throw new Error("No match")
-        // Only the photograph's own pixels are kept: a view that runs off its edge is trimmed.
-        const whole = fits(found.crop, archive.aspect, photo)
-        setCrop(
-          whole ? found.crop : shrinkToFit(found.crop, archive.aspect, photo)
+        // The crop stays exactly on the old view, so the two line up. Where that view runs off
+        // the photograph the corner is left black, never filled in, and the note says why.
+        setCrop(found.crop)
+        setNote(
+          fits(found.crop, archive.aspect, photo)
+            ? ""
+            : "Step back to include the whole view."
         )
-        setNote(whole ? "" : "Step back to include the whole view.")
         setPhase("aligned")
       } catch {
         if (controller.signal.aborted) return
@@ -131,7 +132,10 @@ export function RephotoReview({
       }
     }
     void run()
-    return () => controller.abort()
+    return () => {
+      clearTimeout(slow)
+      controller.abort()
+    }
   }, [shot, thenSrc])
 
   useEffect(() => {
@@ -154,6 +158,8 @@ export function RephotoReview({
           if (!current) return
           if (!blob) return fail()
           setRenderFailed(false)
+          // A better framing arrived after saving: offer to save that one too.
+          setSaved(false)
           setFile(
             new File([blob], `${slug}-now-${stamp(shot.takenAt)}.jpg`, {
               type: "image/jpeg",

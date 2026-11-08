@@ -228,7 +228,7 @@ test.describe("the rephotography camera", () => {
     await onPhoneMatcher(page)
     await openCamera(page, "mission-house")
     const stage = page.getByTestId("rephoto-stage")
-    await expect(stage).not.toHaveAttribute("data-lock", "none", {
+    await expect(stage).toHaveAttribute("data-lock", /held|steady/, {
       timeout: 30_000,
     })
     await page.route("**/api/align", (route) => route.abort())
@@ -331,7 +331,7 @@ test.describe("the rephotography camera", () => {
       data: Buffer.alloc(10),
       headers: { "sec-fetch-site": "cross-site" },
     })
-    expect(response.status()).toBe(429)
+    expect(response.status()).toBe(403)
   })
 
   test("holding the result shows the old photograph over it", async ({
@@ -360,6 +360,11 @@ test.describe("the rephotography camera", () => {
     const place = archive("mission-house")
     await openCamera(page, "mission-house")
     await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligned",
+      { timeout: 30_000 }
+    )
     await expect(page.getByTestId("rephoto-save")).toBeEnabled({
       timeout: 30_000,
     })

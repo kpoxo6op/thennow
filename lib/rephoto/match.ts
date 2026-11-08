@@ -10,8 +10,9 @@ export const MATCH_WIDTH = 480
 export const MATCH_HEIGHT = 352
 export const MATCH_CELL = 8
 export const MATCH_BYTES = MATCH_WIDTH * MATCH_HEIGHT
+// The file name carries the start of its SHA-256, so phones may cache it for good.
 // Served from public/ for phones that run the model themselves, and read by the server route.
-export const MODEL_PATH = "/models/loftr-coarse-352x480-fp16.onnx"
+export const MODEL_PATH = "/models/loftr-coarse-352x480-fp16-be208d87.onnx"
 const MIN_CONFIDENCE = 0.2
 
 // One matched spot: where it sits in the archive photograph and in the new one, each as a
