@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises"
-import { availableParallelism, cpus } from "node:os"
+import { availableParallelism } from "node:os"
 import path from "node:path"
 import * as ort from "onnxruntime-node"
 
 import {
+  cellsToMatches,
   MATCH_BYTES,
-  MATCH_CELL,
   MATCH_HEIGHT,
   MATCH_WIDTH,
-  type Match,
+  MODEL_PATH,
 } from "@/lib/rephoto/match"
 
 // Runs the LoFTR image matcher on an archive photograph and a new shot, both sent as grey
@@ -17,28 +17,21 @@ import {
 export const runtime = "nodejs"
 export const maxDuration = 30
 
-const MODEL = path.join(
-  process.cwd(),
-  "models",
-  "loftr-coarse-352x480-fp16.onnx"
-)
-const MIN_CONFIDENCE = 0.2
+const MODEL = path.join(process.cwd(), "public", MODEL_PATH)
 
-const sessions = new Map<number, Promise<ort.InferenceSession>>()
+let session: Promise<ort.InferenceSession> | null = null
 
-// TEMPORARY while measuring Vercel speed: x-align-threads picks the thread count.
-function model(threads = Math.max(1, availableParallelism())) {
-  let session = sessions.get(threads)
-  if (session) return session
-  session = readFile(MODEL).then((bytes) =>
+function model() {
+  session ??= readFile(MODEL).then((bytes) =>
     ort.InferenceSession.create(bytes, {
       logSeverityLevel: 3,
       // One thread per CPU the function actually has, not per core of the machine under it.
-      intraOpNumThreads: threads,
+      intraOpNumThreads: Math.max(1, availableParallelism()),
     })
   )
-  sessions.set(threads, session)
-  session.catch(() => sessions.delete(threads))
+  session.catch(() => {
+    session = null
+  })
   return session
 }
 
@@ -59,29 +52,16 @@ export async function POST(request: Request) {
 
   const started = performance.now()
   const result = await (
-    await model(Number(request.headers.get("x-align-threads")) || undefined)
+    await model()
   ).run({
     image0: tensor(body.subarray(0, MATCH_BYTES)),
     image1: tensor(body.subarray(MATCH_BYTES)),
   })
-  const best = result.match.data as BigInt64Array | Int32Array
-  const confidence = result.confidence.data as Float32Array
-  const mutual = result.mutual.data as Float32Array
-
-  const columns = MATCH_WIDTH / MATCH_CELL
-  const rows = MATCH_HEIGHT / MATCH_CELL
-  const matches: Match[] = []
-  for (let i = 0; i < confidence.length; i++) {
-    if (mutual[i] <= 0 || confidence[i] <= MIN_CONFIDENCE) continue
-    const j = Number(best[i])
-    const round = (n: number) => Math.round(n * 10000) / 10000
-    matches.push([
-      round(((i % columns) + 0.5) / columns),
-      round((Math.floor(i / columns) + 0.5) / rows),
-      round(((j % columns) + 0.5) / columns),
-      round((Math.floor(j / columns) + 0.5) / rows),
-    ])
-  }
+  const matches = cellsToMatches(
+    result.match.data as BigInt64Array,
+    result.confidence.data as Float32Array,
+    result.mutual.data as Float32Array
+  )
 
   return Response.json(
     { matches },
@@ -89,7 +69,6 @@ export async function POST(request: Request) {
       headers: {
         "cache-control": "no-store",
         "server-timing": `match;dur=${Math.round(performance.now() - started)}`,
-        "x-cpus": `${availableParallelism()} ${cpus()[0]?.model ?? ""}`,
       },
     }
   )

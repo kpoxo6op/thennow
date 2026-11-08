@@ -1,13 +1,25 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Smartphone, X } from "lucide-react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import Link from "next/link"
+import { Smartphone, X } from "lucide-react"
 
-import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 import { releaseCanvas, shrinkToFit } from "@/lib/rephoto/crop"
+import { prepareLocalMatcher } from "@/lib/rephoto/local-matcher"
 import { edgeOverlay, loadImage } from "@/lib/rephoto/pixels"
-import { askForMotion, needsMotionPermission, screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
+import {
+  askForMotion,
+  needsMotionPermission,
+  screenAngle,
+  tiltFromGravity,
+} from "@/lib/rephoto/tilt"
+import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
 interface Props {
   name: string
@@ -29,14 +41,22 @@ const LEVEL_RADIANS = (0.5 * Math.PI) / 180
 // Beyond this the phone is pointed at the ground or sky, or the reading is not to be trusted.
 const MAX_TILT_RADIANS = (15 * Math.PI) / 180
 
-function fit(aspect: number, width: number, height: number, fill = 1): { width: number; height: number } {
+function fit(
+  aspect: number,
+  width: number,
+  height: number,
+  fill = 1
+): { width: number; height: number } {
   const w = Math.min(width, height / aspect) * fill
   return { width: w, height: w * aspect }
 }
 
 function explain(error: unknown) {
   const name = error instanceof DOMException ? error.name : ""
-  if (typeof navigator !== "undefined" && !navigator.mediaDevices?.getUserMedia) {
+  if (
+    typeof navigator !== "undefined" &&
+    !navigator.mediaDevices?.getUserMedia
+  ) {
     return "This browser can't open the camera here. Open thennow.nz over https in Safari or Chrome."
   }
   if (name === "NotAllowedError" || name === "SecurityError") {
@@ -72,7 +92,8 @@ async function openCamera() {
       return await navigator.mediaDevices.getUserMedia(constraints)
     } catch (error) {
       lastError = error
-      if (error instanceof DOMException && error.name === "NotAllowedError") break
+      if (error instanceof DOMException && error.name === "NotAllowedError")
+        break
     }
   }
   throw lastError
@@ -90,11 +111,20 @@ function grabFrame(video: HTMLVideoElement) {
   return canvas
 }
 
-export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
+export function RephotoCamera({
+  name,
+  slug,
+  thenSrc,
+  aspect: listedAspect,
+}: Props) {
+  // The archive file's own shape wins over the listed size, which is off for a few places.
+  const [aspect, setAspect] = useState(listedAspect)
   const stageRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const [status, setStatus] = useState<"starting" | "live" | "error">("starting")
+  const [status, setStatus] = useState<"starting" | "live" | "error">(
+    "starting"
+  )
   const [error, setError] = useState("")
   const [ghost, setGhost] = useState<Ghost>("photo")
   const [edges, setEdges] = useState<string | null>(null)
@@ -123,11 +153,19 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
     }
   }, [])
 
+  // The matcher loads while the shot is being framed, so it is ready at the shutter.
+  useEffect(() => {
+    prepareLocalMatcher()?.catch(() => {})
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     loadImage(thenSrc)
       .then((image) => {
-        if (!cancelled) setEdges(edgeOverlay(image))
+        if (cancelled) return
+        if (image.naturalWidth > 0)
+          setAspect(image.naturalHeight / image.naturalWidth)
+        setEdges(edgeOverlay(image))
       })
       .catch(() => {})
     return () => {
@@ -235,8 +273,11 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
       void start()
     }, 0)
     let lock: { release: () => Promise<void> } | null = null
-    const wake = (navigator as unknown as { wakeLock?: { request: (t: "screen") => Promise<typeof lock> } })
-      .wakeLock
+    const wake = (
+      navigator as unknown as {
+        wakeLock?: { request: (t: "screen") => Promise<typeof lock> }
+      }
+    ).wakeLock
     wake
       ?.request("screen")
       .then((sentinel) => {
@@ -263,7 +304,10 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
     const element = stageRef.current
     if (!element) return
     const observer = new ResizeObserver(([entry]) => {
-      setStage({ width: entry.contentRect.width, height: entry.contentRect.height })
+      setStage({
+        width: entry.contentRect.width,
+        height: entry.contentRect.height,
+      })
     })
     observer.observe(element)
     return () => observer.disconnect()
@@ -271,14 +315,19 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
 
   const onVideoSize = () => {
     const video = videoRef.current
-    if (video?.videoWidth) setVideoSize({ width: video.videoWidth, height: video.videoHeight })
+    if (video?.videoWidth)
+      setVideoSize({ width: video.videoWidth, height: video.videoHeight })
   }
 
   // Where the camera picture and the archive frame sit on screen.
   let view: Box | null = null
   let frame: Box | null = null
   if (videoSize.width && stage.width) {
-    const shown = fit(videoSize.height / videoSize.width, stage.width, stage.height)
+    const shown = fit(
+      videoSize.height / videoSize.width,
+      stage.width,
+      stage.height
+    )
     view = {
       ...shown,
       left: (stage.width - shown.width) / 2,
@@ -310,11 +359,18 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
       // Level with the horizon, as the archive photograph almost certainly was.
       const rotation = lean == null ? 0 : -lean
       const crop = shrinkToFit(
-        { cx: photo.width / 2, cy: photo.height / 2, width: target.width, rotation },
+        {
+          cx: photo.width / 2,
+          cy: photo.height / 2,
+          width: target.width,
+          rotation,
+        },
         aspect,
         photo
       )
-      const uncropped = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95))
+      const uncropped = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.95)
+      )
       cancelStarts()
       stop()
       setShot({ canvas, uncropped, crop, takenAt: new Date() })
@@ -383,7 +439,10 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
               width: frame.width,
               height: frame.height,
               opacity: ghost === "photo" ? 0.5 : 1,
-              filter: ghost === "edges" ? "drop-shadow(0 0 1px rgba(0,0,0,0.9))" : undefined,
+              filter:
+                ghost === "edges"
+                  ? "drop-shadow(0 0 1px rgba(0,0,0,0.9))"
+                  : undefined,
             }}
           />
         )}
@@ -392,7 +451,12 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
             aria-hidden
             data-testid="rephoto-frame"
             className="pointer-events-none absolute border border-white/70"
-            style={{ left: frame.left, top: frame.top, width: frame.width, height: frame.height }}
+            style={{
+              left: frame.left,
+              top: frame.top,
+              width: frame.width,
+              height: frame.height,
+            }}
           />
         )}
 
@@ -407,7 +471,10 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
               left: frame.left + frame.width * 0.36,
               top: frame.top + frame.height / 2 - 1,
               transform: `rotate(${-tilt}rad)`,
-              background: Math.abs(tilt) < LEVEL_RADIANS ? "hsl(var(--accent))" : "rgba(255,255,255,0.85)",
+              background:
+                Math.abs(tilt) < LEVEL_RADIANS
+                  ? "hsl(var(--accent))"
+                  : "rgba(255,255,255,0.85)",
             }}
           />
         )}
@@ -442,8 +509,13 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
           >
             {turnSideways || holdUpright ? (
               <span className="inline-flex items-center gap-2">
-                <Smartphone className={turnSideways ? "size-4 rotate-90" : "size-4"} aria-hidden />
-                {turnSideways ? "Turn the phone sideways" : "Hold the phone upright"}
+                <Smartphone
+                  className={turnSideways ? "size-4 rotate-90" : "size-4"}
+                  aria-hidden
+                />
+                {turnSideways
+                  ? "Turn the phone sideways"
+                  : "Hold the phone upright"}
               </span>
             ) : (
               "Line the old photo up with the view, then shoot. Tap to change the guide."

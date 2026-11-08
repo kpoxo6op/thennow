@@ -10,7 +10,14 @@ import {
   shrinkToFit,
   type Crop,
 } from "@/lib/rephoto/crop"
-import { fitCrop, matchPixels, requestMatches } from "@/lib/rephoto/match"
+import { canMatchLocally, matchLocally } from "@/lib/rephoto/local-matcher"
+import {
+  cellSize,
+  fitCrop,
+  matchPixels,
+  requestMatches,
+  unplace,
+} from "@/lib/rephoto/match"
 import { dataUrlToFile, loadImage } from "@/lib/rephoto/pixels"
 
 export type Shot = {
@@ -90,13 +97,26 @@ export function RephotoReview({
     const run = async () => {
       try {
         const then = await loadImage(thenSrc)
-        const matches = await requestMatches(
-          matchPixels(then),
-          matchPixels(shot.canvas),
-          controller.signal
+        const old = matchPixels(then, then.naturalWidth, then.naturalHeight)
+        const now = matchPixels(shot.canvas, photo.width, photo.height)
+        // The phone's own graphics chip first; the site's server if that isn't there or fails.
+        let raw = null
+        if (canMatchLocally()) {
+          raw = await matchLocally(old.gray, now.gray).catch(() => null)
+        }
+        raw ??= await requestMatches(
+          old.gray,
+          now.gray,
+          AbortSignal.any([controller.signal, AbortSignal.timeout(25_000)])
         )
-        const fit = fitCrop(matches, aspect, photo)
         if (controller.signal.aborted) return
+        const matches = unplace(raw, old.placement, now.placement)
+        const fit = fitCrop(
+          matches,
+          then.naturalHeight / then.naturalWidth,
+          photo,
+          cellSize(photo, now.placement)
+        )
         if (!fit) {
           setPhase("unmatched")
           setNote(
@@ -115,9 +135,7 @@ export function RephotoReview({
       } catch {
         if (controller.signal.aborted) return
         setPhase("unmatched")
-        setNote(
-          "Couldn’t reach the matcher. Check your connection and try again."
-        )
+        setNote("Couldn’t line this one up. Try again, or save it as it is.")
       }
     }
     void run()

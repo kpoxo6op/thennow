@@ -61,6 +61,14 @@ async function shoot(page: Page) {
 }
 
 test.describe("the rephotography camera", () => {
+  // Test browsers have no graphics chip to match on, so matching goes to the site's server.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      // @ts-expect-error removing WebGPU for the test
+      delete Navigator.prototype.gpu
+    })
+  })
+
   test("an upcoming place offers the camera", async ({ page }) => {
     await page.goto("/tamaki-road-board-offices")
     const link = page.getByTestId("pending-camera")

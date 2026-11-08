@@ -10,6 +10,9 @@ export const MATCH_WIDTH = 480
 export const MATCH_HEIGHT = 352
 export const MATCH_CELL = 8
 export const MATCH_BYTES = MATCH_WIDTH * MATCH_HEIGHT
+// Served from public/ for phones that run the model themselves, and read by the server route.
+export const MODEL_PATH = "/models/loftr-coarse-352x480-fp16.onnx"
+const MIN_CONFIDENCE = 0.2
 
 // One matched spot: where it sits in the archive photograph and in the new one, each as a
 // fraction of that picture's width and height.
@@ -23,27 +26,121 @@ export type Fit = {
 
 // Fewer agreeing spots than this and the pictures are probably not of the same place.
 export const MIN_INLIERS = 15
+// How far, in model cells, a matched spot may sit from the fit and still agree with it.
+const INLIER_CELLS = 0.6
 
-// Grey pixels of a picture squeezed to the size the model takes.
-export function matchPixels(source: CanvasImageSource) {
+// Where a picture sits inside the model's 480x352 input, as fractions of that input.
+export type Placement = { x: number; y: number; width: number; height: number }
+
+// Grey pixels of a picture fitted, at its own shape, into the size the model takes. The rest is
+// mid-grey, so an upright shot isn't squashed into a landscape one.
+export function matchPixels(
+  source: CanvasImageSource,
+  width: number,
+  height: number
+) {
+  const scale = Math.min(MATCH_WIDTH / width, MATCH_HEIGHT / height)
+  const w = Math.max(1, Math.round(width * scale))
+  const h = Math.max(1, Math.round(height * scale))
+  const left = Math.floor((MATCH_WIDTH - w) / 2)
+  const top = Math.floor((MATCH_HEIGHT - h) / 2)
+
+  // Halving a few times first: Safari scales down in one rough step otherwise.
+  let image: CanvasImageSource = source
+  let iw = width
+  let ih = height
+  const steps: HTMLCanvasElement[] = []
+  while (iw / 2 >= w * 1.5) {
+    const step = document.createElement("canvas")
+    step.width = Math.round(iw / 2)
+    step.height = Math.round(ih / 2)
+    const context = step.getContext("2d")
+    if (!context) break
+    context.imageSmoothingEnabled = true
+    context.imageSmoothingQuality = "high"
+    context.drawImage(image, 0, 0, step.width, step.height)
+    image = step
+    iw = step.width
+    ih = step.height
+    steps.push(step)
+  }
+
   const canvas = document.createElement("canvas")
   canvas.width = MATCH_WIDTH
   canvas.height = MATCH_HEIGHT
   const context = canvas.getContext("2d", { willReadFrequently: true })
   if (!context) throw new Error("No 2D canvas")
+  context.fillStyle = "rgb(128,128,128)"
+  context.fillRect(0, 0, MATCH_WIDTH, MATCH_HEIGHT)
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = "high"
-  context.drawImage(source, 0, 0, MATCH_WIDTH, MATCH_HEIGHT)
+  context.drawImage(image, left, top, w, h)
   const { data } = context.getImageData(0, 0, MATCH_WIDTH, MATCH_HEIGHT)
-  canvas.width = 0
-  canvas.height = 0
+  for (const step of [...steps, canvas]) {
+    step.width = 0
+    step.height = 0
+  }
   const gray = new Uint8Array(MATCH_BYTES)
   for (let i = 0, j = 0; i < gray.length; i++, j += 4) {
     gray[i] = Math.round(
       0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2]
     )
   }
-  return gray
+  const placement: Placement = {
+    x: left / MATCH_WIDTH,
+    y: top / MATCH_HEIGHT,
+    width: w / MATCH_WIDTH,
+    height: h / MATCH_HEIGHT,
+  }
+  return { gray, placement }
+}
+
+// Turns matches in model-input fractions into fractions of each picture, dropping any that fall
+// in the grey border.
+// Size in the new photograph's pixels of one model cell, given where the photograph sat.
+export function cellSize(photo: Size, placement: Placement) {
+  return (photo.width / (placement.width * MATCH_WIDTH)) * MATCH_CELL
+}
+
+export function unplace(
+  matches: Match[],
+  then: Placement,
+  now: Placement
+): Match[] {
+  const inside = (u: number, v: number, p: Placement) =>
+    u >= p.x && u <= p.x + p.width && v >= p.y && v <= p.y + p.height
+  return matches
+    .filter(([u0, v0, u1, v1]) => inside(u0, v0, then) && inside(u1, v1, now))
+    .map(([u0, v0, u1, v1]) => [
+      (u0 - then.x) / then.width,
+      (v0 - then.y) / then.height,
+      (u1 - now.x) / now.width,
+      (v1 - now.y) / now.height,
+    ])
+}
+
+// The model answers, for each cell of the archive picture, its best cell in the new one, how sure
+// it is, and whether the two cells pick each other. Confident mutual pairs become matches.
+export function cellsToMatches(
+  best: ArrayLike<number | bigint>,
+  confidence: ArrayLike<number>,
+  mutual: ArrayLike<number>
+): Match[] {
+  const columns = MATCH_WIDTH / MATCH_CELL
+  const rows = MATCH_HEIGHT / MATCH_CELL
+  const round = (n: number) => Math.round(n * 10000) / 10000
+  const matches: Match[] = []
+  for (let i = 0; i < confidence.length; i++) {
+    if (mutual[i] <= 0 || confidence[i] <= MIN_CONFIDENCE) continue
+    const j = Number(best[i])
+    matches.push([
+      round(((i % columns) + 0.5) / columns),
+      round((Math.floor(i / columns) + 0.5) / rows),
+      round(((j % columns) + 0.5) / columns),
+      round((Math.floor(j / columns) + 0.5) / rows),
+    ])
+  }
+  return matches
 }
 
 export async function requestMatches(
@@ -122,10 +219,13 @@ function random(seed: number) {
 // Finds the crop of the new photograph that shows the archive view: the rotation, zoom and shift
 // that most matched spots agree on (RANSAC), refined over those spots. aspect is the archive
 // photograph's height over width.
+// cell is the size, in the new photograph's pixels, of one of the model's 8x8 cells: matches can
+// only be that precise, so agreement is judged against it.
 export function fitCrop(
   matches: Match[],
   aspect: number,
-  photo: Size
+  photo: Size,
+  cell: number
 ): Fit | null {
   if (matches.length < MIN_INLIERS) return null
   // Archive points in units where its width is 1000, new-photo points in its pixels.
@@ -134,7 +234,7 @@ export function fitCrop(
     x: u * photo.width,
     y: v * photo.height,
   }))
-  const threshold = photo.width * 0.00625
+  const threshold = cell * INLIER_CELLS
   const agreeing = (t: Similarity) => {
     const list: number[] = []
     for (let i = 0; i < qs.length; i++) {

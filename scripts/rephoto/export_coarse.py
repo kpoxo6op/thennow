@@ -4,7 +4,7 @@ For every coarse cell of image0 (one per 8x8 pixels) the model returns the best 
 the dual-softmax confidence, and whether the pair is a mutual best match. The caller keeps the
 confident mutual pairs. No dynamic shapes, so it runs in onnxruntime anywhere.
 
-Made models/loftr-coarse-352x480-fp16.onnx with:
+Made public/models/loftr-coarse-352x480-fp16.onnx with:
   pip install torch kornia onnx onnxruntime
   python scripts/rephoto/export_coarse.py 352 480
 LoFTR (Sun et al., CVPR 2021) and its outdoor weights are Apache-2.0, through kornia (Apache-2.0).

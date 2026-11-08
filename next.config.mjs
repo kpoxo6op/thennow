@@ -5,7 +5,7 @@ const nextConfig = {
   serverExternalPackages: ['onnxruntime-node'],
   outputFileTracingIncludes: {
     '/api/align': [
-      './models/loftr-coarse-352x480-fp16.onnx',
+      './public/models/loftr-coarse-352x480-fp16.onnx',
       './node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/*',
     ],
   },
