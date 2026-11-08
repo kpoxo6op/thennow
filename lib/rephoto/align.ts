@@ -61,7 +61,7 @@ export async function align(
   signal.throwIfAborted()
   if (!raw) {
     if (!server) return null
-    const remote = within(signal, 20_000)
+    const remote = within(signal, 10_000)
     try {
       raw = await requestMatches(archive.gray, frame.gray, remote.signal)
     } finally {

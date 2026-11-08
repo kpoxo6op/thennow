@@ -222,6 +222,46 @@ test.describe("the rephotography camera", () => {
     ).toBeGreaterThan(1)
   })
 
+  test("a shot keeps the live placement when the full picture can't be matched again", async ({
+    page,
+  }) => {
+    await onPhoneMatcher(page)
+    await openCamera(page, "mission-house")
+    const stage = page.getByTestId("rephoto-stage")
+    await expect(stage).not.toHaveAttribute("data-lock", "none", {
+      timeout: 30_000,
+    })
+    await page.route("**/api/align", (route) => route.abort())
+    await page.evaluate(
+      () =>
+        ((window as unknown as { __matcherDown: boolean }).__matcherDown = true)
+    )
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligned",
+      { timeout: 30_000 }
+    )
+    await expect(page.getByTestId("rephoto-note")).toHaveCount(0)
+    const crop = await readCrop(page)
+    expect(crop.rotation).not.toBe(0)
+  })
+
+  test("the photo can be saved straight away, while it is still being lined up", async ({
+    page,
+  }) => {
+    await page.route("**/api/align", () => {})
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligning"
+    )
+    await expect(page.getByTestId("rephoto-save")).toBeEnabled({
+      timeout: 3_000,
+    })
+  })
+
   test("a phone whose own matcher can't load lines the shot up on the server", async ({
     page,
   }) => {

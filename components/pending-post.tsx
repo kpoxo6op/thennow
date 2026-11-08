@@ -84,7 +84,7 @@ export function PendingPost({ post, stories, pending }: Props) {
         <Link
           href={`/${post.slug}/camera`}
           data-testid="pending-camera"
-          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-foreground px-5 text-sm font-medium text-background transition-opacity hover:opacity-85"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md bg-foreground px-5 text-sm font-medium text-background transition-opacity hover:opacity-85"
         >
           <Camera className="size-4" aria-hidden />
           Take it now

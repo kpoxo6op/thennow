@@ -38,7 +38,7 @@ async function run({ image0, image1 }) {
     bytes[W * H + i] = Math.round(image1.data[i] * 255)
     key = (key * 31 + bytes[i] * 7 + bytes[W * H + i]) % 2147483647
   }
-  if (bytes.every((value) => value === 0))
+  if (window.__matcherDown || bytes.every((value) => value === 0))
     return {
       match: { data: match },
       confidence: { data: confidence },

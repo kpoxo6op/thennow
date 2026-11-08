@@ -16,6 +16,15 @@ const nextConfig = {
       '**/onnxruntime-node/bin/napi-v6/linux/arm64/**',
     ],
   },
+  // The matcher's model is renamed whenever it changes, so phones can keep it.
+  async headers() {
+    return [
+      {
+        source: '/models/:file*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+    ]
+  },
   images: {
     remotePatterns: [
       {

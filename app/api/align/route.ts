@@ -41,9 +41,12 @@ const LIMIT = 20
 const WINDOW_MS = 10 * 60_000
 const recent = new Map<string, number[]>()
 
-function allowed(request: Request) {
+function sameSite(request: Request) {
   const site = request.headers.get("sec-fetch-site")
-  if (site && site !== "same-origin") return false
+  return !site || site === "same-origin"
+}
+
+function allowed(request: Request) {
   const ip =
     request.headers.get("x-real-ip") ??
     request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
@@ -71,7 +74,7 @@ function tensor(bytes: Uint8Array) {
 }
 
 export async function POST(request: Request) {
-  if (!allowed(request)) {
+  if (!sameSite(request)) {
     return Response.json({ error: "Too many requests" }, { status: 429 })
   }
   const body = new Uint8Array(await request.arrayBuffer())
@@ -81,14 +84,23 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
+  // Only well-formed requests count towards the limit.
+  if (!allowed(request)) {
+    return Response.json({ error: "Too many requests" }, { status: 429 })
+  }
 
   const started = performance.now()
-  const result = await (
-    await model()
-  ).run({
-    image0: tensor(body.subarray(0, MATCH_BYTES)),
-    image1: tensor(body.subarray(MATCH_BYTES)),
-  })
+  let result
+  try {
+    result = await (
+      await model()
+    ).run({
+      image0: tensor(body.subarray(0, MATCH_BYTES)),
+      image1: tensor(body.subarray(MATCH_BYTES)),
+    })
+  } catch {
+    return Response.json({ error: "Matcher unavailable" }, { status: 503 })
+  }
   const matches = cellsToMatches(
     result.match.data as BigInt64Array,
     result.confidence.data as Float32Array,

@@ -78,6 +78,12 @@ async function openCamera() {
 
 // The video frame itself, not a full-resolution still: some phones' stills see a wider view than
 // the preview, which would move the framing.
+// Cellular users who asked to save data aren't sent the 22 MB matcher unasked.
+function saveData() {
+  return !!(navigator as { connection?: { saveData?: boolean } }).connection
+    ?.saveData
+}
+
 function grabFrame(video: HTMLVideoElement) {
   const canvas = document.createElement("canvas")
   canvas.width = video.videoWidth
@@ -106,12 +112,22 @@ export function RephotoCamera({
   const [stage, setStage] = useState({ width: 0, height: 0 })
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 })
   const [shot, setShot] = useState<Shot | null>(null)
+  const shotRef = useRef<Shot | null>(null)
+  useEffect(() => {
+    shotRef.current = shot
+  }, [shot])
+  // The camera's picture stopped for a moment (a notification, Control Center).
+  const [interrupted, setInterrupted] = useState(false)
   const [peek, setPeek] = useState(false)
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{ crop: Crop; steady: boolean } | null>(null)
 
   useEffect(() => {
-    prepareLocalMatcher()?.catch(() => {})
+    if (!saveData()) prepareLocalMatcher()?.catch(() => {})
+    // Leaving the camera from the review hands the shot's memory back.
+    return () => {
+      if (shotRef.current) releaseCanvas(shotRef.current.canvas)
+    }
   }, [])
 
   useEffect(() => {
@@ -180,11 +196,19 @@ export function RephotoCamera({
       }
       if (mine !== attempt.current) return
       setStatus("live")
+      setInterrupted(false)
+      const track = stream.getVideoTracks()[0]
       // The screen locked, a call came in, another app took the camera.
-      stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+      track?.addEventListener("ended", () => {
         if (mine !== attempt.current) return
         setError("Camera paused.")
         setStatus("error")
+      })
+      track?.addEventListener("mute", () => {
+        if (mine === attempt.current) setInterrupted(true)
+      })
+      track?.addEventListener("unmute", () => {
+        if (mine === attempt.current) setInterrupted(false)
       })
     } catch (caught) {
       if (mine !== attempt.current) return
@@ -213,16 +237,24 @@ export function RephotoCamera({
         })
         .catch(() => {})
     void keepAwake()
+    let resume: ReturnType<typeof setTimeout> | undefined
     const onVisible = () => {
       if (document.visibilityState !== "visible") return
       void keepAwake()
       const track = streamRef.current?.getVideoTracks()[0]
-      if (!track || track.readyState === "ended" || track.muted) void start()
+      if (!track || track.readyState === "ended") return void start()
+      // iPhone reports the picture muted for a moment on return; only one that stays muted
+      // needs the camera opened again.
+      clearTimeout(resume)
+      resume = setTimeout(() => {
+        if (streamRef.current?.getVideoTracks()[0]?.muted) void start()
+      }, 1500)
     }
     document.addEventListener("visibilitychange", onVisible)
     return () => {
       ended = true
       clearTimeout(timer)
+      clearTimeout(resume)
       document.removeEventListener("visibilitychange", onVisible)
       attempts.current++
       stop()
@@ -251,9 +283,16 @@ export function RephotoCamera({
     const began = performance.now()
     let previous: Crop | null = null
     let misses = 0
+    let buzzed = false
+    let nextLoad = 0
     const loop = async () => {
       while (!controller.signal.aborted) {
         const started = performance.now()
+        // A matcher that failed to load or lost its graphics device is tried again, gently.
+        if (!localMatcherReady() && canMatchLocally() && started >= nextLoad) {
+          nextLoad = started + 15_000
+          if (!saveData()) prepareLocalMatcher()?.catch(() => {})
+        }
         const video = videoRef.current
         const archive = archiveRef.current
         if (
@@ -278,10 +317,12 @@ export function RephotoCamera({
                 found.crop.width * 0.05 &&
               Math.abs(found.crop.width / previous.width - 1) < 0.05
             previous = found.crop
-            setLock({
-              crop: found.crop,
-              steady: near && fits(found.crop, archive.aspect, photo),
-            })
+            const steady = near && fits(found.crop, archive.aspect, photo)
+            if (steady && !buzzed) {
+              buzzed = true
+              navigator.vibrate?.(10)
+            }
+            setLock({ crop: found.crop, steady })
           } else if (++misses >= 2) {
             previous = null
             setLock(null)
@@ -350,10 +391,11 @@ export function RephotoCamera({
     const lean = tiltRef.current
     const canvas = grabFrame(video)
     const photo = { width: canvas.width, height: canvas.height }
-    // If the matcher can't place the shot, it keeps the framing it was taken with, levelled.
+    // The shot starts where the old photograph sat on screen: where the matcher had put it, or
+    // the resting guide, levelled. The review refines it from the full picture.
     const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
     const crop = shrinkToFit(
-      {
+      lock?.crop ?? {
         cx: photo.width / 2,
         cy: photo.height / 2,
         width: target.width,
@@ -364,7 +406,13 @@ export function RephotoCamera({
     )
     attempt.current++
     stop()
-    setShot({ canvas, crop, takenAt: new Date() })
+    setShot({
+      canvas,
+      crop,
+      locked: !!lock,
+      archive: archiveRef.current,
+      takenAt: new Date(),
+    })
   }
 
   if (shot) {
@@ -446,7 +494,7 @@ export function RephotoCamera({
               type="button"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={() => void start()}
-              className="rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black"
+              className="rounded-md bg-white px-5 py-2.5 text-sm font-medium text-black"
             >
               {error ? "Try again" : "Start camera"}
             </button>
@@ -481,7 +529,7 @@ export function RephotoCamera({
           type="button"
           data-testid="rephoto-shutter"
           aria-label="Take photo"
-          disabled={status !== "live"}
+          disabled={status !== "live" || interrupted}
           onClick={capture}
           className={`grid size-[4.5rem] place-items-center rounded-full border-4 transition-[transform,border-color] duration-300 active:scale-95 disabled:opacity-40 ${
             lock?.steady ? "border-accent" : "border-white"

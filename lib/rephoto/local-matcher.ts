@@ -34,11 +34,24 @@ let loading: Promise<{ ort: Ort; session: Session }> | null = null
 let ready = false
 // One run at a time: a WebGPU session can't take two at once.
 let queue: Promise<unknown> = Promise.resolve()
+const STUCK_MS = 15_000
+
+// Set for good once the graphics chip turns out to lack half precision.
+let unsupported = false
 
 export function canMatchLocally() {
   return (
-    typeof navigator !== "undefined" && "gpu" in navigator && !!navigator.gpu
+    !unsupported &&
+    typeof navigator !== "undefined" &&
+    "gpu" in navigator &&
+    !!navigator.gpu
   )
+}
+
+function reset() {
+  loading = null
+  ready = false
+  queue = Promise.resolve()
 }
 
 // Starts loading the runtime and the model, once. Safe to call again.
@@ -50,8 +63,10 @@ export function prepareLocalMatcher() {
       requestAdapter: () => Promise<{ features: Set<string> } | null>
     }
     const adapter = await gpu.requestAdapter()
-    if (!adapter?.features.has("shader-f16"))
+    if (!adapter?.features.has("shader-f16")) {
+      unsupported = true
       throw new Error("No half-precision WebGPU")
+    }
     const ort = (await import(
       /* webpackIgnore: true */ /* turbopackIgnore: true */ `${ORT_BASE}ort.webgpu.min.mjs`
     )) as Ort
@@ -75,10 +90,7 @@ export function prepareLocalMatcher() {
     ready = true
     return { ort, session }
   })()
-  loading.catch(() => {
-    loading = null
-    ready = false
-  })
+  loading.catch(reset)
   return loading
 }
 
@@ -118,15 +130,24 @@ export async function matchLocally(
     return session.run({ image0: tensor(then), image1: tensor(now) })
   })
   queue = run.catch(() => {})
+  // A run that never comes back (graphics device lost when the phone locked, memory pressure)
+  // would hold up every later one, so after a while the next call starts a fresh session.
+  const tail = queue
+  const watchdog = setTimeout(() => {
+    if (queue === tail) reset()
+  }, STUCK_MS)
+  run.then(
+    () => clearTimeout(watchdog),
+    () => clearTimeout(watchdog)
+  )
   let result
   try {
     // A caller that gives up stops waiting; the run itself can't be stopped and finishes alone.
     result = await Promise.race([run, aborted(signal)])
   } catch (error) {
     if (signal.aborted) throw error
-    // A lost graphics device (phone locked, memory pressure) gets a fresh session next time.
-    loading = null
-    ready = false
+    // A failed run gets a fresh session next time.
+    reset()
     throw error
   }
   return cellsToMatches(

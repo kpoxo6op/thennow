@@ -2,17 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Check, Loader2, X } from "lucide-react"
+import { Check, X } from "lucide-react"
 
-import { align, prepareArchive } from "@/lib/rephoto/align"
-import { fits, releaseCanvas, renderCrop, type Crop } from "@/lib/rephoto/crop"
+import { align, prepareArchive, type Archive } from "@/lib/rephoto/align"
+import {
+  fits,
+  releaseCanvas,
+  renderCrop,
+  shrinkToFit,
+  type Crop,
+} from "@/lib/rephoto/crop"
 import { loadImage } from "@/lib/rephoto/pixels"
 
 export type Shot = {
   // The real photograph, at the camera's full resolution.
   canvas: HTMLCanvasElement
-  // The levelled framing it was taken with, kept if the matcher can't place it.
+  // Where the old photograph sat on screen when it was taken, kept if the matcher can't place it.
   crop: Crop
+  // Whether that was the matcher's own placement, rather than the resting guide.
+  locked: boolean
+  archive: Archive | null
   takenAt: Date
 }
 
@@ -52,6 +61,8 @@ export function RephotoReview({
   const [peek, setPeek] = useState(false)
   const [note, setNote] = useState("")
   const [file, setFile] = useState<File | null>(null)
+  const [renders, setRenders] = useState(0)
+  const [renderFailed, setRenderFailed] = useState(false)
   const [saved, setSaved] = useState(false)
   const canShare =
     typeof navigator !== "undefined" &&
@@ -84,9 +95,17 @@ export function RephotoReview({
     const photo = { width: shot.canvas.width, height: shot.canvas.height }
     const run = async () => {
       try {
-        const image = await loadImage(thenSrc)
+        const archive =
+          shot.archive ??
+          prepareArchive(
+            await Promise.race([
+              loadImage(thenSrc),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("Slow archive")), 10_000)
+              ),
+            ])
+          )
         controller.signal.throwIfAborted()
-        const archive = prepareArchive(image)
         setAspect(archive.aspect)
         const found = await align(
           archive,
@@ -96,15 +115,17 @@ export function RephotoReview({
           { server: true }
         )
         if (!found) throw new Error("No match")
-        setCrop(found.crop)
-        setNote(
-          fits(found.crop, archive.aspect, photo)
-            ? ""
-            : "Step back to include the whole view."
+        // Only the photograph's own pixels are kept: a view that runs off its edge is trimmed.
+        const whole = fits(found.crop, archive.aspect, photo)
+        setCrop(
+          whole ? found.crop : shrinkToFit(found.crop, archive.aspect, photo)
         )
+        setNote(whole ? "" : "Step back to include the whole view.")
         setPhase("aligned")
       } catch {
         if (controller.signal.aborted) return
+        // The live view had already placed it; that placement stands.
+        if (shot.locked) return setPhase("aligned")
         setPhase("unmatched")
         setNote("Couldn’t align this photo.")
       }
@@ -120,29 +141,37 @@ export function RephotoReview({
   }, [phase])
 
   // The file is ready before the tap, so sharing runs straight from it (Safari requires that).
+  // It's made from the framing at hand at once, and again when the matcher refines it.
   useEffect(() => {
-    if (phase === "aligning") return
     let current = true
     const canvas = document.createElement("canvas")
-    renderCrop(shot.canvas, crop, aspect, canvas)
-    canvas.toBlob(
-      (blob) => {
-        releaseCanvas(canvas)
-        if (blob && current)
+    const fail = () => current && setRenderFailed(true)
+    try {
+      renderCrop(shot.canvas, crop, aspect, canvas)
+      canvas.toBlob(
+        (blob) => {
+          releaseCanvas(canvas)
+          if (!current) return
+          if (!blob) return fail()
+          setRenderFailed(false)
           setFile(
             new File([blob], `${slug}-now-${stamp(shot.takenAt)}.jpg`, {
               type: "image/jpeg",
             })
           )
-      },
-      "image/jpeg",
-      0.92
-    )
+        },
+        "image/jpeg",
+        0.92
+      )
+    } catch {
+      releaseCanvas(canvas)
+      fail()
+    }
     return () => {
       current = false
       setFile(null)
     }
-  }, [phase, crop, aspect, shot, slug])
+  }, [crop, aspect, shot, slug, renders])
 
   const save = async () => {
     if (!file) return
@@ -240,7 +269,7 @@ export function RephotoReview({
         )}
         <Link
           href={`/${slug}`}
-          aria-label="Close camera"
+          aria-label="Close"
           className="absolute left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] grid size-11 place-items-center rounded-full bg-black/40"
         >
           <X className="size-5" aria-hidden />
@@ -260,7 +289,7 @@ export function RephotoReview({
           <Link
             href={`/${slug}`}
             data-testid="rephoto-done"
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-6 text-base font-medium text-black"
+            className="inline-flex min-h-11 min-w-32 items-center justify-center gap-2 rounded-md bg-white px-6 text-base font-medium text-black"
           >
             <Check className="size-4" aria-hidden />
             Done
@@ -269,12 +298,13 @@ export function RephotoReview({
           <button
             type="button"
             data-testid="rephoto-save"
-            onClick={() => void save()}
-            disabled={!file}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-6 text-base font-medium text-black disabled:opacity-60"
+            onClick={() =>
+              renderFailed ? setRenders((n) => n + 1) : void save()
+            }
+            disabled={!file && !renderFailed}
+            className="inline-flex min-h-11 min-w-32 items-center justify-center rounded-md bg-white px-6 text-base font-medium text-black disabled:opacity-60"
           >
-            {!file && <Loader2 className="size-4 animate-spin" aria-hidden />}
-            {canShare ? "Share" : "Save photo"}
+            {renderFailed ? "Try again" : canShare ? "Share" : "Save photo"}
           </button>
         )}
       </div>
