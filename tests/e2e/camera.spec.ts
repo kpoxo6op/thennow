@@ -239,6 +239,14 @@ test.describe("the rephotography camera", () => {
     expect(response.status()).toBe(400)
   })
 
+  test("the matcher serves only this site's own pages", async ({ request }) => {
+    const response = await request.post("/api/align", {
+      data: Buffer.alloc(10),
+      headers: { "sec-fetch-site": "cross-site" },
+    })
+    expect(response.status()).toBe(429)
+  })
+
   test("a quick tap hides and shows the archive photograph over the shot", async ({
     page,
   }) => {

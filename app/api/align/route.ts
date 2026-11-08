@@ -35,6 +35,35 @@ function model() {
   return session
 }
 
+// Matching costs seconds of CPU here, so it is for this site's own camera only, and each visitor
+// gets a camera's worth of shots: at most LIMIT in WINDOW_MS. Counts are per function instance.
+const LIMIT = 20
+const WINDOW_MS = 10 * 60_000
+const recent = new Map<string, number[]>()
+
+function allowed(request: Request) {
+  const site = request.headers.get("sec-fetch-site")
+  if (site && site !== "same-origin") return false
+  const ip =
+    request.headers.get("x-real-ip") ??
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+    "unknown"
+  const now = Date.now()
+  const times = (recent.get(ip) ?? []).filter((t) => now - t < WINDOW_MS)
+  if (times.length >= LIMIT) {
+    recent.set(ip, times)
+    return false
+  }
+  times.push(now)
+  recent.set(ip, times)
+  if (recent.size > 10_000) {
+    for (const [key, list] of recent) {
+      if (list.every((t) => now - t >= WINDOW_MS)) recent.delete(key)
+    }
+  }
+  return true
+}
+
 function tensor(bytes: Uint8Array) {
   const data = new Float32Array(MATCH_BYTES)
   for (let i = 0; i < data.length; i++) data[i] = bytes[i] / 255
@@ -42,6 +71,9 @@ function tensor(bytes: Uint8Array) {
 }
 
 export async function POST(request: Request) {
+  if (!allowed(request)) {
+    return Response.json({ error: "Too many requests" }, { status: 429 })
+  }
   const body = new Uint8Array(await request.arrayBuffer())
   if (body.length !== MATCH_BYTES * 2) {
     return Response.json(
