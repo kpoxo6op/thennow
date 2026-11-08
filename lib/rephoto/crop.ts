@@ -14,7 +14,7 @@ export type Crop = {
 
 export type Size = { width: number; height: number }
 
-export function corners(crop: Crop, aspect: number) {
+function corners(crop: Crop, aspect: number) {
   const cos = Math.cos(crop.rotation)
   const sin = Math.sin(crop.rotation)
   const hw = crop.width / 2
@@ -46,7 +46,7 @@ export function fits(crop: Crop, aspect: number, photo: Size) {
 }
 
 // The biggest unturned rectangle of the archive's shape that fits in the photograph, centred.
-export function centredCrop(aspect: number, photo: Size): Crop {
+function centredCrop(aspect: number, photo: Size): Crop {
   const width = Math.min(photo.width, photo.height / aspect)
   return { cx: photo.width / 2, cy: photo.height / 2, width, rotation: 0 }
 }
@@ -63,7 +63,7 @@ export function shrinkToFit(crop: Crop, aspect: number, photo: Size): Crop {
   return next
 }
 
-export const MAX_OUTPUT_WIDTH = 4096
+const MAX_OUTPUT_WIDTH = 4096
 
 // Hands a canvas's memory back straight away; iPhone otherwise holds it until much later.
 export function releaseCanvas(canvas: HTMLCanvasElement) {
@@ -71,7 +71,7 @@ export function releaseCanvas(canvas: HTMLCanvasElement) {
   canvas.height = 0
 }
 
-export function outputSize(crop: Crop, aspect: number): Size {
+function outputSize(crop: Crop, aspect: number): Size {
   const width = Math.round(Math.min(MAX_OUTPUT_WIDTH, crop.width))
   return { width, height: Math.round(width * aspect) }
 }

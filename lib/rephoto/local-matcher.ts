@@ -86,6 +86,15 @@ export function localMatcherReady() {
   return ready
 }
 
+function aborted(signal: AbortSignal) {
+  return new Promise<never>((_, reject) => {
+    if (signal.aborted) reject(signal.reason)
+    signal.addEventListener("abort", () => reject(signal.reason), {
+      once: true,
+    })
+  })
+}
+
 // Matches on the phone. A shot that was given up on (Retake, or the server took over) is dropped
 // before it reaches the graphics chip.
 export async function matchLocally(
@@ -96,15 +105,7 @@ export async function matchLocally(
   const loaded = prepareLocalMatcher()
   if (!loaded) throw new Error("No WebGPU")
   // Giving up doesn't wait for the download; the download carries on for the next shot.
-  const { ort, session } = await Promise.race([
-    loaded,
-    new Promise<never>((_, reject) => {
-      if (signal.aborted) reject(signal.reason)
-      signal.addEventListener("abort", () => reject(signal.reason), {
-        once: true,
-      })
-    }),
-  ])
+  const { ort, session } = await Promise.race([loaded, aborted(signal)])
   signal.throwIfAborted()
   const tensor = (bytes: Uint8Array) => {
     const data = new Float32Array(MATCH_BYTES)
@@ -118,7 +119,8 @@ export async function matchLocally(
   queue = run.catch(() => {})
   let result
   try {
-    result = await run
+    // A caller that gives up stops waiting; the run itself can't be stopped and finishes alone.
+    result = await Promise.race([run, aborted(signal)])
   } catch (error) {
     if (signal.aborted) throw error
     // A lost graphics device (phone locked, memory pressure) gets a fresh session next time.

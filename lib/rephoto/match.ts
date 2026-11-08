@@ -1,7 +1,7 @@
 import type { Crop, Size } from "@/lib/rephoto/crop"
 
-// Lining a new shot up with the archive photograph, done by an image-matching model (LoFTR) on
-// the site's server. The model only says which spots in the two pictures show the same thing;
+// Lining a new shot up with the archive photograph, using an image-matching model (LoFTR). The
+// model only says which spots in the two pictures show the same thing;
 // the fit below turns that into one rotation, one zoom and one shift of a crop rectangle, so the
 // photograph itself is never changed.
 
@@ -25,7 +25,7 @@ export type Fit = {
 }
 
 // Fewer agreeing spots than this and the pictures are probably not of the same place.
-export const MIN_INLIERS = 15
+const MIN_INLIERS = 15
 // How far, in model cells, a matched spot may sit from the fit and still agree with it.
 const INLIER_CELLS = 0.6
 
@@ -136,7 +136,6 @@ export function cellsToMatches(
   mutual: ArrayLike<number>
 ): Match[] {
   const columns = MATCH_WIDTH / MATCH_CELL
-  const rows = MATCH_HEIGHT / MATCH_CELL
   const round = (n: number) => Math.round(n * 10000) / 10000
   const matches: Match[] = []
   for (let i = 0; i < confidence.length; i++) {

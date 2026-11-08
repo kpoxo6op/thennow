@@ -1,83 +1,60 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Smartphone, X } from "lucide-react"
 
-import { releaseCanvas, shrinkToFit } from "@/lib/rephoto/crop"
-import { prepareLocalMatcher } from "@/lib/rephoto/local-matcher"
-import { edgeOverlay, loadImage } from "@/lib/rephoto/pixels"
+import { align, prepareArchive, type Archive } from "@/lib/rephoto/align"
+import { fits, releaseCanvas, shrinkToFit, type Crop } from "@/lib/rephoto/crop"
 import {
-  askForMotion,
-  needsMotionPermission,
-  screenAngle,
-  tiltFromGravity,
-} from "@/lib/rephoto/tilt"
+  canMatchLocally,
+  localMatcherReady,
+  prepareLocalMatcher,
+} from "@/lib/rephoto/local-matcher"
+import { loadImage } from "@/lib/rephoto/pixels"
+import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
 interface Props {
   name: string
   slug: string
   thenSrc: string
-  // The archive photograph's height over its width.
+  // Height over width, as listed; the file's own shape replaces it once loaded.
   aspect: number
 }
 
-type Ghost = "photo" | "edges" | "off"
 type Box = { left: number; top: number; width: number; height: number }
 
-// The archive frame sits a little inside the camera's view, so there is room to turn and slide
-// the crop afterwards without running off the real photograph.
+// The resting guide sits a little inside the camera's view, leaving room to turn the crop.
 const GHOST_FILL = 0.9
-const GHOSTS: Ghost[] = ["photo", "edges", "off"]
-// Within this the phone counts as level, and the guide line says so.
-const LEVEL_RADIANS = (0.5 * Math.PI) / 180
-// Beyond this the phone is pointed at the ground or sky, or the reading is not to be trusted.
+const GHOST_OPACITY = 0.4
 const MAX_TILT_RADIANS = (15 * Math.PI) / 180
 
-function fit(
-  aspect: number,
-  width: number,
-  height: number,
-  fill = 1
-): { width: number; height: number } {
+function fit(aspect: number, width: number, height: number, fill = 1) {
   const w = Math.min(width, height / aspect) * fill
   return { width: w, height: w * aspect }
 }
 
 function explain(error: unknown) {
   const name = error instanceof DOMException ? error.name : ""
-  if (
-    typeof navigator !== "undefined" &&
-    !navigator.mediaDevices?.getUserMedia
-  ) {
-    return "This browser can't open the camera here. Open thennow.nz over https in Safari or Chrome."
-  }
-  if (name === "NotAllowedError" || name === "SecurityError") {
-    return "Camera access was turned down. Allow the camera for this site in your browser settings, then try again."
-  }
-  if (name === "NotFoundError" || name === "OverconstrainedError") {
-    return "No camera was found on this device."
-  }
-  if (name === "NotReadableError") {
-    return "Another app is using the camera. Close it, then try again."
-  }
-  return "The camera didn't start. Try again."
+  if (name === "NotAllowedError" || name === "SecurityError")
+    return "Allow camera access in your browser settings."
+  if (name === "NotFoundError" || name === "OverconstrainedError")
+    return "No camera found."
+  if (name === "NotReadableError")
+    return "Camera unavailable. Close other camera apps."
+  if (!navigator.mediaDevices?.getUserMedia)
+    return "Open this page in Safari or Chrome."
+  return "Couldn’t open camera."
 }
 
 async function openCamera() {
   const attempts: MediaStreamConstraints[] = [
     {
       audio: false,
+      // Old photographs are near 4:3; a 16:9 stream would throw away the sensor's top and bottom.
       video: {
         facingMode: { ideal: "environment" },
-        // Photographs are near 4:3; a 16:9 stream would throw away the sensor's top and bottom.
         aspectRatio: { ideal: 4 / 3 },
         width: { ideal: 4032 },
         height: { ideal: 3024 },
@@ -99,15 +76,13 @@ async function openCamera() {
   throw lastError
 }
 
-// The video frame on screen at the moment of the tap: exactly what was lined up. A browser's
-// full-resolution still can use a wider view than the preview, which would move the framing.
+// The video frame itself, not a full-resolution still: some phones' stills see a wider view than
+// the preview, which would move the framing.
 function grabFrame(video: HTMLVideoElement) {
   const canvas = document.createElement("canvas")
   canvas.width = video.videoWidth
   canvas.height = video.videoHeight
-  const context = canvas.getContext("2d")
-  if (!context) throw new Error("No 2D canvas")
-  context.drawImage(video, 0, 0, canvas.width, canvas.height)
+  canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height)
   return canvas
 }
 
@@ -117,43 +92,24 @@ export function RephotoCamera({
   thenSrc,
   aspect: listedAspect,
 }: Props) {
-  // The archive file's own shape wins over the listed size, which is off for a few places.
   const [aspect, setAspect] = useState(listedAspect)
   const stageRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const archiveRef = useRef<Archive | null>(null)
+  const tiltRef = useRef<number | null>(null)
+  const attempt = useRef(0)
   const [status, setStatus] = useState<"starting" | "live" | "error">(
     "starting"
   )
   const [error, setError] = useState("")
-  const [ghost, setGhost] = useState<Ghost>("photo")
-  const [edges, setEdges] = useState<string | null>(null)
   const [stage, setStage] = useState({ width: 0, height: 0 })
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 })
   const [shot, setShot] = useState<Shot | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [hint, setHint] = useState(true)
-  const [tilt, setTilt] = useState<number | null>(null)
-  const tiltRef = useRef<number | null>(null)
-  const askedMotion = useRef(false)
-  const attempt = useRef(0)
+  const [peek, setPeek] = useState(false)
+  // Where the archive view sits in the live picture, once the matcher has found it.
+  const [lock, setLock] = useState<{ crop: Crop; steady: boolean } | null>(null)
 
-  // The page is the camera: nothing scrolls behind it, and a pinch moves the photograph, never
-  // the page (iPhone Safari zooms the page on its own gesture events otherwise).
-  useLayoutEffect(() => {
-    const { overflow } = document.documentElement.style
-    document.documentElement.style.overflow = "hidden"
-    const block = (event: Event) => event.preventDefault()
-    document.addEventListener("gesturestart", block, { passive: false })
-    document.addEventListener("gesturechange", block, { passive: false })
-    return () => {
-      document.documentElement.style.overflow = overflow
-      document.removeEventListener("gesturestart", block)
-      document.removeEventListener("gesturechange", block)
-    }
-  }, [])
-
-  // The matcher loads while the shot is being framed, so it is ready at the shutter.
   useEffect(() => {
     prepareLocalMatcher()?.catch(() => {})
   }, [])
@@ -162,10 +118,9 @@ export function RephotoCamera({
     let cancelled = false
     loadImage(thenSrc)
       .then((image) => {
-        if (cancelled) return
-        if (image.naturalWidth > 0)
-          setAspect(image.naturalHeight / image.naturalWidth)
-        setEdges(edgeOverlay(image))
+        if (cancelled || !image.naturalWidth) return
+        setAspect(image.naturalHeight / image.naturalWidth)
+        archiveRef.current = prepareArchive(image)
       })
       .catch(() => {})
     return () => {
@@ -173,48 +128,25 @@ export function RephotoCamera({
     }
   }, [thenSrc])
 
-  useEffect(() => {
-    const timer = setTimeout(() => setHint(false), 4500)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // The phone's lean, smoothed, from gravity. It levels the shot when it is taken.
+  // The phone's lean, from gravity, levels a shot the matcher can't place. Read only where the
+  // browser gives it without asking: an iPhone permission prompt isn't worth the interruption.
   useEffect(() => {
     let smooth: number | null = null
-    let shown = 0
     const onMotion = (event: DeviceMotionEvent) => {
       const g = event.accelerationIncludingGravity
       if (!g || g.x == null || g.y == null || g.z == null) return
-      // Held flat, the screen has no up and down to level against.
       if (Math.hypot(g.x, g.y) < Math.abs(g.z) * 1.2) {
+        // Held flat, the screen has no up and down.
         smooth = null
-        tiltRef.current = null
       } else {
         const angle = tiltFromGravity(g.x, g.y, screenAngle())
         smooth = smooth == null ? angle : smooth + (angle - smooth) * 0.2
-        tiltRef.current = Math.abs(smooth) < MAX_TILT_RADIANS ? smooth : null
       }
-      const now = performance.now()
-      if (now - shown > 80) {
-        shown = now
-        setTilt(tiltRef.current)
-      }
+      tiltRef.current =
+        smooth != null && Math.abs(smooth) < MAX_TILT_RADIANS ? smooth : null
     }
     window.addEventListener("devicemotion", onMotion)
     return () => window.removeEventListener("devicemotion", onMotion)
-  }, [])
-
-  const askMotionOnce = () => {
-    if (askedMotion.current || !needsMotionPermission()) return
-    askedMotion.current = true
-    void askForMotion().then((answer) => {
-      if (answer === "retry") askedMotion.current = false
-    })
-  }
-
-  // Any start still waiting on the camera will let it go when it arrives.
-  const cancelStarts = useCallback(() => {
-    attempt.current++
   }, [])
 
   const stop = useCallback(() => {
@@ -223,15 +155,11 @@ export function RephotoCamera({
   }, [])
 
   const start = useCallback(async () => {
-    // Only the latest start may keep its camera; an older one that finishes late lets go.
+    // Only the latest start keeps its camera; an older one that finishes late lets it go.
     const mine = ++attempt.current
     stop()
     setStatus("starting")
-    setError("")
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("no camera api")
-      }
       const stream = await openCamera()
       const video = videoRef.current
       if (mine !== attempt.current || !video) {
@@ -243,18 +171,19 @@ export function RephotoCamera({
       try {
         await video.play()
       } catch {
+        // Some browsers only play after a tap; the button is that tap.
         if (mine !== attempt.current) return
-        // Some browsers only play after a tap; Try again is that tap.
-        setError("Tap Try again to show the camera.")
+        stop()
+        setError("")
         setStatus("error")
         return
       }
       if (mine !== attempt.current) return
       setStatus("live")
-      // The camera can be taken away: the screen locks, a call comes in, another app needs it.
+      // The screen locked, a call came in, another app took the camera.
       stream.getVideoTracks()[0]?.addEventListener("ended", () => {
         if (mine !== attempt.current) return
-        setError("The camera stopped. Try again.")
+        setError("Camera paused.")
         setStatus("error")
       })
     } catch (caught) {
@@ -265,40 +194,41 @@ export function RephotoCamera({
   }, [stop])
 
   useEffect(() => {
-    if (shot) {
-      return
-    }
-    // Starts after paint: the camera may ask permission straight away.
-    const timer = setTimeout(() => {
-      void start()
-    }, 0)
+    if (shot) return
+    const attempts = attempt
+    const timer = setTimeout(() => void start(), 0)
     let lock: { release: () => Promise<void> } | null = null
+    let ended = false
     const wake = (
       navigator as unknown as {
         wakeLock?: { request: (t: "screen") => Promise<typeof lock> }
       }
     ).wakeLock
-    wake
-      ?.request("screen")
-      .then((sentinel) => {
-        lock = sentinel
-      })
-      .catch(() => {})
-    // Back from the background, the camera may have been stopped behind the page's back.
+    const keepAwake = () =>
+      wake
+        ?.request("screen")
+        .then((sentinel) => {
+          if (ended) void sentinel?.release()
+          else lock = sentinel
+        })
+        .catch(() => {})
+    void keepAwake()
     const onVisible = () => {
       if (document.visibilityState !== "visible") return
+      void keepAwake()
       const track = streamRef.current?.getVideoTracks()[0]
       if (!track || track.readyState === "ended" || track.muted) void start()
     }
     document.addEventListener("visibilitychange", onVisible)
     return () => {
+      ended = true
       clearTimeout(timer)
       document.removeEventListener("visibilitychange", onVisible)
-      cancelStarts()
+      attempts.current++
       stop()
       lock?.release().catch(() => {})
     }
-  }, [shot, start, stop, cancelStarts])
+  }, [shot, start, stop])
 
   useEffect(() => {
     const element = stageRef.current
@@ -313,70 +243,128 @@ export function RephotoCamera({
     return () => observer.disconnect()
   }, [shot])
 
+  // Live: about once a second, the matcher looks for the archive view in the preview and the old
+  // photograph moves onto it. Phones without on-device matching keep the resting guide.
+  useEffect(() => {
+    if (shot || status !== "live" || !canMatchLocally()) return
+    const controller = new AbortController()
+    const began = performance.now()
+    let previous: Crop | null = null
+    let misses = 0
+    const loop = async () => {
+      while (!controller.signal.aborted) {
+        const started = performance.now()
+        const video = videoRef.current
+        const archive = archiveRef.current
+        if (
+          video?.videoWidth &&
+          archive &&
+          localMatcherReady() &&
+          document.visibilityState === "visible"
+        ) {
+          const photo = { width: video.videoWidth, height: video.videoHeight }
+          const found = await align(archive, video, photo, controller.signal, {
+            server: false,
+          }).catch(() => null)
+          if (controller.signal.aborted) return
+          if (found) {
+            misses = 0
+            const near =
+              previous != null &&
+              Math.hypot(
+                found.crop.cx - previous.cx,
+                found.crop.cy - previous.cy
+              ) <
+                found.crop.width * 0.05 &&
+              Math.abs(found.crop.width / previous.width - 1) < 0.05
+            previous = found.crop
+            setLock({
+              crop: found.crop,
+              steady: near && fits(found.crop, archive.aspect, photo),
+            })
+          } else if (++misses >= 2) {
+            previous = null
+            setLock(null)
+          }
+        }
+        // Gentler on the battery after the first minute.
+        const pace = performance.now() - began > 60_000 ? 2000 : 700
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.max(0, pace - (performance.now() - started)))
+        )
+      }
+    }
+    void loop()
+    return () => {
+      controller.abort()
+      setLock(null)
+    }
+  }, [shot, status])
+
   const onVideoSize = () => {
     const video = videoRef.current
     if (video?.videoWidth)
       setVideoSize({ width: video.videoWidth, height: video.videoHeight })
   }
 
-  // Where the camera picture and the archive frame sit on screen.
-  let view: Box | null = null
-  let frame: Box | null = null
+  // Where the camera picture and the archive view sit on screen.
+  let ghost: (Box & { rotation: number }) | null = null
   if (videoSize.width && stage.width) {
     const shown = fit(
       videoSize.height / videoSize.width,
       stage.width,
       stage.height
     )
-    view = {
+    const view = {
       ...shown,
       left: (stage.width - shown.width) / 2,
       top: (stage.height - shown.height) / 2,
     }
-    const target = fit(aspect, view.width, view.height, GHOST_FILL)
-    frame = {
-      ...target,
-      left: view.left + (view.width - target.width) / 2,
-      top: view.top + (view.height - target.height) / 2,
+    const scale = view.width / videoSize.width
+    if (lock) {
+      const width = lock.crop.width * scale
+      ghost = {
+        width,
+        height: width * aspect,
+        left: view.left + lock.crop.cx * scale - width / 2,
+        top: view.top + lock.crop.cy * scale - (width * aspect) / 2,
+        rotation: lock.crop.rotation,
+      }
+    } else {
+      const target = fit(aspect, view.width, view.height, GHOST_FILL)
+      ghost = {
+        ...target,
+        left: view.left + (view.width - target.width) / 2,
+        top: view.top + (view.height - target.height) / 2,
+        rotation: 0,
+      }
     }
   }
 
-  // A landscape archive photograph wants a sideways phone, and a portrait one an upright phone.
   const turnSideways = aspect < 1 && stage.height > stage.width
   const holdUpright = aspect > 1 && stage.width > stage.height
 
-  const capture = async () => {
+  const capture = () => {
     const video = videoRef.current
-    if (!video || !video.videoWidth || busy) return
-    // The moment of the tap: its frame and its lean, before the phone is lowered.
+    if (!video?.videoWidth) return
     const lean = tiltRef.current
     const canvas = grabFrame(video)
-    setBusy(true)
-    try {
-      const photo = { width: canvas.width, height: canvas.height }
-      // The framing the person lined up against the guide.
-      const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
-      // Level with the horizon, as the archive photograph almost certainly was.
-      const rotation = lean == null ? 0 : -lean
-      const crop = shrinkToFit(
-        {
-          cx: photo.width / 2,
-          cy: photo.height / 2,
-          width: target.width,
-          rotation,
-        },
-        aspect,
-        photo
-      )
-      const uncropped = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.95)
-      )
-      cancelStarts()
-      stop()
-      setShot({ canvas, uncropped, crop, takenAt: new Date() })
-    } finally {
-      setBusy(false)
-    }
+    const photo = { width: canvas.width, height: canvas.height }
+    // If the matcher can't place the shot, it keeps the framing it was taken with, levelled.
+    const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
+    const crop = shrinkToFit(
+      {
+        cx: photo.width / 2,
+        cy: photo.height / 2,
+        width: target.width,
+        rotation: lean == null ? 0 : -lean,
+      },
+      aspect,
+      photo
+    )
+    attempt.current++
+    stop()
+    setShot({ canvas, crop, takenAt: new Date() })
   }
 
   if (shot) {
@@ -388,7 +376,7 @@ export function RephotoCamera({
         aspect={aspect}
         shot={shot}
         onRetake={() => {
-          // iPhone frees canvas memory late; give the old shot's back at once.
+          // iPhone frees canvas memory late; hand it back now.
           releaseCanvas(shot.canvas)
           setShot(null)
         }}
@@ -396,22 +384,21 @@ export function RephotoCamera({
     )
   }
 
-  const nextGhost = () => {
-    setGhost((current) => GHOSTS[(GHOSTS.indexOf(current) + 1) % GHOSTS.length])
-  }
-
   return (
     <div
       data-testid="rephoto-camera"
       className="fixed inset-0 z-[60] flex flex-col bg-black text-white landscape:flex-row"
-      onClickCapture={askMotionOnce}
     >
       <div
         ref={stageRef}
-        className="relative min-h-0 flex-1 touch-none select-none overflow-hidden"
-        onClick={nextGhost}
         data-testid="rephoto-stage"
-        data-ghost={ghost}
+        data-lock={lock ? (lock.steady ? "steady" : "found") : "none"}
+        className="relative min-h-0 flex-1 touch-none select-none overflow-hidden [-webkit-touch-callout:none]"
+        onPointerDown={() => setPeek(true)}
+        onPointerUp={() => setPeek(false)}
+        onPointerCancel={() => setPeek(false)}
+        onPointerLeave={() => setPeek(false)}
+        onContextMenu={(event) => event.preventDefault()}
       >
         <video
           ref={videoRef}
@@ -423,111 +410,67 @@ export function RephotoCamera({
           onLoadedMetadata={onVideoSize}
           onResize={onVideoSize}
         />
-        {frame && ghost !== "off" && (
-          // A plain img: the archive photograph is drawn over live video at an exact box.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={ghost === "edges" && edges ? edges : thenSrc}
-            alt=""
-            aria-hidden
-            data-testid="rephoto-ghost"
-            draggable={false}
-            className="pointer-events-none absolute"
-            style={{
-              left: frame.left,
-              top: frame.top,
-              width: frame.width,
-              height: frame.height,
-              opacity: ghost === "photo" ? 0.5 : 1,
-              filter:
-                ghost === "edges"
-                  ? "drop-shadow(0 0 1px rgba(0,0,0,0.9))"
-                  : undefined,
-            }}
-          />
-        )}
-        {frame && (
+        {ghost && (
           <div
-            aria-hidden
             data-testid="rephoto-frame"
-            className="pointer-events-none absolute border border-white/70"
+            className="pointer-events-none absolute transition-[left,top,width,height,transform] duration-300 ease-out motion-reduce:transition-none"
             style={{
-              left: frame.left,
-              top: frame.top,
-              width: frame.width,
-              height: frame.height,
+              left: ghost.left,
+              top: ghost.top,
+              width: ghost.width,
+              height: ghost.height,
+              transform: `rotate(${ghost.rotation}rad)`,
             }}
-          />
-        )}
-
-        {frame && tilt != null && (
-          <div
-            aria-hidden
-            data-testid="rephoto-level"
-            data-level={Math.abs(tilt) < LEVEL_RADIANS ? "true" : "false"}
-            className="pointer-events-none absolute h-0.5 rounded-full shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
-            style={{
-              width: frame.width * 0.28,
-              left: frame.left + frame.width * 0.36,
-              top: frame.top + frame.height / 2 - 1,
-              transform: `rotate(${-tilt}rad)`,
-              background:
-                Math.abs(tilt) < LEVEL_RADIANS
-                  ? "hsl(var(--accent))"
-                  : "rgba(255,255,255,0.85)",
-            }}
-          />
-        )}
-
-        {status === "starting" && (
-          <p className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-sm text-white/70">
-            Opening the camera…
-          </p>
-        )}
-        {status === "error" && (
-          <div
-            className="absolute inset-x-6 top-1/2 mx-auto max-w-sm -translate-y-1/2 text-center"
-            onClick={(event) => event.stopPropagation()}
           >
-            <p data-testid="rephoto-error" className="text-base leading-snug">
-              {error}
-            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={thenSrc}
+              alt=""
+              aria-hidden
+              draggable={false}
+              data-testid="rephoto-ghost"
+              className="size-full transition-opacity duration-150"
+              style={{ opacity: peek ? 0 : GHOST_OPACITY }}
+            />
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className="absolute inset-x-6 top-1/2 mx-auto max-w-xs -translate-y-1/2 text-center">
+            {error && (
+              <p data-testid="rephoto-error" className="mb-5 text-base">
+                {error}
+              </p>
+            )}
             <button
               type="button"
+              onPointerDown={(event) => event.stopPropagation()}
               onClick={() => void start()}
-              className="mt-5 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black"
+              className="rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black"
             >
-              Try again
+              {error ? "Try again" : "Start camera"}
             </button>
           </div>
         )}
 
-        {status === "live" && (hint || turnSideways || holdUpright) && (
+        {status === "live" && (turnSideways || holdUpright) && (
           <p
             data-testid="rephoto-hint"
-            className="pointer-events-none absolute inset-x-0 top-[max(1rem,env(safe-area-inset-top))] mx-auto w-fit max-w-[80%] rounded-full bg-black/55 px-4 py-2 text-center text-sm leading-snug"
+            className="pointer-events-none absolute inset-x-0 top-[max(1.25rem,env(safe-area-inset-top))] flex items-center justify-center gap-2 text-sm text-white/90 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]"
           >
-            {turnSideways || holdUpright ? (
-              <span className="inline-flex items-center gap-2">
-                <Smartphone
-                  className={turnSideways ? "size-4 rotate-90" : "size-4"}
-                  aria-hidden
-                />
-                {turnSideways
-                  ? "Turn the phone sideways"
-                  : "Hold the phone upright"}
-              </span>
-            ) : (
-              "Line the old photo up with the view, then shoot. Tap to change the guide."
-            )}
+            <Smartphone
+              className={turnSideways ? "size-4 rotate-90" : "size-4"}
+              aria-hidden
+            />
+            {turnSideways ? "Turn sideways" : "Hold upright"}
           </p>
         )}
 
         <Link
           href={`/${slug}`}
-          aria-label={`Close the camera and go back to ${name}`}
-          onClick={(event) => event.stopPropagation()}
-          className="absolute left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] grid size-11 place-items-center rounded-full bg-black/45"
+          aria-label="Close camera"
+          onPointerDown={(event) => event.stopPropagation()}
+          className="absolute left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] grid size-11 place-items-center rounded-full bg-black/40"
         >
           <X className="size-5" aria-hidden />
         </Link>
@@ -537,10 +480,12 @@ export function RephotoCamera({
         <button
           type="button"
           data-testid="rephoto-shutter"
-          aria-label="Take the photo"
-          disabled={status !== "live" || busy}
-          onClick={() => void capture()}
-          className="grid size-[4.5rem] place-items-center rounded-full border-4 border-white transition-transform active:scale-95 disabled:opacity-40"
+          aria-label="Take photo"
+          disabled={status !== "live"}
+          onClick={capture}
+          className={`grid size-[4.5rem] place-items-center rounded-full border-4 transition-[transform,border-color] duration-300 active:scale-95 disabled:opacity-40 ${
+            lock?.steady ? "border-accent" : "border-white"
+          }`}
         >
           <span className="size-14 rounded-full bg-white" />
         </button>

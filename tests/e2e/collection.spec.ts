@@ -578,7 +578,7 @@ test.describe("a place whose modern photograph is pending", () => {
       const response = await page.goto(`/${entry.slug}`)
       expect(response?.status()).toBe(200)
       await expect(page.getByRole("heading", { level: 1, name: entry.name })).toBeVisible()
-      await expect(page.getByTestId("pending-status")).toHaveText("Upcoming: modern photograph to come")
+      await expect(page.getByTestId("pending-status")).toHaveText("Upcoming")
       await expect(page.getByTestId("pending-photograph")).toHaveAttribute("src", new RegExp(encodeURIComponent(entry.b_imageUrl)))
 
       await expect(page.getByTestId("compare-stage")).toHaveCount(0)

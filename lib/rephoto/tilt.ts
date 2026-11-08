@@ -2,8 +2,6 @@
 // phone's top leans clockwise as the person sees the screen. Old photographs were nearly always
 // taken level, so this is the one correction that needs no guessing.
 
-export type Tilt = { angle: number; at: number }
-
 // Gravity in the device's own axes, as the browser reports it with gravity included.
 export function tiltFromGravity(
   x: number,
@@ -32,27 +30,4 @@ export function screenAngle() {
   }
   const legacy = (globalThis as unknown as { orientation?: number }).orientation
   return typeof legacy === "number" ? legacy : 0
-}
-
-type PermissionApi = { requestPermission?: () => Promise<"granted" | "denied"> }
-
-// iPhone asks once, and only from a tap. "retry" means the browser did not count the event as a
-// tap, so the next one should ask again.
-export async function askForMotion(): Promise<"granted" | "denied" | "retry"> {
-  const api = (globalThis as unknown as { DeviceMotionEvent?: PermissionApi })
-    .DeviceMotionEvent
-  if (api?.requestPermission) {
-    try {
-      return await api.requestPermission()
-    } catch {
-      return "retry"
-    }
-  }
-  return "granted"
-}
-
-export function needsMotionPermission() {
-  const api = (globalThis as unknown as { DeviceMotionEvent?: PermissionApi })
-    .DeviceMotionEvent
-  return Boolean(api?.requestPermission)
 }
