@@ -16,6 +16,7 @@ const ORT_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/di
 
 type Tensor<T = number> = { data: ArrayLike<T> }
 type Session = {
+  release?: () => Promise<void>
   run: (feeds: Record<string, unknown>) => Promise<{
     match: Tensor<number | bigint>
     confidence: Tensor
@@ -50,13 +51,14 @@ export function canMatchLocally() {
     !unsupported &&
     typeof navigator !== "undefined" &&
     !saveData() &&
-    typeof navigator !== "undefined" &&
     "gpu" in navigator &&
     !!navigator.gpu
   )
 }
 
 function reset() {
+  // A session given up on hands its graphics memory back, as far as it still can.
+  loading?.then(({ session }) => session.release?.()).catch(() => {})
   loading = null
   ready = false
   running = null
@@ -66,13 +68,14 @@ function reset() {
 // The run on the graphics chip right now, if any, and since when.
 let running: { since: number } | null = null
 
-function within<T>(promise: Promise<T>, ms: number) {
+function timeLimit<T>(promise: Promise<T>, ms: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined
   return Promise.race([
     promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Timed out")), ms)
-    ),
-  ])
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Timed out")), ms)
+    }),
+  ]).finally(() => clearTimeout(timer))
 }
 
 // Starts loading the runtime and the model, once. Safe to call again.
@@ -108,7 +111,12 @@ export function prepareLocalMatcher() {
       MATCH_WIDTH,
     ])
     // A warm-up that never finishes counts as a failed load, so the next try starts afresh.
-    await within(session.run({ image0: blank, image1: blank }), 60_000)
+    try {
+      await timeLimit(session.run({ image0: blank, image1: blank }), 60_000)
+    } catch (error) {
+      void session.release?.().catch(() => {})
+      throw error
+    }
     ready = true
     return { ort, session }
   })()

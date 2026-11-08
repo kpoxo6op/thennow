@@ -98,6 +98,8 @@ export function RephotoCamera({
   const streamRef = useRef<MediaStream | null>(null)
   const archiveRef = useRef<Archive | null>(null)
   const tiltRef = useRef<number | null>(null)
+  // How long the latest live placement stays good for: one round of matching and a bit more.
+  const lockLife = useRef(2500)
   const attempt = useRef(0)
   const [status, setStatus] = useState<"starting" | "live" | "error">(
     "starting"
@@ -345,6 +347,7 @@ export function RephotoCamera({
         }
         // Gentler on the battery after the first minute.
         const pace = performance.now() - began > 60_000 ? 2000 : 700
+        lockLife.current = pace * 1.5 + 1500
         await new Promise((resolve) =>
           setTimeout(resolve, Math.max(0, pace - (performance.now() - started)))
         )
@@ -409,7 +412,9 @@ export function RephotoCamera({
     // The shot starts where the old photograph sat on screen: where the matcher had just put it
     // and held it a moment ago, or else the resting guide, levelled. The review refines it from the full picture.
     const held =
-      lock?.held && performance.now() - lock.at < 2500 ? lock.crop : null
+      lock?.held && performance.now() - lock.at < lockLife.current
+        ? lock.crop
+        : null
     const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
     const crop =
       held ??
