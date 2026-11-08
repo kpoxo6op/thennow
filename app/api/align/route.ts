@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises"
+import { availableParallelism } from "node:os"
 import path from "node:path"
 import * as ort from "onnxruntime-node"
 
@@ -27,7 +28,11 @@ let session: Promise<ort.InferenceSession> | null = null
 
 function model() {
   session ??= readFile(MODEL).then((bytes) =>
-    ort.InferenceSession.create(bytes, { logSeverityLevel: 3 })
+    ort.InferenceSession.create(bytes, {
+      logSeverityLevel: 3,
+      // One thread per CPU the function actually has, not per core of the machine under it.
+      intraOpNumThreads: Math.max(1, availableParallelism()),
+    })
   )
   session.catch(() => {
     session = null
@@ -50,6 +55,7 @@ export async function POST(request: Request) {
     )
   }
 
+  const started = performance.now()
   const result = await (
     await model()
   ).run({
@@ -77,6 +83,12 @@ export async function POST(request: Request) {
 
   return Response.json(
     { matches },
-    { headers: { "cache-control": "no-store" } }
+    {
+      headers: {
+        "cache-control": "no-store",
+        "server-timing": `match;dur=${Math.round(performance.now() - started)}`,
+        "x-cpus": String(availableParallelism()),
+      },
+    }
   )
 }
