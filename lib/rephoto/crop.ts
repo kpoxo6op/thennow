@@ -1,6 +1,6 @@
 // The only edit a rephotograph gets: a rectangle laid over the real shot, turned and sized to
 // frame the archive view. Rendering it rotates and scales the pixels uniformly and crops; nothing
-// is stretched, warped, filled in or generated, and the rectangle may never leave the photograph.
+// is stretched, warped or generated. Where the rectangle reaches past the shot, it stays black.
 
 export type Crop = {
   // Centre of the rectangle, in photograph pixels.
@@ -25,7 +25,10 @@ export function corners(crop: Crop, aspect: number) {
     [hw, -hh],
     [hw, hh],
     [-hw, hh],
-  ].map(([x, y]) => ({ x: crop.cx + cos * x - sin * y, y: crop.cy + sin * x + cos * y }))
+  ].map(([x, y]) => ({
+    x: crop.cx + cos * x - sin * y,
+    y: crop.cy + sin * x + cos * y,
+  }))
 }
 
 export function fits(crop: Crop, aspect: number, photo: Size) {
@@ -33,56 +36,13 @@ export function fits(crop: Crop, aspect: number, photo: Size) {
   return (
     crop.width > 16 &&
     corners(crop, aspect).every(
-      ({ x, y }) => x >= -slack && y >= -slack && x <= photo.width + slack && y <= photo.height + slack
+      ({ x, y }) =>
+        x >= -slack &&
+        y >= -slack &&
+        x <= photo.width + slack &&
+        y <= photo.height + slack
     )
   )
-}
-
-// Moves from a crop that fits towards a wanted one and stops at the photograph's edge,
-// so a gesture slides along the border instead of freezing.
-export function clampCrop(from: Crop, to: Crop, aspect: number, photo: Size): Crop {
-  if (![to.cx, to.cy, to.width, to.rotation].every(Number.isFinite)) {
-    return from
-  }
-  if (fits(to, aspect, photo)) {
-    return to
-  }
-
-  // Keep what fits of each change on its own, so a pinch at the edge still turns or pans.
-  let current = from
-  const parts: Array<(c: Crop) => Crop> = [
-    (c) => ({ ...c, width: to.width }),
-    (c) => ({ ...c, rotation: to.rotation }),
-    (c) => ({ ...c, cx: to.cx }),
-    (c) => ({ ...c, cy: to.cy }),
-  ]
-  for (const apply of parts) {
-    const target = apply(current)
-    if (fits(target, aspect, photo)) {
-      current = target
-      continue
-    }
-    let lo = 0
-    let hi = 1
-    for (let i = 0; i < 12; i++) {
-      const mid = (lo + hi) / 2
-      const trial = mix(current, target, mid)
-      if (fits(trial, aspect, photo)) lo = mid
-      else hi = mid
-    }
-    current = mix(current, target, lo)
-  }
-
-  return current
-}
-
-function mix(a: Crop, b: Crop, t: number): Crop {
-  return {
-    cx: a.cx + (b.cx - a.cx) * t,
-    cy: a.cy + (b.cy - a.cy) * t,
-    width: a.width + (b.width - a.width) * t,
-    rotation: a.rotation + (b.rotation - a.rotation) * t,
-  }
 }
 
 // The biggest unturned rectangle of the archive's shape that fits in the photograph, centred.
@@ -131,6 +91,8 @@ export function renderCrop(
     throw new Error("No 2D canvas")
   }
   const k = size.width / crop.width
+  context.fillStyle = "#000"
+  context.fillRect(0, 0, size.width, size.height)
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = "high"
   context.setTransform(1, 0, 0, 1, 0, 0)

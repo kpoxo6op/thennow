@@ -317,8 +317,7 @@ export function RephotoCamera({ name, slug, thenSrc, aspect }: Props) {
       const uncropped = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95))
       cancelStarts()
       stop()
-      const assist = new URLSearchParams(window.location.search).get("assist") === "1"
-      setShot({ canvas, uncropped, crop, takenAt: new Date(), assist })
+      setShot({ canvas, uncropped, crop, takenAt: new Date() })
     } finally {
       setBusy(false)
     }

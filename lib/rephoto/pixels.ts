@@ -1,6 +1,6 @@
-import type { Gray } from "@/lib/rephoto/align"
+type Gray = { data: Float32Array; width: number; height: number }
 
-// Browser helpers: read pixels out of images for the aligner, and draw the archive photograph's
+// Browser helpers: load images, and draw the archive photograph's
 // edges as a see-through guide. Nothing here touches the photograph that gets saved.
 
 export function loadImage(src: string) {
@@ -13,7 +13,12 @@ export function loadImage(src: string) {
   })
 }
 
-export function toGray(source: CanvasImageSource, sourceWidth: number, sourceHeight: number, width: number): Gray {
+export function toGray(
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
+  width: number
+): Gray {
   const height = Math.max(1, Math.round((sourceHeight / sourceWidth) * width))
   const canvas = document.createElement("canvas")
   canvas.width = width
@@ -41,7 +46,9 @@ export function edgeOverlay(image: HTMLImageElement, width = 900) {
   for (let y = 1; y < height - 1; y++) {
     for (let x = 1; x < width - 1; x++) {
       let sum = 0
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) sum += gray.data[(y + dy) * width + x + dx]
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++)
+          sum += gray.data[(y + dy) * width + x + dx]
       smooth[y * width + x] = sum / 9
     }
   }
