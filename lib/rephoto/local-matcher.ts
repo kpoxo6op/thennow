@@ -62,6 +62,7 @@ export function prepareLocalMatcher() {
     const bytes = new Uint8Array(await response.arrayBuffer())
     const session = await ort.InferenceSession.create(bytes, {
       executionProviders: ["webgpu"],
+      logSeverityLevel: 3,
     })
     // One run on blank pictures compiles the shaders while the shot is still being framed.
     const blank = new ort.Tensor("float32", new Float32Array(MATCH_BYTES), [
