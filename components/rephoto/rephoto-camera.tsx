@@ -82,6 +82,16 @@ function timeLimit<T>(
 const stopStream = (stream: MediaStream) =>
   stream.getTracks().forEach((track) => track.stop())
 
+// ?debug on the camera page lists each step of opening the camera, for phones without devtools.
+const debugLines: string[] = []
+let onDebug: (() => void) | null = null
+function debug(line: string) {
+  if (typeof location === "undefined" || !location.search.includes("debug"))
+    return
+  debugLines.push(`${(performance.now() / 1000).toFixed(1)} ${line}`)
+  onDebug?.()
+}
+
 async function openCamera(plain: boolean) {
   const all: MediaStreamConstraints[] = [
     {
@@ -99,14 +109,22 @@ async function openCamera(plain: boolean) {
   ]
   const attempts = plain ? all.slice(1) : all
   const allowed = await cameraAllowed()
+  debug(`allowed ${allowed}`)
   let lastError: unknown = null
   for (const constraints of attempts) {
     try {
+      debug(`getUserMedia ${JSON.stringify(constraints.video)}`)
       const request = navigator.mediaDevices.getUserMedia(constraints)
-      return allowed
+      const stream = allowed
         ? await timeLimit(request, 5000, stopStream)
         : await request
+      const track = stream.getVideoTracks()[0]
+      debug(
+        `stream ${track?.readyState} muted=${track?.muted} ${JSON.stringify(track?.getSettings())}`
+      )
+      return stream
     } catch (error) {
+      debug(`failed ${String(error)}`)
       lastError = error
       if (error instanceof DOMException && error.name === "NotAllowedError")
         break
@@ -154,6 +172,13 @@ export function RephotoCamera({
   }, [shot])
   // The camera's picture stopped for a moment (a notification, Control Center).
   const [interrupted, setInterrupted] = useState(false)
+  const [debugText, setDebugText] = useState("")
+  useEffect(() => {
+    onDebug = () => setDebugText(debugLines.join("\n"))
+    return () => {
+      onDebug = null
+    }
+  }, [])
   const [peek, setPeek] = useState(false)
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
@@ -229,8 +254,11 @@ export function RephotoCamera({
       streamRef.current = stream
       video.srcObject = stream
       try {
+        debug("play")
         await timeLimit(video.play(), 5000, () => {})
-      } catch {
+        debug(`playing ${video.videoWidth}x${video.videoHeight}`)
+      } catch (error) {
+        debug(`play failed ${String(error)} ready=${video.readyState}`)
         // Some browsers only play after a tap; the button is that tap. A camera that never
         // started is asked for plainly next time.
         plain.current = true
@@ -417,6 +445,7 @@ export function RephotoCamera({
 
   const onVideoSize = () => {
     const video = videoRef.current
+    debug(`video size ${video?.videoWidth}x${video?.videoHeight}`)
     if (video?.videoWidth)
       setVideoSize({ width: video.videoWidth, height: video.videoHeight })
   }
@@ -598,6 +627,11 @@ export function RephotoCamera({
           </p>
         )}
 
+        {debugText && (
+          <pre className="pointer-events-none absolute inset-x-2 top-16 whitespace-pre-wrap break-all text-[10px] text-lime-300">
+            {debugText}
+          </pre>
+        )}
         <Link
           href={`/${slug}`}
           aria-label="Close camera"
