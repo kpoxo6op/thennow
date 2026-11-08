@@ -48,8 +48,42 @@ function explain(error: unknown) {
   return "Couldn’t open camera."
 }
 
-async function openCamera() {
-  const attempts: MediaStreamConstraints[] = [
+// A camera already allowed answers in a moment; one that doesn't is stuck (seen in Firefox on
+// Android), so the next, plainer request is tried. While a permission prompt is up there's no limit.
+async function cameraAllowed() {
+  try {
+    const status = await navigator.permissions.query({
+      name: "camera" as PermissionName,
+    })
+    return status.state === "granted"
+  } catch {
+    return false
+  }
+}
+
+function timeLimit<T>(
+  promise: Promise<T>,
+  ms: number,
+  onLate: (value: T) => void
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        // A stream that turns up after giving up is let go.
+        void promise.then(onLate, () => {})
+        reject(new DOMException("Camera timed out", "TimeoutError"))
+      }, ms)
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
+
+const stopStream = (stream: MediaStream) =>
+  stream.getTracks().forEach((track) => track.stop())
+
+async function openCamera(plain: boolean) {
+  const all: MediaStreamConstraints[] = [
     {
       audio: false,
       // Old photographs are near 4:3; a 16:9 stream would throw away the sensor's top and bottom.
@@ -63,10 +97,15 @@ async function openCamera() {
     { audio: false, video: { facingMode: { ideal: "environment" } } },
     { audio: false, video: true },
   ]
+  const attempts = plain ? all.slice(1) : all
+  const allowed = await cameraAllowed()
   let lastError: unknown = null
   for (const constraints of attempts) {
     try {
-      return await navigator.mediaDevices.getUserMedia(constraints)
+      const request = navigator.mediaDevices.getUserMedia(constraints)
+      return allowed
+        ? await timeLimit(request, 5000, stopStream)
+        : await request
     } catch (error) {
       lastError = error
       if (error instanceof DOMException && error.name === "NotAllowedError")
@@ -101,6 +140,7 @@ export function RephotoCamera({
   // How long the latest live placement stays good for: one round of matching and a bit more.
   const lockLife = useRef(2500)
   const attempt = useRef(0)
+  const plain = useRef(false)
   const [status, setStatus] = useState<"starting" | "live" | "error">(
     "starting"
   )
@@ -180,7 +220,7 @@ export function RephotoCamera({
     stop()
     setStatus("starting")
     try {
-      const stream = await openCamera()
+      const stream = await openCamera(plain.current)
       const video = videoRef.current
       if (mine !== attempt.current || !video) {
         stream.getTracks().forEach((track) => track.stop())
@@ -189,9 +229,11 @@ export function RephotoCamera({
       streamRef.current = stream
       video.srcObject = stream
       try {
-        await video.play()
+        await timeLimit(video.play(), 5000, () => {})
       } catch {
-        // Some browsers only play after a tap; the button is that tap.
+        // Some browsers only play after a tap; the button is that tap. A camera that never
+        // started is asked for plainly next time.
+        plain.current = true
         if (mine !== attempt.current) return
         stop()
         setError("")
@@ -220,6 +262,7 @@ export function RephotoCamera({
         if (mine === attempt.current) setInterrupted(false)
       })
     } catch (caught) {
+      plain.current = true
       if (mine !== attempt.current) return
       setError(explain(caught))
       setStatus("error")

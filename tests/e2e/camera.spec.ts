@@ -426,6 +426,25 @@ test.describe("the rephotography camera", () => {
     expect((await readCrop(page)).rotation).toBeCloseTo(-lean, 3)
   })
 
+  test("a camera that never answers is asked again more plainly", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const real = navigator.mediaDevices.getUserMedia.bind(
+        navigator.mediaDevices
+      )
+      let calls = 0
+      navigator.permissions.query = async () =>
+        ({ state: "granted" }) as PermissionStatus
+      navigator.mediaDevices.getUserMedia = (constraints) =>
+        ++calls === 1 ? new Promise(() => {}) : real(constraints)
+    })
+    await page.goto("/mission-house/camera")
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled({
+      timeout: 15_000,
+    })
+  })
+
   test("a refused camera says how to fix it and offers to try again", async ({
     page,
   }) => {
