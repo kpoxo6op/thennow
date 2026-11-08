@@ -96,13 +96,27 @@ export function RephotoReview({
     const photo = { width: shot.canvas.width, height: shot.canvas.height }
     const run = async () => {
       try {
-        const then = await loadImage(thenSrc)
+        const then = await Promise.race([
+          loadImage(thenSrc),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Archive photo timed out")),
+              20_000
+            )
+          ),
+        ])
         const old = matchPixels(then, then.naturalWidth, then.naturalHeight)
         const now = matchPixels(shot.canvas, photo.width, photo.height)
         // The phone's own graphics chip first; the site's server if that isn't there or fails.
         let raw = null
         if (canMatchLocally()) {
-          raw = await matchLocally(old.gray, now.gray).catch(() => null)
+          // A model still downloading on a slow connection gets a while, then the server.
+          raw = await Promise.race([
+            matchLocally(old.gray, now.gray),
+            new Promise<null>((resolve) =>
+              setTimeout(() => resolve(null), 20_000)
+            ),
+          ]).catch(() => null)
         }
         raw ??= await requestMatches(
           old.gray,

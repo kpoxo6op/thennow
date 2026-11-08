@@ -119,6 +119,8 @@ export function unplace(
     ])
 }
 
+// A cell stands for the pixel at its top-left corner (8 x index), as in LoFTR itself: each
+// stride-2 layer of its backbone is centred on 2 x index.
 // The model answers, for each cell of the archive picture, its best cell in the new one, how sure
 // it is, and whether the two cells pick each other. Confident mutual pairs become matches.
 export function cellsToMatches(
@@ -134,10 +136,10 @@ export function cellsToMatches(
     if (mutual[i] <= 0 || confidence[i] <= MIN_CONFIDENCE) continue
     const j = Number(best[i])
     matches.push([
-      round(((i % columns) + 0.5) / columns),
-      round((Math.floor(i / columns) + 0.5) / rows),
-      round(((j % columns) + 0.5) / columns),
-      round((Math.floor(j / columns) + 0.5) / rows),
+      round(((i % columns) * MATCH_CELL + 0.5) / MATCH_WIDTH),
+      round((Math.floor(i / columns) * MATCH_CELL + 0.5) / MATCH_HEIGHT),
+      round(((j % columns) * MATCH_CELL + 0.5) / MATCH_WIDTH),
+      round((Math.floor(j / columns) * MATCH_CELL + 0.5) / MATCH_HEIGHT),
     ])
   }
   return matches
@@ -216,6 +218,25 @@ function random(seed: number) {
   }
 }
 
+// Share of the crop rectangle that lies on the photograph.
+function coverage(crop: Crop, aspect: number, photo: Size) {
+  const cos = Math.cos(crop.rotation)
+  const sin = Math.sin(crop.rotation)
+  const n = 20
+  let inside = 0
+  for (let a = 0; a < n; a++) {
+    for (let b = 0; b < n; b++) {
+      const x = ((a + 0.5) / n - 0.5) * crop.width
+      const y = ((b + 0.5) / n - 0.5) * crop.width * aspect
+      const px = crop.cx + cos * x - sin * y
+      const py = crop.cy + sin * x + cos * y
+      if (px >= 0 && py >= 0 && px <= photo.width && py <= photo.height)
+        inside++
+    }
+  }
+  return inside / (n * n)
+}
+
 // Finds the crop of the new photograph that shows the archive view: the rotation, zoom and shift
 // that most matched spots agree on (RANSAC), refined over those spots. aspect is the archive
 // photograph's height over width.
@@ -278,6 +299,15 @@ export function fitCrop(
   if (Math.abs(rotation) > (25 * Math.PI) / 180) return null
   if (crop.width < photo.width * 0.15 || crop.width > photo.width * 2)
     return null
+
+  // Agreement from one small patch (a repeated window, a single gable) isn't a match of the view.
+  const xs = best.map((i) => qs[i].x)
+  const ys = best.map((i) => qs[i].y)
+  const spanX = (Math.max(...xs) - Math.min(...xs)) / 1000
+  const spanY = (Math.max(...ys) - Math.min(...ys)) / (1000 * aspect)
+  if (spanX < 0.3 || spanY < 0.2) return null
+  // Most of the archive view must be in the shot; a few black corners are fine.
+  if (coverage(crop, aspect, photo) < 0.75) return null
 
   return { crop, inliers: best.length }
 }
