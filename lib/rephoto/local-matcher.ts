@@ -31,6 +31,7 @@ type Ort = {
 }
 
 let loading: Promise<{ ort: Ort; session: Session }> | null = null
+let ready = false
 // One run at a time: a WebGPU session can't take two at once.
 let queue: Promise<unknown> = Promise.resolve()
 
@@ -70,36 +71,59 @@ export function prepareLocalMatcher() {
       MATCH_WIDTH,
     ])
     await session.run({ image0: blank, image1: blank })
+    ready = true
     return { ort, session }
   })()
   loading.catch(() => {
     loading = null
+    ready = false
   })
   return loading
 }
 
+// Whether the matcher is loaded and warmed up, so a match takes about a second.
+export function localMatcherReady() {
+  return ready
+}
+
+// Matches on the phone. A shot that was given up on (Retake, or the server took over) is dropped
+// before it reaches the graphics chip.
 export async function matchLocally(
   then: Uint8Array,
-  now: Uint8Array
+  now: Uint8Array,
+  signal: AbortSignal
 ): Promise<Match[]> {
-  const ready = prepareLocalMatcher()
-  if (!ready) throw new Error("No WebGPU")
-  const { ort, session } = await ready
+  const loaded = prepareLocalMatcher()
+  if (!loaded) throw new Error("No WebGPU")
+  // Giving up doesn't wait for the download; the download carries on for the next shot.
+  const { ort, session } = await Promise.race([
+    loaded,
+    new Promise<never>((_, reject) => {
+      if (signal.aborted) reject(signal.reason)
+      signal.addEventListener("abort", () => reject(signal.reason), {
+        once: true,
+      })
+    }),
+  ])
+  signal.throwIfAborted()
   const tensor = (bytes: Uint8Array) => {
     const data = new Float32Array(MATCH_BYTES)
     for (let i = 0; i < data.length; i++) data[i] = bytes[i] / 255
     return new ort.Tensor("float32", data, [1, 1, MATCH_HEIGHT, MATCH_WIDTH])
   }
-  const run = queue.then(() =>
-    session.run({ image0: tensor(then), image1: tensor(now) })
-  )
+  const run = queue.then(() => {
+    signal.throwIfAborted()
+    return session.run({ image0: tensor(then), image1: tensor(now) })
+  })
   queue = run.catch(() => {})
   let result
   try {
     result = await run
   } catch (error) {
+    if (signal.aborted) throw error
     // A lost graphics device (phone locked, memory pressure) gets a fresh session next time.
     loading = null
+    ready = false
     throw error
   }
   return cellsToMatches(

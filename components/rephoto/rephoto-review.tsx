@@ -10,7 +10,11 @@ import {
   shrinkToFit,
   type Crop,
 } from "@/lib/rephoto/crop"
-import { canMatchLocally, matchLocally } from "@/lib/rephoto/local-matcher"
+import {
+  canMatchLocally,
+  localMatcherReady,
+  matchLocally,
+} from "@/lib/rephoto/local-matcher"
 import {
   cellSize,
   fitCrop,
@@ -112,19 +116,31 @@ export function RephotoReview({
         // The phone's own graphics chip first; the site's server if that isn't there or fails.
         let raw = null
         if (canMatchLocally()) {
-          // A model still downloading on a slow connection gets a while, then the server.
-          raw = await Promise.race([
-            matchLocally(old.gray, now.gray),
-            new Promise<null>((resolve) =>
-              setTimeout(() => resolve(null), 20_000)
-            ),
-          ]).catch(() => null)
+          // A warmed-up matcher answers in about a second; one still downloading on a slow
+          // connection gets a short grace, then the server takes the shot.
+          const local = new AbortController()
+          const stop = () => local.abort()
+          controller.signal.addEventListener("abort", stop)
+          const timer = setTimeout(stop, localMatcherReady() ? 10_000 : 4_000)
+          raw = await matchLocally(old.gray, now.gray, local.signal).catch(
+            () => null
+          )
+          clearTimeout(timer)
+          controller.signal.removeEventListener("abort", stop)
         }
-        raw ??= await requestMatches(
-          old.gray,
-          now.gray,
-          AbortSignal.any([controller.signal, AbortSignal.timeout(25_000)])
-        )
+        if (!raw) {
+          // AbortSignal.any isn't in Safari before 17.4, so the deadline is wired by hand.
+          const server = new AbortController()
+          const stop = () => server.abort()
+          controller.signal.addEventListener("abort", stop)
+          const timer = setTimeout(stop, 25_000)
+          try {
+            raw = await requestMatches(old.gray, now.gray, server.signal)
+          } finally {
+            clearTimeout(timer)
+            controller.signal.removeEventListener("abort", stop)
+          }
+        }
         if (controller.signal.aborted) return
         const matches = unplace(raw, old.placement, now.placement)
         const shape = then.naturalHeight / then.naturalWidth
