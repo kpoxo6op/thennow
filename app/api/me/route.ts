@@ -37,7 +37,8 @@ function answer(
 
 export async function GET(request: Request) {
   const cookie = readCookie(request) ?? newCookie()
-  const profile = await readProfile(personId(cookie))
+  // Without the store the cookie is still given and renewed; the name just isn't known.
+  const profile = await readProfile(personId(cookie)).catch(() => null)
   return answer(request, cookie, { name: profile?.name ?? null })
 }
 

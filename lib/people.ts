@@ -48,19 +48,13 @@ export const photoPath = (id: string, place: string, key: string) =>
 
 export type Profile = { name: string; createdAt: string; updatedAt: string }
 
+// No profile is null; a store that can't be reached throws, so it isn't mistaken for no name.
 export async function readProfile(id: string): Promise<Profile | null> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return null
-  try {
-    const found = await get(profilePath(id), {
-      access: "private",
-      useCache: false,
-    })
-    if (!found || found.statusCode !== 200) return null
-    const profile = JSON.parse(await new Response(found.stream).text())
-    return typeof profile?.name === "string" && profile.name ? profile : null
-  } catch {
-    return null
-  }
+  const found = await get(profilePath(id), { access: "private", useCache: false })
+  if (!found || found.statusCode !== 200) return null
+  const profile = JSON.parse(await new Response(found.stream).text())
+  return typeof profile?.name === "string" && profile.name ? profile : null
 }
 
 export async function writeProfile(id: string, name: string) {

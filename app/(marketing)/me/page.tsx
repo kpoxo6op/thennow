@@ -6,6 +6,7 @@ import { list } from "@vercel/blob"
 import { fetchPending, fetchPosts } from "@/lib/api"
 import { COOKIE, personId, photosPrefix, readProfile } from "@/lib/people"
 import { MeName } from "@/components/me-name"
+import { MeRenew } from "@/components/me-renew"
 
 // Your photos: the photos this phone's browser has sent, and the name that goes with them. No
 // account: the phone's cookie is the only key, so the page is never cached or shared.
@@ -67,6 +68,7 @@ export default async function MePage() {
 
   return (
     <article data-testid="me" className="px-4 pb-16 pt-8 md:pb-24 md:pt-14">
+      {valid && <MeRenew />}
       <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
         <h1 className="font-serif text-6xl leading-none md:text-7xl">Your photos</h1>
         <div className="max-w-2xl space-y-5">

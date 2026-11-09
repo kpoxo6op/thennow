@@ -88,7 +88,9 @@ export async function POST(request: Request) {
     try {
       await head(filed)
     } catch {
-      await file(filed, small).catch(() => {})
+      // Not done until the phone's copy is filed too; the camera then simply sends again.
+      if (!(await file(filed, small).then(() => true, () => false)))
+        return answer(502, "store failed")
     }
     return done()
   } catch {}
