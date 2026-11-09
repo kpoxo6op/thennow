@@ -593,7 +593,7 @@ test.describe("the rephotography camera", () => {
     const downloadPromise = page.waitForEvent("download")
     await save.click()
     await downloadPromise
-    await expect(save).toHaveText("Copy saved")
+    await expect(save).toHaveText("In your Downloads")
     await expect(page.getByTestId("rephoto-consent")).toBeVisible()
     expect(sent).toBe(0)
   })

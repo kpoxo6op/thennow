@@ -39,16 +39,13 @@ function allowed(request: Request) {
   return true
 }
 
-// A real, whole JPEG of camera size, with anything but its pixels left behind. The camera's own
-// files carry no metadata and are kept byte for byte; any other JPEG is drawn again without it.
+// A real, whole JPEG of camera size, drawn again from its pixels alone, so nothing else that
+// rode along in the file (comments, metadata, trailing data) is kept.
 async function clean(bytes: Uint8Array): Promise<Buffer | null> {
   try {
     const image = sharp(bytes, { limitInputPixels: 40_000_000, failOn: "error" })
     const meta = await image.metadata()
     if (meta.format !== "jpeg" || !meta.width || !meta.height) return null
-    await image.clone().stats()
-    if (!meta.exif && !meta.xmp && !meta.iptc && !meta.icc)
-      return Buffer.from(bytes)
     return await image.jpeg({ quality: 90 }).toBuffer()
   } catch {
     return null

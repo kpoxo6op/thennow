@@ -326,8 +326,9 @@ export function RephotoReview({
         link.download = file.name
         link.click()
         setTimeout(() => URL.revokeObjectURL(url), 10_000)
+        // Says where it went. A share sheet's finish proves nothing was saved, so it says nothing.
+        setKept(true)
       }
-      setKept(true)
       report(
         "save",
         { bytes: saving.size },
@@ -372,7 +373,7 @@ export function RephotoReview({
             onClick={() => void save()}
             className="min-h-11 text-base text-white/85 underline underline-offset-4"
           >
-            {saveNote || (kept ? "Copy saved" : "Keep a copy")}
+            {saveNote || (kept ? "In your Downloads" : "Keep a copy")}
           </button>
         )}
       </div>
@@ -533,7 +534,7 @@ export function RephotoReview({
               onClick={() => void save()}
               className="min-h-11 text-base text-white underline underline-offset-4"
             >
-              {kept ? "Copy saved" : "Keep a copy"}
+              {kept ? "In your Downloads" : "Keep a copy"}
             </button>
           )}
         </div>
