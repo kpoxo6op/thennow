@@ -24,7 +24,10 @@ export function thumb(source: CanvasImageSource, photo: Size): Thumb | null {
   canvas ??= document.createElement("canvas")
   canvas.width = width
   canvas.height = height
-  const context = canvas.getContext("2d", { willReadFrequently: true })
+  // Not willReadFrequently: that would keep the canvas on the processor, which would then
+  // shrink every full-size video frame itself. The graphics chip shrinks it, and only these few
+  // pixels come back.
+  const context = canvas.getContext("2d")
   if (!context) return null
   context.drawImage(source, 0, 0, width, height)
   const { data } = context.getImageData(0, 0, width, height)

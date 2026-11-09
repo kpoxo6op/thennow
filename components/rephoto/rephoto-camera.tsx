@@ -235,6 +235,8 @@ export function RephotoCamera({
     // Held, and the whole old view is inside the picture: ready to shoot.
     steady: boolean
     at: number
+    // Carried along by the follower between matches: the ghost moves in short, even steps.
+    followed?: boolean
   } | null>(null)
 
   useEffect(() => {
@@ -578,9 +580,9 @@ export function RephotoCamera({
     }
     const lowestZoom = () => Math.max(1, rangeRef.current?.min ?? 1)
     // Lost while zoomed in: back out so the old view can be found again.
-    const backOut = async () => {
+    const backOut = async (zoomLostIt = true) => {
       // Lost soon after zooming in, the zoom itself lost it; later, the phone just moved.
-      if (performance.now() - zoomedIn < 10_000)
+      if (zoomLostIt && performance.now() - zoomedIn < 10_000)
         ceiling = Math.max(lowestZoom(), zoomRef.current - 0.2)
       previous = null
       setLock(null)
@@ -591,6 +593,7 @@ export function RephotoCamera({
     // Between matches, the old photograph follows the picture as the hand moves, and a view
     // sliding off the edge of a zoomed-in picture backs the zoom out at once.
     let following = false
+    let spills = 0
     const follow = () => {
       const video = videoRef.current
       const archive = archiveRef.current
@@ -611,19 +614,26 @@ export function RephotoCamera({
         if (!by) return
         const crop = shifted(anchor.crop, by, photo)
         const range = rangeRef.current
+        // A few frames running, so one bad comparison (a passing car, a flash of light) can't
+        // throw the zoom away. The hand moved it off, not the zoom: the ceiling stays.
         if (
           range &&
           zoomRef.current > lowestZoom() + 0.05 &&
           !fits({ ...crop, width: crop.width * 0.8 }, archive.aspect, photo)
         ) {
-          void backOut()
+          if (++spills >= 3) {
+            spills = 0
+            void backOut(false)
+          }
           return
         }
+        spills = 0
         setLock({
           crop,
           held: anchor.held,
           steady: anchor.steady && fits(crop, archive.aspect, photo),
           at: performance.now(),
+          followed: true,
         })
       } finally {
         following = false
@@ -637,6 +647,11 @@ export function RephotoCamera({
         if (!localMatcherReady() && canMatchLocally() && started >= nextLoad) {
           nextLoad = started + 15_000
           prepareLocalMatcher()?.catch(() => {})
+        }
+        // Nothing is looked at while the zoom moves.
+        if (zooming) {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          continue
         }
         const video = videoRef.current
         const archive = archiveRef.current
@@ -657,7 +672,7 @@ export function RephotoCamera({
           }).catch(() => null)
           if (controller.signal.aborted) return
           // The zoom moved while this look was under way: its answer is for a picture gone.
-          if (look !== zooms || zooming) continue
+          if (look !== zooms) continue
           stats.runs++
           stats.matchMs += performance.now() - sampled
           if (found) {
@@ -698,12 +713,17 @@ export function RephotoCamera({
                 : null
             if (zoom != null) {
               previous = null
-              // The old photograph grows with the picture, step by confirmed step, rather than
-              // leaving its place.
+              // The match is as old as its frame: carry it to where the hand has since taken
+              // the picture, then let it grow with the picture, step by confirmed step.
+              const latest = seen && thumb(video, photo)
+              const drift = latest && slide(seen, latest)
+              const start = drift
+                ? shifted(found.crop, drift, photo)
+                : found.crop
               const base = zoomRef.current
               await zoomTo(zoom, (now) =>
                 setLock({
-                  crop: zoomed(found.crop, photo, now / base),
+                  crop: zoomed(start, photo, now / base),
                   held: false,
                   steady: false,
                   at: performance.now(),
@@ -711,16 +731,19 @@ export function RephotoCamera({
               )
               // Where the old view should now be: the next match that agrees with it holds at
               // once, instead of waiting for two more.
+              // It was held before the zoom, so it stays held, and ready to shoot at once if
+              // it fits; the next match only has to not disagree.
               if (zoomRef.current !== base) {
-                previous = zoomed(found.crop, photo, zoomRef.current / base)
+                previous = zoomed(start, photo, zoomRef.current / base)
                 previousThumb = thumb(video, photo)
                 if (previousThumb)
                   anchor = {
                     crop: previous,
                     thumb: previousThumb,
-                    held: false,
-                    steady: false,
+                    held: true,
+                    steady: fits(previous, archive.aspect, photo),
                   }
+                follow()
               }
               continue
             }
@@ -939,7 +962,12 @@ export function RephotoCamera({
         {ghost && (
           <div
             data-testid="rephoto-frame"
-            className="pointer-events-none absolute transition-[left,top,width,height,transform] duration-300 ease-out motion-reduce:transition-none"
+            className={`pointer-events-none absolute transition-[left,top,width,height,transform] motion-reduce:transition-none ${
+              // The follower's small steps run into each other; a new match's jump eases in.
+              lock?.followed
+                ? "duration-100 ease-linear"
+                : "duration-300 ease-out"
+            }`}
             style={{
               left: ghost.left,
               top: ghost.top,
