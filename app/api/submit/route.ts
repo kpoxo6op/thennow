@@ -1,4 +1,4 @@
-import { head, put } from "@vercel/blob"
+import { get, head, put } from "@vercel/blob"
 import sharp from "sharp"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
@@ -88,9 +88,12 @@ export async function POST(request: Request) {
     try {
       await head(filed)
     } catch {
-      // Not done until the phone's copy is filed too; the camera then simply sends again.
-      if (!(await file(filed, small).then(() => true, () => false)))
-        return answer(502, "store failed")
+      // Not done until the phone's copy is filed too; the camera then simply sends again. A phone
+      // that lost its first answer may come back with a new cookie: the note follows it.
+      const moved = await file(filed, small)
+        .then(() => follow(slug, key, id))
+        .then(() => true, () => false)
+      if (!moved) return answer(502, "store failed")
     }
     return done()
   } catch {}
@@ -132,6 +135,20 @@ export async function POST(request: Request) {
     `submit-photo ${JSON.stringify({ place: slug, key, checked, bytes: photo.length })}`
   )
   return done()
+}
+
+async function follow(slug: string, key: string, id: string) {
+  const pathname = `submissions/${slug}/${key}.json`
+  const found = await get(pathname, { access: "private", useCache: false })
+  if (!found || found.statusCode !== 200) return
+  const note = JSON.parse(await new Response(found.stream).text())
+  if (note.by === id) return
+  await put(pathname, JSON.stringify({ ...note, by: id }), {
+    access: "private",
+    contentType: "application/json",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  })
 }
 
 function file(pathname: string, small: Buffer) {

@@ -590,6 +590,28 @@ test.describe("the rephotography camera", () => {
     await expect(page).toHaveURL(/\/mission-house$/)
   })
 
+  test("a slow first answer about the phone holds the photo back until the phone has its cookie", async ({
+    page,
+  }) => {
+    const order: string[] = []
+    await page.route("**/api/me", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 5_000))
+      order.push("cookie")
+      await route.fulfill({ json: { name: null } })
+    })
+    await page.route("**/api/submit?**", async (route) => {
+      order.push("photo")
+      await route.fulfill({ json: { ok: true } })
+    })
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+    await expect(page.getByTestId("rephoto-sent")).toBeVisible({ timeout: 15_000 })
+    expect(order).toEqual(["cookie", "photo"])
+  })
+
   test("the review gives the phone its own lasting cookie before anything is sent", async ({
     page,
     context,

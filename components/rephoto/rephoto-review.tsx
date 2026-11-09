@@ -98,6 +98,20 @@ const SETTLE_MS = 350
 
 class NoMatch extends Error {}
 
+// The name already given on this phone, if any. Asking also gives the phone its cookie. Only one
+// question is out at a time, so two answers can never bring two different cookies.
+let asking: Promise<string | null> | null = null
+function askMe() {
+  asking ??= fetch("/api/me", { cache: "no-store", signal: AbortSignal.timeout(10_000) })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((me) => (typeof me?.name === "string" ? me.name : null))
+    .catch(() => null)
+    .finally(() => {
+      asking = null
+    })
+  return asking
+}
+
 function stamp(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
@@ -151,15 +165,9 @@ export function RephotoReview({
     [shot.canvas]
   )
 
-  // Sending waits for this answer (a few seconds at most), so the photo and the phone's cookie
-  // never cross: a first photo is sent with the cookie this answer brings.
-  const meRef = useRef<Promise<unknown> | null>(null)
   useEffect(() => {
     let current = true
-    meRef.current = fetch("/api/me", { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((me) => current && typeof me?.name === "string" && setCredit(me.name))
-      .catch(() => {})
+    void askMe().then((name) => current && name && setCredit(name))
     return () => {
       current = false
     }
@@ -318,10 +326,8 @@ export function RephotoReview({
     sendingRef.current = true
     setSending("sending")
     const began = performance.now()
-    await Promise.race([
-      meRef.current,
-      new Promise((resolve) => setTimeout(resolve, 3_000)),
-    ])
+    // The cookie comes first, so a first photo is sent and filed under the cookie the phone keeps.
+    await askMe()
     const key = keyRef.current
     const result = await sendPhoto(file, {
       slug,
@@ -403,7 +409,6 @@ export function RephotoReview({
           </button>
         )}
         <AddName
-          key={credit ?? ""}
           name={credit}
           sent={{ place: slug, key: sentKey }}
         />

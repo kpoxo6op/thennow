@@ -43,7 +43,7 @@ interface Props {
 }
 
 export function AddName({ name: known, sent }: Props) {
-  const [name, setName] = useState(known)
+  const [saved, setSaved] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState("")
   const [saving, setSaving] = useState(false)
@@ -57,20 +57,22 @@ export function AddName({ name: known, sent }: Props) {
     if (!draft.trim() || saving) return
     setSaving(true)
     setNote("")
-    const saved = await saveName(draft, sent)
+    const result = await saveName(draft, sent)
     setSaving(false)
-    report("name", {}, { result: "name" in saved ? "saved" : saved.note.slice(0, 40) })
-    if (!("name" in saved)) return setNote(saved.note)
+    report("name", {}, { result: "name" in result ? "saved" : result.note.slice(0, 40) })
+    if (!("name" in result)) return setNote(result.note)
     flushSync(() => {
-      setName(saved.name)
+      setSaved(result.name)
       setThanked(true)
     })
     after.current?.focus()
   }
 
+  // A name that arrives late shows, unless the person has already started typing one.
+  const name = saved ?? (open ? null : known)
   if (name)
     return (
-      <p role="status" data-testid="rephoto-named" className="text-base text-white/85">
+      <p data-testid="rephoto-named" className="text-base text-white/85">
         {thanked ? `Thanks, ${name}.` : `Sent as ${name}.`}{" "}
         <Link
           ref={after}
