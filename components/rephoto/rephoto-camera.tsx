@@ -599,6 +599,8 @@ export function RephotoCamera({
     // Between matches, the old photograph follows the picture as the hand moves, and a view
     // sliding off the edge of a zoomed-in picture backs the zoom out at once.
     let following = false
+    let follows = 0
+    let followMs = 0
     let spills = 0
     const follow = () => {
       const video = videoRef.current
@@ -615,8 +617,12 @@ export function RephotoCamera({
       following = true
       try {
         const photo = { width: video.videoWidth, height: video.videoHeight }
+        const t0 = performance.now()
         const now = thumb(video, photo)
         const by = now && slide(anchor.thumb, now)
+        followMs = followMs * 0.9 + (performance.now() - t0) * 0.1
+        if (++follows % 25 === 0)
+          debug(`follow ${followMs.toFixed(1)}ms ${by ? "ok" : "lost"}`)
         if (!by) return
         const crop = shifted(anchor.crop, by, photo)
         const range = rangeRef.current
@@ -683,6 +689,13 @@ export function RephotoCamera({
           stats.matchMs += performance.now() - sampled
           stats.prepareMs += timing.prepareMs
           stats.modelMs += timing.modelMs
+          debug(
+            `match ${Math.round(timing.prepareMs)}+${Math.round(timing.modelMs)}ms ${
+              found
+                ? `w${Math.round(found.crop.width)} n${found.inliers}`
+                : "miss"
+            } x${zoomRef.current.toFixed(1)}`
+          )
           if (found) {
             stats.found++
             if (stats.firstFound < 0)
