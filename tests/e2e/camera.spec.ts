@@ -468,6 +468,22 @@ test.describe("the rephotography camera", () => {
     expect((await readCrop(page)).rotation).toBeCloseTo(-lean, 3)
   })
 
+  test("a camera stuck without a picture says to restart the browser", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      HTMLMediaElement.prototype.play = () => new Promise(() => {})
+    })
+    await page.goto("/mission-house/camera")
+    await page
+      .getByRole("button", { name: "Start camera" })
+      .click({ timeout: 15_000 })
+    await expect(page.getByTestId("rephoto-error")).toHaveText(
+      "Camera stuck. Close the browser fully and reopen.",
+      { timeout: 15_000 }
+    )
+  })
+
   test("a camera that never answers is asked again more plainly", async ({
     page,
   }) => {

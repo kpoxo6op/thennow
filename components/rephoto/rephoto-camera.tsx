@@ -302,11 +302,15 @@ export function RephotoCamera({
           plain: plain.current,
         })
         // Some browsers only play after a tap; the button is that tap. A camera that never
-        // started is asked for plainly next time.
+        // started is asked for plainly next time; one that still gives no picture is stuck in
+        // the browser (Firefox on Android after losing the camera), and only a restart frees it.
+        const stuck = plain.current
         plain.current = true
         if (mine !== attempt.current) return
         stop()
-        setError("")
+        setError(
+          stuck ? "Camera stuck. Close the browser fully and reopen." : ""
+        )
         setStatus("error")
         return
       }
