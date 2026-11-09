@@ -320,30 +320,59 @@ export function RephotoCamera({
         })
         .catch(() => {})
     void keepAwake()
-    let resume: ReturnType<typeof setTimeout> | undefined
+    // The camera is let go while the page is out of sight and opened again on return. A
+    // camera kept open in a background tab goes dead once another app takes it (Firefox on
+    // Android), and every later request in that browser then shares the dead one.
     const onVisible = () => {
-      if (document.visibilityState !== "visible") return
+      if (document.visibilityState !== "visible") {
+        attempts.current++
+        stop()
+        return
+      }
       void keepAwake()
-      const track = streamRef.current?.getVideoTracks()[0]
-      if (!track || track.readyState === "ended") return void start()
-      // iPhone reports the picture muted for a moment on return; only one that stays muted
-      // needs the camera opened again.
-      clearTimeout(resume)
-      resume = setTimeout(() => {
-        if (streamRef.current?.getVideoTracks()[0]?.muted) void start()
-      }, 1500)
+      void start()
     }
     document.addEventListener("visibilitychange", onVisible)
     return () => {
       ended = true
       clearTimeout(timer)
-      clearTimeout(resume)
       document.removeEventListener("visibilitychange", onVisible)
       attempts.current++
       stop()
       lock?.release().catch(() => {})
     }
   }, [shot, start, stop])
+
+  // A picture that stops without the camera saying so (Firefox on Android when another app took
+  // the camera) is noticed by its frames and the camera opened again.
+  useEffect(() => {
+    const video = videoRef.current as
+      | (HTMLVideoElement & {
+          requestVideoFrameCallback?: (callback: () => void) => number
+          cancelVideoFrameCallback?: (handle: number) => void
+        })
+      | null
+    if (status !== "live" || !video?.requestVideoFrameCallback) return
+    let last = performance.now()
+    let handle = 0
+    const onFrame = () => {
+      last = performance.now()
+      handle = video.requestVideoFrameCallback!(onFrame)
+    }
+    handle = video.requestVideoFrameCallback(onFrame)
+    const watch = setInterval(() => {
+      if (document.visibilityState !== "visible") last = performance.now()
+      else if (performance.now() - last > 3000) {
+        debug("no frames")
+        last = performance.now()
+        void restart.current()
+      }
+    }, 1000)
+    return () => {
+      clearInterval(watch)
+      video.cancelVideoFrameCallback?.(handle)
+    }
+  }, [status])
 
   useEffect(() => {
     const element = stageRef.current

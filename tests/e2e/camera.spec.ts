@@ -445,6 +445,74 @@ test.describe("the rephotography camera", () => {
     })
   })
 
+  test("a picture that stops without a word gets the camera opened again", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const real = navigator.mediaDevices.getUserMedia.bind(
+        navigator.mediaDevices
+      )
+      const w = window as unknown as { __opens: number; __frozen: boolean }
+      w.__opens = 0
+      navigator.mediaDevices.getUserMedia = (constraints) => {
+        w.__opens++
+        return real(constraints)
+      }
+      // Frames stop arriving while the track still says it is live.
+      const frame = HTMLVideoElement.prototype.requestVideoFrameCallback
+      HTMLVideoElement.prototype.requestVideoFrameCallback = function (
+        callback
+      ) {
+        return frame.call(this, (...args) => {
+          if (!w.__frozen) callback(...args)
+        })
+      }
+    })
+    await page.goto("/mission-house/camera")
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    await page.evaluate(() => {
+      ;(window as unknown as { __frozen: boolean }).__frozen = true
+    })
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => (window as unknown as { __opens: number }).__opens
+          ),
+        {
+          timeout: 10_000,
+        }
+      )
+      .toBe(2)
+  })
+
+  test("the camera is let go while the page is out of sight", async ({
+    page,
+  }) => {
+    await page.goto("/mission-house/camera")
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    const live = () =>
+      page.evaluate(
+        () =>
+          (document.querySelector("video")?.srcObject as MediaStream | null)
+            ?.getVideoTracks()
+            .some((track) => track.readyState === "live") ?? false
+      )
+    const setVisibility = (state: "hidden" | "visible") =>
+      page.evaluate((state) => {
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          get: () => state,
+        })
+        document.dispatchEvent(new Event("visibilitychange"))
+      }, state)
+    await setVisibility("hidden")
+    await expect.poll(live).toBe(false)
+    await setVisibility("visible")
+    await expect.poll(live).toBe(true)
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+  })
+
   test("a refused camera says how to fix it and offers to try again", async ({
     page,
   }) => {
