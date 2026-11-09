@@ -584,6 +584,13 @@ export function RephotoCamera({
             previous = found.crop
             // Held in one place, the camera zooms so the old view fills the picture.
             const range = rangeRef.current
+            // The zoom the camera is at now, in case anything else moved it.
+            const reported = (
+              streamRef.current?.getVideoTracks()[0]?.getSettings() as
+                | { zoom?: number }
+                | undefined
+            )?.zoom
+            if (range && reported != null) zoomRef.current = reported
             const zoom =
               near && range
                 ? zoomFor(found.crop, archive.aspect, photo, zoomRef.current, {
