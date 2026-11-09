@@ -12,6 +12,7 @@ import {
   prepareLocalMatcher,
 } from "@/lib/rephoto/local-matcher"
 import { loadImage } from "@/lib/rephoto/pixels"
+import { browserName, report } from "@/lib/rephoto/telemetry"
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
@@ -122,9 +123,22 @@ async function openCamera(plain: boolean) {
       debug(
         `stream ${track?.readyState} muted=${track?.muted} ${JSON.stringify(track?.getSettings())}`
       )
+      const settings = track?.getSettings()
+      report("stream", {
+        ask: all.indexOf(constraints),
+        allowed,
+        width: settings?.width ?? null,
+        height: settings?.height ?? null,
+        fps: settings?.frameRate ?? null,
+      })
       return stream
     } catch (error) {
       debug(`failed ${String(error)}`)
+      report(
+        "stream failed",
+        { ask: all.indexOf(constraints), message: String(error).slice(0, 200) },
+        { error: error instanceof DOMException ? error.name : "other" }
+      )
       lastError = error
       if (error instanceof DOMException && error.name === "NotAllowedError")
         break
@@ -191,7 +205,29 @@ export function RephotoCamera({
   } | null>(null)
 
   useEffect(() => {
-    prepareLocalMatcher()?.catch(() => {})
+    const loading = performance.now()
+    report(
+      "open",
+      {
+        screen: `${screen.width}x${screen.height}`,
+        gpu: "gpu" in navigator,
+      },
+      {
+        browser: browserName(),
+        matcher: canMatchLocally() ? "phone" : "server",
+      }
+    )
+    prepareLocalMatcher()
+      ?.then(() =>
+        report("matcher ready", { ms: Math.round(performance.now() - loading) })
+      )
+      .catch((error) =>
+        report(
+          "matcher failed",
+          { message: String(error).slice(0, 200) },
+          { ms: Math.round(performance.now() - loading) }
+        )
+      )
     // Leaving the camera from the review hands the shot's memory back.
     return () => {
       if (shotRef.current) releaseCanvas(shotRef.current.canvas)
@@ -242,6 +278,7 @@ export function RephotoCamera({
   const start = useCallback(async () => {
     // Only the latest start keeps its camera; an older one that finishes late lets it go.
     const mine = ++attempt.current
+    const asked = performance.now()
     stop()
     setStatus("starting")
     try {
@@ -259,6 +296,11 @@ export function RephotoCamera({
         debug(`playing ${video.videoWidth}x${video.videoHeight}`)
       } catch (error) {
         debug(`play failed ${String(error)} ready=${video.readyState}`)
+        report("no picture", {
+          message: String(error).slice(0, 200),
+          ready: video.readyState,
+          plain: plain.current,
+        })
         // Some browsers only play after a tap; the button is that tap. A camera that never
         // started is asked for plainly next time.
         plain.current = true
@@ -269,12 +311,18 @@ export function RephotoCamera({
         return
       }
       if (mine !== attempt.current) return
+      report(
+        "live",
+        { width: video.videoWidth, height: video.videoHeight },
+        { ms: Math.round(performance.now() - asked) }
+      )
       setStatus("live")
       setInterrupted(false)
       const track = stream.getVideoTracks()[0]
       // The screen locked, a call came in, another app took the camera.
       track?.addEventListener("ended", () => {
         if (mine !== attempt.current) return
+        report("restart", {}, { reason: "ended" })
         setError("Camera paused.")
         setStatus("error")
       })
@@ -283,7 +331,10 @@ export function RephotoCamera({
         setInterrupted(true)
         // A picture that stays stopped gets the camera opened again.
         setTimeout(() => {
-          if (mine === attempt.current && track.muted) void restart.current()
+          if (mine === attempt.current && track.muted) {
+            report("restart", {}, { reason: "muted" })
+            void restart.current()
+          }
         }, 3000)
       })
       track?.addEventListener("unmute", () => {
@@ -293,6 +344,7 @@ export function RephotoCamera({
       plain.current = true
       if (mine !== attempt.current) return
       setError(explain(caught))
+      report("camera error", {}, { message: explain(caught) })
       setStatus("error")
     }
   }, [stop])
@@ -364,6 +416,7 @@ export function RephotoCamera({
       if (document.visibilityState !== "visible") last = performance.now()
       else if (performance.now() - last > 3000) {
         debug("no frames")
+        report("restart", {}, { reason: "no frames" })
         last = performance.now()
         void restart.current()
       }
@@ -397,6 +450,13 @@ export function RephotoCamera({
     let misses = 0
     let buzzed = false
     let nextLoad = 0
+    const stats = {
+      runs: 0,
+      found: 0,
+      matchMs: 0,
+      firstFound: -1,
+      firstSteady: -1,
+    }
     const loop = async () => {
       while (!controller.signal.aborted) {
         const started = performance.now()
@@ -420,7 +480,12 @@ export function RephotoCamera({
             server: false,
           }).catch(() => null)
           if (controller.signal.aborted) return
+          stats.runs++
+          stats.matchMs += performance.now() - sampled
           if (found) {
+            stats.found++
+            if (stats.firstFound < 0)
+              stats.firstFound = Math.round(performance.now() - began)
             misses = 0
             const near =
               previous != null &&
@@ -434,6 +499,7 @@ export function RephotoCamera({
             const steady = near && fits(found.crop, archive.aspect, photo)
             if (steady && !buzzed) {
               buzzed = true
+              stats.firstSteady = Math.round(performance.now() - began)
               navigator.vibrate?.(10)
             }
             setLock({
@@ -459,6 +525,18 @@ export function RephotoCamera({
     return () => {
       controller.abort()
       setLock(null)
+      report(
+        "live matching",
+        {
+          runs: stats.runs,
+          found: stats.found,
+          matchMs: stats.runs ? Math.round(stats.matchMs / stats.runs) : null,
+          firstFound: stats.firstFound,
+          firstSteady: stats.firstSteady,
+          seconds: Math.round((performance.now() - began) / 1000),
+        },
+        { steady: stats.firstSteady >= 0 }
+      )
     }
   }, [shot, status])
 
@@ -538,6 +616,16 @@ export function RephotoCamera({
         aspect,
         photo
       )
+    report(
+      "shot",
+      {
+        width: photo.width,
+        height: photo.height,
+        lean: lean == null ? null : Math.round((lean * 180) / Math.PI),
+        steady: !!lock?.steady,
+      },
+      { framing: held ? "live" : "levelled" }
+    )
     attempt.current++
     stop()
     setShot({
@@ -560,6 +648,7 @@ export function RephotoCamera({
         onRetake={() => {
           // iPhone frees canvas memory late; hand it back now.
           releaseCanvas(shot.canvas)
+          report("retake")
           setShot(null)
         }}
       />

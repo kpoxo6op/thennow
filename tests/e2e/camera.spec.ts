@@ -334,6 +334,48 @@ test.describe("the rephotography camera", () => {
     expect(response.status()).toBe(403)
   })
 
+  test("each step of a visit is reported, without the pictures", async ({
+    page,
+  }) => {
+    const reports: Record<string, unknown>[] = []
+    await page.route("**/api/camera-log", async (route) => {
+      reports.push(JSON.parse(route.request().postData() ?? "{}"))
+      await route.fulfill({ status: 204 })
+    })
+    await page.route("**/api/align", (route) =>
+      route.fulfill({ json: { matches: [] } })
+    )
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      /aligned|unmatched/
+    )
+    await expect
+      .poll(() => reports.map((report) => report.event))
+      .toEqual(
+        expect.arrayContaining(["open", "stream", "live", "shot", "review"])
+      )
+    const visits = new Set(reports.map((report) => report.visit))
+    expect(visits.size).toBe(1)
+    expect(JSON.stringify(reports).length).toBeLessThan(4000)
+  })
+
+  test("the camera's reports are taken only from this site", async ({
+    request,
+  }) => {
+    const send = (headers: Record<string, string>, data: string) =>
+      request.post("/api/camera-log", { headers, data })
+    expect(
+      (
+        await send({ "sec-fetch-site": "cross-site" }, '{"event":"open"}')
+      ).status()
+    ).toBe(403)
+    expect((await send({}, "not json")).status()).toBe(400)
+    expect((await send({}, "x".repeat(5000))).status()).toBe(413)
+    expect((await send({}, '{"event":"open"}')).status()).toBe(204)
+  })
+
   test("holding the result shows the old photograph over it", async ({
     page,
   }) => {

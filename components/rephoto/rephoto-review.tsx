@@ -7,6 +7,7 @@ import { Check, X } from "lucide-react"
 import { align, prepareArchive, type Archive } from "@/lib/rephoto/align"
 import { fits, releaseCanvas, renderCrop, type Crop } from "@/lib/rephoto/crop"
 import { loadImage } from "@/lib/rephoto/pixels"
+import { report } from "@/lib/rephoto/telemetry"
 
 export type Shot = {
   // The real photograph, at the camera's full resolution.
@@ -90,6 +91,19 @@ export function RephotoReview({
     const controller = new AbortController()
     const photo = { width: shot.canvas.width, height: shot.canvas.height }
     let slow: ReturnType<typeof setTimeout> | undefined
+    const began = performance.now()
+    const done = (
+      result: string,
+      details: Record<string, string | number | boolean> = {}
+    ) =>
+      report(
+        "review",
+        { ...details, live: shot.locked },
+        {
+          result,
+          ms: Math.round(performance.now() - began),
+        }
+      )
     const run = async () => {
       try {
         const archive =
@@ -119,14 +133,27 @@ export function RephotoReview({
         // The crop stays exactly on the old view, so the two line up. Where that view runs off
         // the photograph the corner is left black, never filled in, and the note says why.
         setCrop(found.crop)
-        setNote(
-          fits(found.crop, archive.aspect, photo)
-            ? ""
-            : "Step back to include the whole view."
-        )
+        const whole = fits(found.crop, archive.aspect, photo)
+        setNote(whole ? "" : "Step back to include the whole view.")
+        done("aligned", {
+          whole,
+          moved: Math.round(
+            (Math.hypot(
+              found.crop.cx - shot.crop.cx,
+              found.crop.cy - shot.crop.cy
+            ) /
+              shot.crop.width) *
+              100
+          ),
+          zoom: Math.round((found.crop.width / photo.width) * 100),
+          turn: Math.round((found.crop.rotation * 180) / Math.PI),
+        })
         setPhase("aligned")
-      } catch {
+      } catch (error) {
         if (controller.signal.aborted) return
+        done(shot.locked ? "kept live" : "unmatched", {
+          why: String(error).slice(0, 120),
+        })
         // The live view had already placed it; that placement stands.
         if (shot.locked) {
           const listed = shot.archive?.aspect ?? listedAspect
@@ -199,9 +226,20 @@ export function RephotoReview({
         setTimeout(() => URL.revokeObjectURL(url), 10_000)
       }
       setSavedFile(saving)
+      report(
+        "save",
+        { bytes: saving.size },
+        { how: canShare ? "share" : "download", phase }
+      )
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError"))
-        setNote("Couldn’t save. Try again.")
+      const cancelled =
+        error instanceof DOMException && error.name === "AbortError"
+      report(
+        "save failed",
+        { message: String(error).slice(0, 200) },
+        { cancelled }
+      )
+      if (!cancelled) setNote("Couldn’t save. Try again.")
     }
   }
 
