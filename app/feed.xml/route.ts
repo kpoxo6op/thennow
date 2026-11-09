@@ -1,6 +1,7 @@
+import { siteConfig } from "@/config/site"
 import { fetchPosts } from "@/lib/api"
 
-const SITE_URL = "https://thennow.nz"
+const SITE_URL = siteConfig.url
 
 function escapeXml(value: string) {
   return value
