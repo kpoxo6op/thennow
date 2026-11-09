@@ -812,15 +812,15 @@ export function RephotoCamera({
         }
         // Gentler on the battery after the first minute.
         const pace = performance.now() - began > 60_000 ? 2000 : 700
-        // A placement lives until the next one is due: that's two matches away from its frame on
-        // a phone whose matching takes longer than the pace.
-        lockLife.current = Math.max(
-          pace * 1.5 + 1500,
-          (performance.now() - started) * 2 + 500
-        )
-        await new Promise((resolve) =>
-          setTimeout(resolve, Math.max(0, pace - (performance.now() - started)))
-        )
+        // A warm phone matches slower than the pace, and matching back to back only warms it
+        // further (a Pixel went from 1.3s a match to 3.2s). So every match is followed by a rest
+        // of half its own length; the follower keeps the old view in place meanwhile.
+        const took = performance.now() - started
+        const rest = Math.max(pace - took, Math.min(took / 2, 1500))
+        // A placement lives until the next one is due: that's two matches and a rest away from
+        // its frame on a phone whose matching takes longer than the pace.
+        lockLife.current = Math.max(pace * 1.5 + 1500, took * 2 + rest + 500)
+        await new Promise((resolve) => setTimeout(resolve, rest))
       }
     }
     void loop()
