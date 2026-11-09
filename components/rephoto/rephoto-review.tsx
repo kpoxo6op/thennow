@@ -115,12 +115,17 @@ export function RephotoReview({
   const [renderFailed, setRenderFailed] = useState(false)
   const [sending, setSending] = useState<Sending>("idle")
   const [saveNote, setSaveNote] = useState("")
+  const [kept, setKept] = useState(false)
   // One key per framed file: sending it again, after a lost answer, keeps a single copy.
   const keyRef = useRef("")
+  // Keeping a copy means the phone's photos. An iPhone puts a file there only through its share
+  // sheet (Save Image); Android's share sheet offers people, not a save, so there it downloads.
   const canShare =
     typeof navigator !== "undefined" &&
     "share" in navigator &&
-    "canShare" in navigator
+    "canShare" in navigator &&
+    (/iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
 
   const holderRef = useCallback(
     (holder: HTMLDivElement | null) => {
@@ -311,6 +316,7 @@ export function RephotoReview({
         link.click()
         setTimeout(() => URL.revokeObjectURL(url), 10_000)
       }
+      setKept(true)
       report(
         "save",
         { bytes: saving.size },
@@ -355,7 +361,7 @@ export function RephotoReview({
             onClick={() => void save()}
             className="min-h-11 text-base text-white/85 underline underline-offset-4"
           >
-            {saveNote || "Keep a copy"}
+            {saveNote || (kept ? "Copy saved" : "Keep a copy")}
           </button>
         )}
       </div>
@@ -504,7 +510,7 @@ export function RephotoReview({
               onClick={() => void save()}
               className="min-h-11 text-base text-white underline underline-offset-4"
             >
-              Keep a copy
+              {kept ? "Copy saved" : "Keep a copy"}
             </button>
           ) : (
             phase !== "unmatched" && (
