@@ -79,6 +79,12 @@ async function onPhoneMatcher(page: Page) {
   )
 }
 
+// These tests are about what happens after a photo, not matching it: the server's matcher is
+// left out (as with no signal, so the photo can still be sent) to keep its CPU for other tests.
+async function withoutServerMatcher(page: Page) {
+  await page.route("**/api/align", (route) => route.abort("internetdisconnected"))
+}
+
 async function shoot(page: Page) {
   await page.getByTestId("rephoto-shutter").click()
   await expect(page.getByTestId("rephoto-review")).toBeVisible()
@@ -491,6 +497,7 @@ test.describe("the rephotography camera", () => {
   test("after sending, a name can be added in one step, and it never stands in the way of Done", async ({
     page,
   }) => {
+    await withoutServerMatcher(page)
     const names: unknown[] = []
     await page.route("**/api/submit?**", (route) =>
       route.fulfill({ json: { ok: true } })
@@ -540,6 +547,7 @@ test.describe("the rephotography camera", () => {
   test("a phone that already has a name is told whose name the photo went with", async ({
     page,
   }) => {
+    await withoutServerMatcher(page)
     await page.route("**/api/submit?**", (route) =>
       route.fulfill({ json: { ok: true } })
     )
@@ -560,6 +568,7 @@ test.describe("the rephotography camera", () => {
   test("a name that can't be saved says so and can be tried again, and Done still works", async ({
     page,
   }) => {
+    await withoutServerMatcher(page)
     let tries = 0
     await page.route("**/api/submit?**", (route) =>
       route.fulfill({ json: { ok: true } })
@@ -593,6 +602,7 @@ test.describe("the rephotography camera", () => {
   test("a slow first answer about the phone holds the photo back until the phone has its cookie", async ({
     page,
   }) => {
+    await withoutServerMatcher(page)
     const order: string[] = []
     await page.route("**/api/me", async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 5_000))
@@ -616,6 +626,7 @@ test.describe("the rephotography camera", () => {
     page,
     context,
   }) => {
+    await withoutServerMatcher(page)
     await openCamera(page, "mission-house")
     await shoot(page)
     await expect
