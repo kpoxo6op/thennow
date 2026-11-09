@@ -90,8 +90,9 @@ export async function POST(request: Request) {
     } catch {
       // Not done until the phone's copy is filed too; the camera then simply sends again. A phone
       // that lost its first answer may come back with a new cookie: the note follows it.
-      const moved = await file(filed, small)
-        .then(() => follow(slug, key, id))
+      // The note moves first, so a retry after any failure here does both steps again.
+      const moved = await follow(slug, key, id)
+        .then(() => file(filed, small))
         .then(() => true, () => false)
       if (!moved) return answer(502, "store failed")
     }
