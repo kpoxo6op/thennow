@@ -160,7 +160,12 @@ export default function Post({ post, nearby }: PostProps) {
       })
     }
 
-    syncPositionFromUrl()
+    // On arrival only an address that names a position moves the line. Without one the line is
+    // already where it belongs, and a key or drag in the page's first instant must not be undone.
+    if (new URL(window.location.href).searchParams.has("p")) {
+      syncPositionFromUrl()
+    }
+
     window.addEventListener("popstate", syncPositionFromUrl)
 
     return () => {
