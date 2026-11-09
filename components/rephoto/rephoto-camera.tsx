@@ -4,7 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Smartphone, X } from "lucide-react"
 
-import { align, prepareArchive, type Archive } from "@/lib/rephoto/align"
+import {
+  align,
+  NEAR_REACH,
+  prepareArchive,
+  type Archive,
+} from "@/lib/rephoto/align"
 import { fits, releaseCanvas, shrinkToFit, type Crop } from "@/lib/rephoto/crop"
 import {
   canMatchLocally,
@@ -480,6 +485,9 @@ export function RephotoCamera({
     const began = performance.now()
     let previous: Crop | null = null
     let misses = 0
+    // How much of the picture's width the view is looked for in. A view too far away to be found
+    // in the whole picture is looked for in its middle, every other try, until found.
+    let reach = 1
     let buzzed = false
     let nextLoad = 0
     const stats = {
@@ -555,6 +563,7 @@ export function RephotoCamera({
           const sampled = performance.now()
           const found = await align(archive, video, photo, controller.signal, {
             server: false,
+            reach,
           }).catch(() => null)
           if (controller.signal.aborted) return
           stats.runs++
@@ -609,17 +618,20 @@ export function RephotoCamera({
               steady,
               at: sampled,
             })
-          } else if (++misses >= 2) {
-            previous = null
-            setLock(null)
-            // Lost while zoomed in: back out so the old view can be found again.
-            const lowest = Math.max(1, rangeRef.current?.min ?? 1)
-            if (misses >= 4 && rangeRef.current && zoomRef.current > lowest) {
-              // Lost soon after zooming in, the zoom itself lost it; later, the phone just moved.
-              if (performance.now() - zoomedIn < 10_000)
-                ceiling = Math.max(lowest, zoomRef.current - 0.2)
-              await zoomTo(lowest)
-              misses = 0
+          } else {
+            reach = reach < 1 ? 1 : NEAR_REACH
+            if (++misses >= 2) {
+              previous = null
+              setLock(null)
+              // Lost while zoomed in: back out so the old view can be found again.
+              const lowest = Math.max(1, rangeRef.current?.min ?? 1)
+              if (misses >= 4 && rangeRef.current && zoomRef.current > lowest) {
+                // Lost soon after zooming in, the zoom itself lost it; later, the phone just moved.
+                if (performance.now() - zoomedIn < 10_000)
+                  ceiling = Math.max(lowest, zoomRef.current - 0.2)
+                await zoomTo(lowest)
+                misses = 0
+              }
             }
           }
         }

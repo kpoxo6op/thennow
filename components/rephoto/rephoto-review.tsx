@@ -4,7 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Check, X } from "lucide-react"
 
-import { align, prepareArchive, type Archive } from "@/lib/rephoto/align"
+import {
+  align,
+  NEAR_REACH,
+  prepareArchive,
+  type Archive,
+} from "@/lib/rephoto/align"
 import { fits, releaseCanvas, renderCrop, type Crop } from "@/lib/rephoto/crop"
 import { loadImage } from "@/lib/rephoto/pixels"
 import { report } from "@/lib/rephoto/telemetry"
@@ -122,13 +127,15 @@ export function RephotoReview({
           )
         controller.signal.throwIfAborted()
         setAspect(archive.aspect)
-        const found = await align(
-          archive,
-          shot.canvas,
-          photo,
-          controller.signal,
-          { server: true }
-        )
+        // A view too far away to be found in the whole photo is looked for in its middle.
+        const found =
+          (await align(archive, shot.canvas, photo, controller.signal, {
+            server: true,
+          })) ??
+          (await align(archive, shot.canvas, photo, controller.signal, {
+            server: true,
+            reach: NEAR_REACH,
+          }))
         if (!found) throw new Error("No match")
         // The crop stays exactly on the old view, so the two line up. Where that view runs off
         // the photograph the corner is left black, never filled in, and the note says why.

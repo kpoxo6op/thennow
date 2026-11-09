@@ -41,36 +41,42 @@ function within(parent: AbortSignal, ms: number) {
   }
 }
 
-// The part of an upright picture a landscape archive view is looked for in: a band across the
-// middle, as wide as the picture and as tall as the model's own shape. Fitted whole, an upright
-// picture would reach the model at half the detail and a distant view would be lost in it.
-export function band(photo: Size, aspect: number) {
-  if (photo.height <= photo.width || aspect >= 1) return null
+// The middle of the picture a view is looked for in when it can't be found in the whole.
+export const NEAR_REACH = 0.65
+
+// The part of the picture a landscape archive view is looked for in, in its pixels: centred, the
+// model's own shape, and `reach` of the picture's width. Fitted whole, an upright picture would
+// reach the model at half the detail; a narrower reach looks closer, for a view far away.
+export type Region = { x: number; y: number; width: number; height: number }
+export function region(photo: Size, aspect: number, reach = 1): Region | null {
+  if (aspect >= 1 || (reach >= 1 && photo.height <= photo.width)) return null
+  const width = Math.round(photo.width * Math.min(1, reach))
   const height = Math.min(
     photo.height,
-    Math.round((photo.width * MATCH_HEIGHT) / MATCH_WIDTH)
+    Math.round((width * MATCH_HEIGHT) / MATCH_WIDTH)
   )
-  return { y: Math.round((photo.height - height) / 2), height }
+  return {
+    x: Math.round((photo.width - width) / 2),
+    y: Math.round((photo.height - height) / 2),
+    width,
+    height,
+  }
 }
 
-// The band of the picture, drawn at about twice the model's size so it still scales down well.
-function cut(
-  source: CanvasImageSource,
-  photo: Size,
-  part: { y: number; height: number }
-) {
+// That part of the picture, drawn at about twice the model's size so it still scales down well.
+function cut(source: CanvasImageSource, part: Region) {
   const canvas = document.createElement("canvas")
-  canvas.width = Math.min(photo.width, MATCH_WIDTH * 2)
-  canvas.height = Math.round((part.height * canvas.width) / photo.width)
+  canvas.width = Math.min(part.width, MATCH_WIDTH * 2)
+  canvas.height = Math.round((part.height * canvas.width) / part.width)
   const context = canvas.getContext("2d")
   if (!context) throw new Error("No 2D canvas")
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = "high"
   context.drawImage(
     source,
-    0,
+    part.x,
     part.y,
-    photo.width,
+    part.width,
     part.height,
     0,
     0,
@@ -87,10 +93,10 @@ export async function align(
   source: CanvasImageSource,
   photo: Size,
   signal: AbortSignal,
-  { server }: { server: boolean }
+  { server, reach = 1 }: { server: boolean; reach?: number }
 ): Promise<Fit | null> {
-  const part = band(photo, archive.aspect)
-  const picture = part ? cut(source, photo, part) : null
+  const part = region(photo, archive.aspect, reach)
+  const picture = part ? cut(source, part) : null
   const frame = picture
     ? matchPixels(picture, picture.width, picture.height)
     : matchPixels(source, photo.width, photo.height)
@@ -121,13 +127,18 @@ export async function align(
   const matches = unplace(raw, archive.placement, frame.placement).map(
     ([u0, v0, u1, v1]): (typeof raw)[number] =>
       part
-        ? [u0, v0, u1, (part.y + v1 * part.height) / photo.height]
+        ? [
+            u0,
+            v0,
+            (part.x + u1 * part.width) / photo.width,
+            (part.y + v1 * part.height) / photo.height,
+          ]
         : [u0, v0, u1, v1]
   )
   return fitCrop(
     matches,
     archive.aspect,
     photo,
-    cellSize(photo, frame.placement)
+    cellSize(part ?? photo, frame.placement)
   )
 }
