@@ -47,3 +47,25 @@ test.describe("following the picture between matches", () => {
     expect(slide(view(0, 0), other)).toBeNull()
   })
 })
+
+test.describe("following, when it can't be sure", () => {
+  test("a plain picture (sky, a wall) isn't followed", () => {
+    const plain: Thumb = {
+      width: 96,
+      height: 72,
+      gray: new Float32Array(96 * 72),
+    }
+    expect(slide(plain, plain)).toBeNull()
+  })
+
+  test("repeating detail (a fence) isn't followed", () => {
+    const fence = (ox: number): Thumb => {
+      const gray = new Float32Array(96 * 72)
+      for (let y = 0; y < 72; y++)
+        for (let x = 0; x < 96; x++)
+          gray[y * 96 + x] = (x + ox) % 8 < 4 ? 50 : -50
+      return { width: 96, height: 72, gray }
+    }
+    expect(slide(fence(0), fence(0))).toBeNull()
+  })
+})

@@ -521,6 +521,9 @@ export function RephotoCamera({
       thumb: Thumb
       held: boolean
       steady: boolean
+      // When the matcher last vouched for it. Following only slides it; it doesn't make it any
+      // more certain, so the lock still runs out if the matcher stops answering.
+      at: number
     } | null = null
     const shifted = (
       crop: Crop,
@@ -632,7 +635,7 @@ export function RephotoCamera({
           crop,
           held: anchor.held,
           steady: anchor.steady && fits(crop, archive.aspect, photo),
-          at: performance.now(),
+          at: anchor.at,
           followed: true,
         })
       } finally {
@@ -742,6 +745,7 @@ export function RephotoCamera({
                     thumb: previousThumb,
                     held: true,
                     steady: fits(previous, archive.aspect, photo),
+                    at: performance.now(),
                   }
                 follow()
               }
@@ -762,7 +766,13 @@ export function RephotoCamera({
             // The follower carries it on from the frame it was found in, so the delay of the
             // match itself is made up at once.
             anchor = seen
-              ? { crop: found.crop, thumb: seen, held: near, steady }
+              ? {
+                  crop: found.crop,
+                  thumb: seen,
+                  held: near,
+                  steady,
+                  at: sampled,
+                }
               : null
             follow()
           } else {

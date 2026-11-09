@@ -11,6 +11,11 @@ const WIDTH = 96
 const MAX_SLIDE = 0.25
 // Average difference per pixel, out of 255, above which the two copies are too unlike to trust.
 const MAX_DIFFERENCE = 22
+// Below this average contrast (out of 255) the picture is too plain to tell any slide apart.
+const MIN_TEXTURE = 6
+// A slide well away from the best that fits almost as well makes the best a guess (repeating
+// detail such as a fence): the best must beat it by this much.
+const UNIQUE = 0.85
 
 export type Thumb = { gray: Float32Array; width: number; height: number }
 
@@ -88,13 +93,31 @@ function search(
   cy: number,
   radius: number
 ) {
-  let best = { dx: cx, dy: cy, difference: Infinity }
+  const tried: { dx: number; dy: number; difference: number }[] = []
   for (let dy = cy - radius; dy <= cy + radius; dy++)
-    for (let dx = cx - radius; dx <= cx + radius; dx++) {
-      const d = difference(then, now, dx, dy)
-      if (d < best.difference) best = { dx, dy, difference: d }
-    }
-  return best
+    for (let dx = cx - radius; dx <= cx + radius; dx++)
+      tried.push({ dx, dy, difference: difference(then, now, dx, dy) })
+  // Ties go to the smallest slide: a still picture stays put.
+  const best = tried.reduce((a, b) =>
+    b.difference < a.difference ||
+    (b.difference === a.difference &&
+      Math.hypot(b.dx - cx, b.dy - cy) < Math.hypot(a.dx - cx, a.dy - cy))
+      ? b
+      : a
+  )
+  // The best fit among slides clearly apart from the best one.
+  let rival = Infinity
+  for (const t of tried)
+    if (Math.max(Math.abs(t.dx - best.dx), Math.abs(t.dy - best.dy)) > 2)
+      rival = Math.min(rival, t.difference)
+  return { ...best, rival }
+}
+
+// Average contrast: how much there is to line up.
+function texture(t: Thumb) {
+  let total = 0
+  for (let i = 0; i < t.gray.length; i++) total += Math.abs(t.gray[i])
+  return total / t.gray.length
 }
 
 // How far a point in `then` has moved to reach the same spot in `now`, in fractions of the
@@ -104,10 +127,12 @@ export function slide(
   now: Thumb
 ): { x: number; y: number } | null {
   if (then.width !== now.width || then.height !== now.height) return null
+  if (texture(then) < MIN_TEXTURE || texture(now) < MIN_TEXTURE) return null
   const small = [halve(then), halve(now)] as const
   const radius = Math.ceil(small[0].width * MAX_SLIDE)
   const coarse = search(small[0], small[1], 0, 0, radius)
   if (!Number.isFinite(coarse.difference)) return null
+  if (coarse.difference >= UNIQUE * coarse.rival) return null
   const fine = search(then, now, coarse.dx * 2, coarse.dy * 2, 2)
   if (fine.difference > MAX_DIFFERENCE) return null
   // `difference` slides `now` by (dx, dy) to sit on `then`: a point at p in `then` is at p - d now.
