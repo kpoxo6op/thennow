@@ -3,6 +3,7 @@ import Link from "next/link"
 import type { PendingPost as PendingPostType } from "@/interfaces/post"
 import { Camera } from "lucide-react"
 
+import { CameraLink } from "@/components/rephoto/camera-link"
 import { ResetScroll } from "@/components/reset-scroll"
 import { StoryMap } from "@/components/story-map"
 
@@ -81,14 +82,15 @@ export function PendingPost({ post, stories, pending }: Props) {
           />
           Upcoming
         </p>
-        <Link
+        <CameraLink
           href={`/${post.slug}/camera`}
+          landscape={post.w > post.h}
           data-testid="pending-camera"
           className="inline-flex min-h-11 items-center gap-2 rounded-md bg-foreground px-5 text-sm font-medium text-background transition-opacity hover:opacity-85"
         >
           <Camera className="size-4" aria-hidden />
           Take it now
-        </Link>
+        </CameraLink>
       </div>
 
       <article className="tn-story-edge pb-14 pt-3">

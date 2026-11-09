@@ -14,6 +14,7 @@ import {
 import { loadImage } from "@/lib/rephoto/pixels"
 import { browserName, report } from "@/lib/rephoto/telemetry"
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
+import { releaseScreen } from "@/components/rephoto/camera-link"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
 interface Props {
@@ -230,8 +231,9 @@ export function RephotoCamera({
           { ms: Math.round(performance.now() - loading) }
         )
       )
-    // Leaving the camera from the review hands the shot's memory back.
+    // Leaving the camera hands the shot's memory and the screen back.
     return () => {
+      releaseScreen()
       if (shotRef.current) releaseCanvas(shotRef.current.canvas)
     }
   }, [])
