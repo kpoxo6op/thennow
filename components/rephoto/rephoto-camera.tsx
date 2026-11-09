@@ -485,11 +485,16 @@ export function RephotoCamera({
       firstFound: -1,
       firstSteady: -1,
     }
-    // Once the view is lost after zooming in, the camera never zooms in that far again.
+    // Once the view is lost just after zooming in, the camera never zooms in that far again.
     let ceiling = Infinity
+    let zoomedIn = -Infinity
     // The zoom moves in small steps, so the picture glides rather than jumps. Only the zoom the
     // camera says it reached is believed; a camera that refuses is left alone from then on.
-    const zoomTo = async (target: number) => {
+    const zoomTo = async (
+      target: number,
+      // Told each zoom the camera confirms, so the old photograph can follow it.
+      reached?: (zoom: number) => void
+    ) => {
       const track = streamRef.current?.getVideoTracks()[0]
       if (!track) return
       const current = () =>
@@ -507,20 +512,21 @@ export function RephotoCamera({
             () => false
           )
         if (!current()) return
-        const reached = (track.getSettings() as { zoom?: number }).zoom
-        if (!ok || reached == null) {
+        if (!ok) {
           rangeRef.current = null
-          report("zoom failed", { step, reached: reached ?? null })
+          report("zoom failed", { step, from, target })
           return
         }
-        zoomRef.current = reached
+        // Some cameras report the new zoom a moment late: what they say is believed, if anything.
+        zoomRef.current =
+          (track.getSettings() as { zoom?: number }).zoom ?? zoom
+        reached?.(zoomRef.current)
         await new Promise((resolve) => setTimeout(resolve, 60))
         if (!current()) return
       }
-      if (Math.abs(zoomRef.current - target) > 0.05) {
-        rangeRef.current = null
-        report("zoom failed", { reached: zoomRef.current, target })
-      }
+      if (Math.abs(zoomRef.current - target) > 0.05)
+        report("zoom short", { reached: zoomRef.current, target })
+      if (target > from) zoomedIn = performance.now()
       // Let a frame at the new zoom reach the preview before looking again.
       await new Promise((resolve) => setTimeout(resolve, 150))
     }
@@ -574,14 +580,17 @@ export function RephotoCamera({
                 : null
             if (zoom != null) {
               previous = null
-              // The old photograph grows with the picture rather than leaving its place.
-              setLock({
-                crop: zoomed(found.crop, photo, zoom / zoomRef.current),
-                held: false,
-                steady: false,
-                at: performance.now(),
-              })
-              await zoomTo(zoom)
+              // The old photograph grows with the picture, step by confirmed step, rather than
+              // leaving its place.
+              const base = zoomRef.current
+              await zoomTo(zoom, (now) =>
+                setLock({
+                  crop: zoomed(found.crop, photo, now / base),
+                  held: false,
+                  steady: false,
+                  at: performance.now(),
+                })
+              )
               continue
             }
             const steady = near && fits(found.crop, archive.aspect, photo)
@@ -602,7 +611,9 @@ export function RephotoCamera({
             // Lost while zoomed in: back out so the old view can be found again.
             const lowest = Math.max(1, rangeRef.current?.min ?? 1)
             if (misses >= 4 && rangeRef.current && zoomRef.current > lowest) {
-              ceiling = Math.max(lowest, zoomRef.current - 0.2)
+              // Lost soon after zooming in, the zoom itself lost it; later, the phone just moved.
+              if (performance.now() - zoomedIn < 10_000)
+                ceiling = Math.max(lowest, zoomRef.current - 0.2)
               await zoomTo(lowest)
               misses = 0
             }
