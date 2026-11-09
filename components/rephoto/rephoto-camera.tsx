@@ -599,11 +599,58 @@ export function RephotoCamera({
 
     // Between matches, the old photograph follows the picture as the hand moves, and a view
     // sliding off the edge of a zoomed-in picture backs the zoom out at once.
+    // A second, tiny copy of the camera's picture for the follower. Shrinking each full-size
+    // frame (12 megapixels on a Pixel) itself, a dozen times a second, slowed the matcher by a
+    // third; the camera hands out the tiny one almost for free.
+    let small: {
+      source: MediaStreamTrack
+      track: MediaStreamTrack
+      video: HTMLVideoElement
+    } | null = null
+    const little = (video: HTMLVideoElement): HTMLVideoElement => {
+      const main = (
+        video.srcObject as MediaStream | null
+      )?.getVideoTracks?.()[0]
+      if (!main || main.readyState !== "live" || !main.clone) return video
+      if (small?.source !== main) {
+        small?.track.stop()
+        const track = main.clone()
+        // The same shape as the full picture, so nothing is cropped away.
+        void track
+          .applyConstraints({
+            width: { ideal: 256 },
+            height: { ideal: 192 },
+            resizeMode: "crop-and-scale",
+          } as MediaTrackConstraints)
+          .catch(() => {})
+        const copy = document.createElement("video")
+        copy.muted = true
+        copy.playsInline = true
+        copy.srcObject = new MediaStream([track])
+        void copy.play().catch(() => {})
+        small = { source: main, track, video: copy }
+        debug("follower copy started")
+      }
+      const copy = small.video
+      // Until it plays, and if it came out another shape, the full picture is used.
+      return copy.videoWidth &&
+        Math.abs(
+          copy.videoWidth / copy.videoHeight -
+            video.videoWidth / video.videoHeight
+        ) < 0.02
+        ? copy
+        : video
+    }
     let following = false
     let follows = 0
     let followMs = 0
     let spills = 0
     const follow = async () => {
+      // The camera was let go (page hidden, restarted): the copy must not hold it open.
+      if (small && small.source.readyState !== "live") {
+        small.track.stop()
+        small = null
+      }
       const video = videoRef.current
       const archive = archiveRef.current
       if (
@@ -620,7 +667,7 @@ export function RephotoCamera({
         const photo = { width: video.videoWidth, height: video.videoHeight }
         const t0 = performance.now()
         const from = anchor
-        const now = await thumb(video, photo)
+        const now = await thumb(little(video), photo)
         // A match or a zoom came in while the frame was being shrunk: it knows better.
         if (anchor !== from || zooming || controller.signal.aborted) return
         const by = now && slide(from.thumb, now)
@@ -681,7 +728,7 @@ export function RephotoCamera({
           // The placement is as old as the frame it was found in, not the answer.
           const sampled = performance.now()
           const look = zooms
-          const seen = await thumb(video, photo)
+          const seen = await thumb(little(video), photo)
           const found = await align(archive, video, photo, controller.signal, {
             server: false,
             reach,
@@ -740,7 +787,7 @@ export function RephotoCamera({
               previous = null
               // The match is as old as its frame: carry it to where the hand has since taken
               // the picture, then let it grow with the picture, step by confirmed step.
-              const latest = seen && (await thumb(video, photo))
+              const latest = seen && (await thumb(little(video), photo))
               const drift = latest && slide(seen, latest)
               const start = drift
                 ? shifted(found.crop, drift, photo)
@@ -760,7 +807,7 @@ export function RephotoCamera({
               // it fits; the next match only has to not disagree.
               if (zoomRef.current !== base) {
                 previous = zoomed(start, photo, zoomRef.current / base)
-                previousThumb = await thumb(video, photo)
+                previousThumb = await thumb(little(video), photo)
                 if (previousThumb)
                   anchor = {
                     crop: previous,
@@ -825,6 +872,7 @@ export function RephotoCamera({
     return () => {
       controller.abort()
       clearInterval(follower)
+      small?.track.stop()
       setLock(null)
       report(
         "live matching",
