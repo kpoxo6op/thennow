@@ -10,7 +10,13 @@ import {
   prepareArchive,
   type Archive,
 } from "@/lib/rephoto/align"
-import { fits, releaseCanvas, shrinkToFit, type Crop } from "@/lib/rephoto/crop"
+import {
+  fits,
+  releaseCanvas,
+  shrinkToFit,
+  type Crop,
+  type Size,
+} from "@/lib/rephoto/crop"
 import {
   canMatchLocally,
   localMatcherReady,
@@ -19,6 +25,7 @@ import {
 import { loadImage } from "@/lib/rephoto/pixels"
 import { browserName, report } from "@/lib/rephoto/telemetry"
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
+import { slide, thumb, type Thumb } from "@/lib/rephoto/track"
 import { zoomed, zoomFor, type ZoomRange } from "@/lib/rephoto/zoom"
 import {
   canTurnScreen,
@@ -484,6 +491,7 @@ export function RephotoCamera({
     const controller = new AbortController()
     const began = performance.now()
     let previous: Crop | null = null
+    let previousThumb: Thumb | null = null
     let misses = 0
     // How much of the picture's width the view is looked for in. A view too far away to be found
     // in the whole picture is looked for in its middle, every other try, until found.
@@ -500,6 +508,27 @@ export function RephotoCamera({
     // Once the view is lost just after zooming in, the camera never zooms in that far again.
     let ceiling = Infinity
     let zoomedIn = -Infinity
+    // While the zoom moves, nothing else looks at the picture; each zoom starts a new count, so a
+    // look that began before it is thrown away.
+    let zooming = false
+    let zooms = 0
+    // The last placement and the tiny copy of the frame it was found in, which the follower
+    // slides it along from.
+    let anchor: {
+      crop: Crop
+      thumb: Thumb
+      held: boolean
+      steady: boolean
+    } | null = null
+    const shifted = (
+      crop: Crop,
+      by: { x: number; y: number },
+      photo: Size
+    ) => ({
+      ...crop,
+      cx: crop.cx + by.x * photo.width,
+      cy: crop.cy + by.y * photo.height,
+    })
     // The zoom moves in small steps, so the picture glides rather than jumps. Only the zoom the
     // camera says it reached is believed; a camera that refuses is left alone from then on.
     const zoomTo = async (
@@ -513,6 +542,9 @@ export function RephotoCamera({
         !controller.signal.aborted &&
         streamRef.current?.getVideoTracks()[0] === track
       const from = zoomRef.current
+      zooming = true
+      zooms++
+      anchor = null
       report("zoom", {}, { from, to: target })
       for (let step = 1; step <= 5; step++) {
         const zoom =
@@ -523,8 +555,9 @@ export function RephotoCamera({
             () => true,
             () => false
           )
-        if (!current()) return
+        if (!current()) return void (zooming = false)
         if (!ok) {
+          zooming = false
           rangeRef.current = null
           report("zoom failed", { step, from, target })
           return
@@ -534,14 +567,69 @@ export function RephotoCamera({
           (track.getSettings() as { zoom?: number }).zoom ?? zoom
         reached?.(zoomRef.current)
         await new Promise((resolve) => setTimeout(resolve, 60))
-        if (!current()) return
+        if (!current()) return void (zooming = false)
       }
       if (Math.abs(zoomRef.current - target) > 0.05)
         report("zoom short", { reached: zoomRef.current, target })
       if (target > from) zoomedIn = performance.now()
       // Let a frame at the new zoom reach the preview before looking again.
       await new Promise((resolve) => setTimeout(resolve, 150))
+      zooming = false
     }
+    const lowestZoom = () => Math.max(1, rangeRef.current?.min ?? 1)
+    // Lost while zoomed in: back out so the old view can be found again.
+    const backOut = async () => {
+      // Lost soon after zooming in, the zoom itself lost it; later, the phone just moved.
+      if (performance.now() - zoomedIn < 10_000)
+        ceiling = Math.max(lowestZoom(), zoomRef.current - 0.2)
+      previous = null
+      setLock(null)
+      await zoomTo(lowestZoom())
+      misses = 0
+    }
+
+    // Between matches, the old photograph follows the picture as the hand moves, and a view
+    // sliding off the edge of a zoomed-in picture backs the zoom out at once.
+    let following = false
+    const follow = () => {
+      const video = videoRef.current
+      const archive = archiveRef.current
+      if (
+        following ||
+        zooming ||
+        !anchor ||
+        !video?.videoWidth ||
+        !archive ||
+        document.visibilityState !== "visible"
+      )
+        return
+      following = true
+      try {
+        const photo = { width: video.videoWidth, height: video.videoHeight }
+        const now = thumb(video, photo)
+        const by = now && slide(anchor.thumb, now)
+        if (!by) return
+        const crop = shifted(anchor.crop, by, photo)
+        const range = rangeRef.current
+        if (
+          range &&
+          zoomRef.current > lowestZoom() + 0.05 &&
+          !fits({ ...crop, width: crop.width * 0.8 }, archive.aspect, photo)
+        ) {
+          void backOut()
+          return
+        }
+        setLock({
+          crop,
+          held: anchor.held,
+          steady: anchor.steady && fits(crop, archive.aspect, photo),
+          at: performance.now(),
+        })
+      } finally {
+        following = false
+      }
+    }
+    const follower = setInterval(follow, 80)
     const loop = async () => {
       while (!controller.signal.aborted) {
         const started = performance.now()
@@ -561,11 +649,15 @@ export function RephotoCamera({
           const photo = { width: video.videoWidth, height: video.videoHeight }
           // The placement is as old as the frame it was found in, not the answer.
           const sampled = performance.now()
+          const look = zooms
+          const seen = thumb(video, photo)
           const found = await align(archive, video, photo, controller.signal, {
             server: false,
             reach,
           }).catch(() => null)
           if (controller.signal.aborted) return
+          // The zoom moved while this look was under way: its answer is for a picture gone.
+          if (look !== zooms || zooming) continue
           stats.runs++
           stats.matchMs += performance.now() - sampled
           if (found) {
@@ -573,6 +665,12 @@ export function RephotoCamera({
             if (stats.firstFound < 0)
               stats.firstFound = Math.round(performance.now() - began)
             misses = 0
+            // Where the last placement would be in this frame, after the hand's movement since.
+            if (previous && previousThumb && seen) {
+              const by = slide(previousThumb, seen)
+              if (by) previous = shifted(previous, by, photo)
+            }
+            previousThumb = seen
             const near =
               previous != null &&
               Math.hypot(
@@ -611,6 +709,19 @@ export function RephotoCamera({
                   at: performance.now(),
                 })
               )
+              // Where the old view should now be: the next match that agrees with it holds at
+              // once, instead of waiting for two more.
+              if (zoomRef.current !== base) {
+                previous = zoomed(found.crop, photo, zoomRef.current / base)
+                previousThumb = thumb(video, photo)
+                if (previousThumb)
+                  anchor = {
+                    crop: previous,
+                    thumb: previousThumb,
+                    held: false,
+                    steady: false,
+                  }
+              }
               continue
             }
             const steady = near && fits(found.crop, archive.aspect, photo)
@@ -625,20 +736,20 @@ export function RephotoCamera({
               steady,
               at: sampled,
             })
+            // The follower carries it on from the frame it was found in, so the delay of the
+            // match itself is made up at once.
+            anchor = seen
+              ? { crop: found.crop, thumb: seen, held: near, steady }
+              : null
+            follow()
           } else {
             reach = reach < 1 ? 1 : NEAR_REACH
             if (++misses >= 2) {
               previous = null
+              anchor = null
               setLock(null)
-              // Lost while zoomed in: back out so the old view can be found again.
-              const lowest = Math.max(1, rangeRef.current?.min ?? 1)
-              if (misses >= 4 && rangeRef.current && zoomRef.current > lowest) {
-                // Lost soon after zooming in, the zoom itself lost it; later, the phone just moved.
-                if (performance.now() - zoomedIn < 10_000)
-                  ceiling = Math.max(lowest, zoomRef.current - 0.2)
-                await zoomTo(lowest)
-                misses = 0
-              }
+              if (rangeRef.current && zoomRef.current > lowestZoom())
+                await backOut()
             }
           }
         }
@@ -658,6 +769,7 @@ export function RephotoCamera({
     void loop()
     return () => {
       controller.abort()
+      clearInterval(follower)
       setLock(null)
       report(
         "live matching",
