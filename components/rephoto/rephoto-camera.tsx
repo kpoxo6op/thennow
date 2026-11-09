@@ -14,6 +14,7 @@ import {
 import { loadImage } from "@/lib/rephoto/pixels"
 import { browserName, report } from "@/lib/rephoto/telemetry"
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
+import { zoomFor, type ZoomRange } from "@/lib/rephoto/zoom"
 import { releaseScreen } from "@/components/rephoto/camera-link"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
@@ -79,6 +80,16 @@ function timeLimit<T>(
       }, ms)
     }),
   ]).finally(() => clearTimeout(timer))
+}
+
+// The camera's zoom where the browser lets a page set it (Chrome on Android).
+function zoomRange(track: MediaStreamTrack | undefined): ZoomRange | null {
+  const zoom = (
+    track?.getCapabilities?.() as
+      | { zoom?: { min: number; max: number } }
+      | undefined
+  )?.zoom
+  return zoom && zoom.max > zoom.min ? { min: zoom.min, max: zoom.max } : null
 }
 
 const pageHidden = () => document.visibilityState === "hidden"
@@ -176,6 +187,9 @@ export function RephotoCamera({
   const lockLife = useRef(2500)
   const attempt = useRef(0)
   const plain = useRef(false)
+  // The camera's zoom now, and how far this camera can zoom (null: not at all).
+  const zoomRef = useRef(1)
+  const rangeRef = useRef<ZoomRange | null>(null)
   const [status, setStatus] = useState<"starting" | "live" | "error">(
     "starting"
   )
@@ -295,6 +309,10 @@ export function RephotoCamera({
         return
       }
       streamRef.current = stream
+      const opened = stream.getVideoTracks()[0]
+      rangeRef.current = zoomRange(opened)
+      zoomRef.current =
+        (opened?.getSettings() as { zoom?: number } | undefined)?.zoom ?? 1
       video.srcObject = stream
       try {
         debug("play")
@@ -467,6 +485,23 @@ export function RephotoCamera({
       firstFound: -1,
       firstSteady: -1,
     }
+    // The zoom moves in small steps, so the picture glides rather than jumps.
+    const zoomTo = async (target: number) => {
+      const track = streamRef.current?.getVideoTracks()[0]
+      if (!track) return
+      const from = zoomRef.current
+      report("zoom", {}, { from, to: target })
+      for (let step = 1; step <= 5 && !controller.signal.aborted; step++) {
+        const zoom =
+          Math.round((from + ((target - from) * step) / 5) * 100) / 100
+        await track
+          .applyConstraints({ advanced: [{ zoom } as MediaTrackConstraintSet] })
+          .catch(() => {})
+        zoomRef.current = zoom
+        await new Promise((resolve) => setTimeout(resolve, 60))
+      }
+      zoomRef.current = target
+    }
     const loop = async () => {
       while (!controller.signal.aborted) {
         const started = performance.now()
@@ -506,6 +541,24 @@ export function RephotoCamera({
                 found.crop.width * 0.05 &&
               Math.abs(found.crop.width / previous.width - 1) < 0.05
             previous = found.crop
+            // Held in one place, the camera zooms so the old view fills the picture.
+            const range = rangeRef.current
+            const zoom =
+              near && range
+                ? zoomFor(
+                    found.crop,
+                    archive.aspect,
+                    photo,
+                    zoomRef.current,
+                    range
+                  )
+                : null
+            if (zoom != null) {
+              previous = null
+              setLock(null)
+              await zoomTo(zoom)
+              continue
+            }
             const steady = near && fits(found.crop, archive.aspect, photo)
             if (steady && !buzzed) {
               buzzed = true
@@ -521,6 +574,11 @@ export function RephotoCamera({
           } else if (++misses >= 2) {
             previous = null
             setLock(null)
+            // Lost while zoomed in: back out so the old view can be found again.
+            if (misses >= 4 && zoomRef.current > (rangeRef.current?.min ?? 1)) {
+              await zoomTo(Math.max(1, rangeRef.current?.min ?? 1))
+              misses = 0
+            }
           }
         }
         // Gentler on the battery after the first minute.
@@ -632,6 +690,7 @@ export function RephotoCamera({
         width: photo.width,
         height: photo.height,
         lean: lean == null ? null : Math.round((lean * 180) / Math.PI),
+        zoom: zoomRef.current,
         steady: !!lock?.steady,
       },
       { framing: held ? "live" : "levelled" }
