@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Check, X } from "lucide-react"
+import { X } from "lucide-react"
 
 import {
   align,
@@ -10,8 +10,15 @@ import {
   prepareArchive,
   type Archive,
 } from "@/lib/rephoto/align"
-import { fits, releaseCanvas, renderCrop, type Crop } from "@/lib/rephoto/crop"
+import {
+  fits,
+  MAX_OUTPUT_WIDTH,
+  releaseCanvas,
+  renderCrop,
+  type Crop,
+} from "@/lib/rephoto/crop"
 import { loadImage } from "@/lib/rephoto/pixels"
+import { newKey, sendPhoto } from "@/lib/rephoto/submit"
 import { report } from "@/lib/rephoto/telemetry"
 
 export type Shot = {
@@ -34,10 +41,61 @@ interface Props {
   onRetake: () => void
 }
 
-type Phase = "aligning" | "aligned" | "unmatched"
+// Unchecked: the photo couldn't be compared with the old one (no signal, matcher busy), which
+// says nothing about the photo, so it can still be sent. Unmatched: it was compared and isn't
+// the same view, so it can only be taken again.
+type Phase = "aligning" | "aligned" | "unchecked" | "unmatched"
+type Sending =
+  | "idle"
+  | "sending"
+  | "sent"
+  | "offline"
+  | "busy"
+  | "limited"
+  | "refused"
+
+const NOT_SENT: Record<string, string> = {
+  offline: "Not sent. Check your signal.",
+  busy: "Not sent. Please try again in a minute.",
+  limited: "Not sent. Many photos came from this network just now. Please try again later.",
+  refused: "This photo can’t be sent. You can keep a copy.",
+}
+
+// The site takes up to 4 MB; stay well under it.
+const MAX_SEND_BYTES = 3_500_000
+const ENCODINGS: [number, number][] = [
+  [MAX_OUTPUT_WIDTH, 0.85],
+  [MAX_OUTPUT_WIDTH, 0.72],
+  [1920, 0.72],
+]
+
+function toJpeg(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", quality)
+  )
+}
+
+// The framed photograph as a JPEG small enough to send. Drawn from a canvas, it carries no
+// camera details or location.
+async function encode(source: HTMLCanvasElement, crop: Crop, aspect: number) {
+  const canvas = document.createElement("canvas")
+  try {
+    let blob: Blob | null = null
+    for (const [width, quality] of ENCODINGS) {
+      renderCrop(source, crop, aspect, canvas, width)
+      blob = await toJpeg(canvas, quality)
+      if (!blob || blob.size <= MAX_SEND_BYTES) break
+    }
+    return blob
+  } finally {
+    releaseCanvas(canvas)
+  }
+}
 
 // The shot settles onto the archive view, then the archive fades away to leave the result.
 const SETTLE_MS = 350
+
+class NoMatch extends Error {}
 
 function stamp(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0")
@@ -57,19 +115,27 @@ export function RephotoReview({
   const [stage, setStage] = useState({ width: 0, height: 0 })
   const [crop, setCrop] = useState<Crop>(shot.crop)
   const [phase, setPhase] = useState<Phase>("aligning")
+  // Whether the matcher itself confirmed the match, not just the live view's placement.
+  const [confirmed, setConfirmed] = useState(false)
   const [settled, setSettled] = useState(false)
   const [peek, setPeek] = useState(false)
   const [note, setNote] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [renders, setRenders] = useState(0)
   const [renderFailed, setRenderFailed] = useState(false)
-  // The file that was last saved: a newer framing made after it needs saving again.
-  const [savedFile, setSavedFile] = useState<File | null>(null)
-  const saved = !!file && savedFile === file
+  const [sending, setSending] = useState<Sending>("idle")
+  const [saveNote, setSaveNote] = useState("")
+  const [kept, setKept] = useState(false)
+  // One key per framed file: sending it again, after a lost answer, keeps a single copy.
+  const keyRef = useRef("")
+  // Keeping a copy means the phone's photos. An iPhone puts a file there only through its share
+  // sheet (Save Image); Android's share sheet offers people, not a save, so there it downloads.
   const canShare =
     typeof navigator !== "undefined" &&
     "share" in navigator &&
-    "canShare" in navigator
+    "canShare" in navigator &&
+    (/iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
 
   const holderRef = useCallback(
     (holder: HTMLDivElement | null) => {
@@ -136,7 +202,7 @@ export function RephotoReview({
             server: true,
             reach: NEAR_REACH,
           }))
-        if (!found) throw new Error("No match")
+        if (!found) throw new NoMatch()
         // The crop stays exactly on the old view, so the two line up. Where that view runs off
         // the photograph the corner is left black, never filled in, and the note says why.
         setCrop(found.crop)
@@ -155,6 +221,7 @@ export function RephotoReview({
           zoom: Math.round((found.crop.width / photo.width) * 100),
           turn: Math.round((found.crop.rotation * 180) / Math.PI),
         })
+        setConfirmed(true)
         setPhase("aligned")
       } catch (error) {
         if (controller.signal.aborted) return
@@ -162,14 +229,22 @@ export function RephotoReview({
           why: String(error).slice(0, 120),
         })
         // The live view had already placed it; that placement stands.
+        const listed = shot.archive?.aspect ?? listedAspect
+        const partial = !fits(shot.crop, listed, photo)
         if (shot.locked) {
-          const listed = shot.archive?.aspect ?? listedAspect
-          if (!fits(shot.crop, listed, photo))
-            setNote("Step back to include the whole view.")
+          if (partial) setNote("Step back to include the whole view.")
           return setPhase("aligned")
         }
-        setPhase("unmatched")
-        setNote("Couldn’t align this photo.")
+        if (error instanceof NoMatch) {
+          setPhase("unmatched")
+          setNote(
+            "This doesn’t match the old photo. Stand where it was taken and try again."
+          )
+          return
+        }
+        // Not compared at all: the photo is kept as framed, and may still be sent.
+        if (partial) setNote("Step back to include the whole view.")
+        setPhase("unchecked")
       }
     }
     void run()
@@ -189,34 +264,54 @@ export function RephotoReview({
   // It's made from the framing at hand at once, and again when the matcher refines it.
   useEffect(() => {
     let current = true
-    const canvas = document.createElement("canvas")
-    const fail = () => current && setRenderFailed(true)
-    try {
-      renderCrop(shot.canvas, crop, aspect, canvas)
-      canvas.toBlob(
-        (blob) => {
-          releaseCanvas(canvas)
-          if (!current) return
-          if (!blob) return fail()
-          setRenderFailed(false)
-          setFile(
-            new File([blob], `${slug}-now-${stamp(shot.takenAt)}.jpg`, {
-              type: "image/jpeg",
-            })
-          )
-        },
-        "image/jpeg",
-        0.92
-      )
-    } catch {
-      releaseCanvas(canvas)
-      fail()
-    }
+    encode(shot.canvas, crop, aspect)
+      .then((blob) => {
+        if (!current) return
+        if (!blob) return setRenderFailed(true)
+        setRenderFailed(false)
+        keyRef.current = newKey()
+        setFile(
+          new File([blob], `${slug}-now-${stamp(shot.takenAt)}.jpg`, {
+            type: "image/jpeg",
+          })
+        )
+      })
+      .catch(() => current && setRenderFailed(true))
     return () => {
       current = false
       setFile(null)
     }
   }, [crop, aspect, shot, slug, renders])
+
+  // Leaving the site while a photo is on its way would lose it; the browser asks first.
+  useEffect(() => {
+    if (sending !== "sending") return
+    const hold = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener("beforeunload", hold)
+    return () => window.removeEventListener("beforeunload", hold)
+  }, [sending])
+
+  // Set at once, so a quick second tap can't start a second send before the screen updates.
+  const sendingRef = useRef(false)
+  const send = async () => {
+    if (!file || sendingRef.current) return
+    sendingRef.current = true
+    setSending("sending")
+    const began = performance.now()
+    const result = await sendPhoto(file, {
+      slug,
+      key: keyRef.current,
+      checked: confirmed,
+    })
+    report(
+      "send",
+      { bytes: file.size, phase, ms: Math.round(performance.now() - began) },
+      { result }
+    )
+    sendingRef.current = false
+    setSaveNote("")
+    setSending(result)
+  }
 
   const save = async () => {
     if (!file) return
@@ -231,8 +326,9 @@ export function RephotoReview({
         link.download = file.name
         link.click()
         setTimeout(() => URL.revokeObjectURL(url), 10_000)
+        // Says where it went. A share sheet's finish proves nothing was saved, so it says nothing.
+        setKept(true)
       }
-      setSavedFile(saving)
       report(
         "save",
         { bytes: saving.size },
@@ -246,9 +342,52 @@ export function RephotoReview({
         { message: String(error).slice(0, 200) },
         { cancelled }
       )
-      if (!cancelled) setNote("Couldn’t save. Try again.")
+      if (!cancelled) setSaveNote("Couldn’t keep a copy.")
     }
   }
+
+  if (sending === "sent") {
+    return (
+      <div
+        data-testid="rephoto-sent"
+        className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-8 bg-black px-6 text-center text-white"
+      >
+        <div role="status" className="max-w-md space-y-3">
+          <h1 className="font-serif text-4xl leading-tight">Thank you.</h1>
+          <p className="text-lg leading-snug text-white/85">
+            Your photo has been sent. We look at every photo before it goes
+            on the site.
+          </p>
+        </div>
+        <Link
+          href={`/${slug}`}
+          data-testid="rephoto-done"
+          className="inline-flex min-h-12 min-w-40 items-center justify-center rounded-md bg-white px-8 text-lg font-medium text-black"
+        >
+          Done
+        </Link>
+        {file && (
+          <button
+            type="button"
+            data-testid="rephoto-save"
+            onClick={() => void save()}
+            className="min-h-11 text-base text-white/85 underline underline-offset-4"
+          >
+            {saveNote || (kept ? "In your Downloads" : "Keep a copy")}
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  const busy = sending === "sending"
+  const failed =
+    sending === "offline" ||
+    sending === "busy" ||
+    sending === "limited" ||
+    sending === "refused"
+  const sendable = phase === "aligned" || phase === "unchecked"
+  const status = saveNote || (failed ? NOT_SENT[sending] : note)
 
   const box = stage.width
     ? (() => {
@@ -315,55 +454,90 @@ export function RephotoReview({
             />
           </div>
         )}
-        {note && (
+        {status && (
           <p
             data-testid="rephoto-note"
             role="status"
-            className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-sm text-white/90 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]"
+            className="pointer-events-none absolute inset-x-4 bottom-3 text-balance text-center text-base text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]"
           >
-            {note}
+            {status}
           </p>
         )}
-        <Link
-          href={`/${slug}`}
-          aria-label="Close"
-          className="absolute left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] grid size-11 place-items-center rounded-full bg-black/40"
-        >
-          <X className="size-5" aria-hidden />
-        </Link>
-      </div>
-
-      <div className="flex shrink-0 items-center justify-between gap-4 px-[max(1.25rem,env(safe-area-inset-left))] pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 landscape:flex-col-reverse landscape:justify-center landscape:py-4 landscape:pr-[max(1.25rem,env(safe-area-inset-right))]">
-        <button
-          type="button"
-          data-testid="rephoto-retake"
-          onClick={onRetake}
-          className="min-h-11 px-4 text-base text-white/85"
-        >
-          Retake
-        </button>
-        {saved ? (
+        {!busy && (
           <Link
             href={`/${slug}`}
-            data-testid="rephoto-done"
-            className="inline-flex min-h-11 min-w-32 items-center justify-center gap-2 rounded-md bg-white px-6 text-base font-medium text-black"
+            aria-label="Close"
+            className="absolute left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] grid size-11 place-items-center rounded-full bg-black/40"
           >
-            <Check className="size-4" aria-hidden />
-            Done
+            <X className="size-5" aria-hidden />
           </Link>
-        ) : (
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center justify-between gap-4 px-[max(1.25rem,env(safe-area-inset-left))] pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 landscape:w-56 landscape:flex-col-reverse landscape:justify-center landscape:py-4 landscape:pr-[max(1.25rem,env(safe-area-inset-right))]">
+        {phase !== "unmatched" && (
           <button
             type="button"
-            data-testid="rephoto-save"
-            onClick={() =>
-              renderFailed ? setRenders((n) => n + 1) : void save()
-            }
-            disabled={!file && !renderFailed}
-            className="inline-flex min-h-11 min-w-32 items-center justify-center rounded-md bg-white px-6 text-base font-medium text-black disabled:opacity-60"
+            data-testid="rephoto-retake"
+            onClick={onRetake}
+            disabled={busy}
+            className="min-h-11 px-4 text-base text-white/85 disabled:opacity-40"
           >
-            {renderFailed ? "Try again" : canShare ? "Share" : "Save photo"}
+            Retake
           </button>
         )}
+        <div className="flex min-w-0 flex-1 flex-col items-end gap-2 landscape:flex-none landscape:items-stretch">
+          {phase === "unmatched" ? (
+            <button
+              type="button"
+              data-testid="rephoto-again"
+              onClick={onRetake}
+              className="inline-flex min-h-12 min-w-40 items-center justify-center rounded-md bg-white px-6 text-lg font-medium text-black"
+            >
+              Retake
+            </button>
+          ) : sending === "refused" ? null : (
+            <button
+              type="button"
+              data-testid="rephoto-send"
+              onClick={() =>
+                renderFailed ? setRenders((n) => n + 1) : void send()
+              }
+              disabled={busy || (!renderFailed && (!sendable || !file))}
+              aria-busy={busy || phase === "aligning"}
+              className="inline-flex min-h-12 min-w-40 items-center justify-center rounded-md bg-white px-6 text-lg font-medium text-black disabled:opacity-60"
+            >
+              {phase === "aligning"
+                ? "Lining up…"
+                : busy
+                  ? "Sending…"
+                  : failed
+                    ? "Send again"
+                    : renderFailed
+                      ? "Try again"
+                    : "Send photo"}
+            </button>
+          )}
+          {!failed && phase !== "unmatched" && (
+            <p
+              data-testid="rephoto-consent"
+              className="max-w-72 text-right text-sm leading-snug text-white/75 landscape:text-center"
+            >
+              By sending, you let then|now publish this photo. We don’t
+              receive your name or your phone’s location.
+            </p>
+          )}
+          {file && !busy && phase !== "aligning" && (
+            <button
+              type="button"
+              data-testid="rephoto-save"
+              onClick={() => void save()}
+              className="min-h-11 text-base text-white underline underline-offset-4"
+            >
+              {kept ? "In your Downloads" : "Keep a copy"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

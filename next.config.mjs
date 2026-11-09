@@ -8,6 +8,8 @@ const nextConfig = {
       './public/models/loftr-coarse-352x480-fp16-be208d87.onnx',
       './node_modules/.pnpm/onnxruntime-node@*/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/*',
     ],
+    // The upcoming places a sent photo may be for.
+    '/api/submit': ['./public/posts/*/*.json'],
   },
   outputFileTracingExcludes: {
     '/api/align': [

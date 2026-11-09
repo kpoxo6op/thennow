@@ -271,7 +271,7 @@ test.describe("the rephotography camera", () => {
     expect(crop.rotation).not.toBe(0)
   })
 
-  test("the photo can be saved straight away, while it is still being lined up", async ({
+  test("while the photo is being lined up, the main button says so and can't send yet", async ({
     page,
   }) => {
     await page.route("**/api/align", () => {})
@@ -281,9 +281,26 @@ test.describe("the rephotography camera", () => {
       "data-phase",
       "aligning"
     )
-    await expect(page.getByTestId("rephoto-save")).toBeEnabled({
-      timeout: 3_000,
-    })
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Lining up…")
+    await expect(send).toBeDisabled()
+    await expect(page.getByTestId("rephoto-retake")).toBeEnabled()
+  })
+
+  test("a photo that couldn't be compared, for want of a signal, can still be sent", async ({
+    page,
+  }) => {
+    await page.route("**/api/align", (route) => route.abort())
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "unchecked",
+      { timeout: 30_000 }
+    )
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo")
+    await expect(send).toBeEnabled()
   })
 
   test("a phone whose own matcher can't load lines the shot up on the server", async ({
@@ -332,13 +349,18 @@ test.describe("the rephotography camera", () => {
       "unmatched"
     )
     await expect(page.getByTestId("rephoto-note")).toHaveText(
-      "Couldn’t align this photo."
+      "This doesn’t match the old photo. Stand where it was taken and try again."
     )
     const crop = await readCrop(page)
     expect(crop.rotation).toBe(0)
     expect(crop.cx).toBeCloseTo(photo.width / 2, 0)
     expect(crop.cy).toBeCloseTo(photo.height / 2, 0)
-    await expect(page.getByTestId("rephoto-save")).toBeEnabled()
+    // A photo of somewhere else can't be sent: the one way on is to take it again.
+    await expect(page.getByTestId("rephoto-send")).toHaveCount(0)
+    await expect(page.getByTestId("rephoto-retake")).toHaveCount(0)
+    await expect(page.getByTestId("rephoto-again")).toHaveText("Retake")
+    await page.getByTestId("rephoto-again").click()
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
   })
 
   test("the matcher refuses anything but two pictures of the agreed size", async ({
@@ -420,10 +442,18 @@ test.describe("the rephotography camera", () => {
     await expect(ghost).toHaveCSS("opacity", "0")
   })
 
-  test("saving gives one photograph at the old one's shape, then Done leads back to the story", async ({
+  test("sending gives one photograph at the old one's shape, then thanks and leads back to the story", async ({
     page,
   }) => {
     const place = archive("mission-house")
+    const sent: { url: URL; body: Buffer }[] = []
+    await page.route("**/api/submit?**", async (route) => {
+      sent.push({
+        url: new URL(route.request().url()),
+        body: route.request().postDataBuffer()!,
+      })
+      await route.fulfill({ json: { ok: true } })
+    })
     await openCamera(page, "mission-house")
     await shoot(page)
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
@@ -431,31 +461,184 @@ test.describe("the rephotography camera", () => {
       "aligned",
       { timeout: 30_000 }
     )
-    await expect(page.getByTestId("rephoto-save")).toBeEnabled({
-      timeout: 30_000,
-    })
+    await expect(page.getByTestId("rephoto-consent")).toBeVisible()
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.dblclick()
 
-    const downloadPromise = page.waitForEvent("download")
-    await page.getByTestId("rephoto-save").click()
-    const download = await downloadPromise
-    expect(download.suggestedFilename()).toMatch(
-      /^mission-house-now-\d{4}-\d{2}-\d{2}\.jpg$/
-    )
-    const size = await page.evaluate(
-      async (url) => {
-        const image = new Image()
-        image.src = url
-        await image.decode()
-        return { width: image.naturalWidth, height: image.naturalHeight }
-      },
-      await download.url()
-    )
+    await expect(page.getByTestId("rephoto-sent")).toContainText("Thank you.")
+    expect(sent).toHaveLength(1)
+    const [{ url, body }] = sent
+    expect(url.searchParams.get("place")).toBe("mission-house")
+    expect(url.searchParams.get("checked")).toBe("1")
+    expect(url.searchParams.get("key")).toMatch(/^[a-z0-9]{24}$/)
+    expect(body.length).toBeLessThan(3_500_000)
+    expect([...body.subarray(0, 2)]).toEqual([0xff, 0xd8])
+    const size = await page.evaluate(async (base64) => {
+      const image = new Image()
+      image.src = `data:image/jpeg;base64,${base64}`
+      await image.decode()
+      return { width: image.naturalWidth, height: image.naturalHeight }
+    }, body.toString("base64"))
     expect(size.height / size.width).toBeCloseTo(place.h / place.w, 2)
 
     await expect(page.getByTestId("rephoto-done")).toHaveAttribute(
       "href",
       "/mission-house"
     )
+  })
+
+  test("a photo that fails to send can be kept and sent again, as one photo", async ({
+    page,
+  }) => {
+    const keys: string[] = []
+    let online = false
+    await page.route("**/api/submit?**", async (route) => {
+      keys.push(new URL(route.request().url()).searchParams.get("key")!)
+      if (online) await route.fulfill({ json: { ok: true } })
+      else await route.abort("internetdisconnected")
+    })
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+
+    await expect(page.getByTestId("rephoto-note")).toHaveText(
+      "Not sent. Check your signal."
+    )
+    await expect(send).toHaveText("Send again")
+    await expect(page.getByTestId("rephoto-retake")).toBeEnabled()
+    const downloadPromise = page.waitForEvent("download")
+    await page.getByTestId("rephoto-save").click()
+    expect((await downloadPromise).suggestedFilename()).toMatch(
+      /^mission-house-now-\d{4}-\d{2}-\d{2}\.jpg$/
+    )
+
+    online = true
+    await send.click()
+    await expect(page.getByTestId("rephoto-sent")).toBeVisible()
+    expect(keys).toHaveLength(2)
+    expect(keys[1]).toBe(keys[0])
+    // A copy can still be kept after sending.
+    const keptPromise = page.waitForEvent("download")
+    await page.getByTestId("rephoto-save").click()
+    await keptPromise
+  })
+
+  test("a photo the site won't take says so, and isn't offered again", async ({
+    page,
+  }) => {
+    await page.route("**/api/submit?**", (route) =>
+      route.fulfill({ status: 415, json: { error: "not a jpeg" } })
+    )
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+    await expect(page.getByTestId("rephoto-note")).toHaveText(
+      "This photo can’t be sent. You can keep a copy."
+    )
+    await expect(send).toHaveCount(0)
+    await expect(page.getByTestId("rephoto-save")).toBeVisible()
+    await expect(page.getByTestId("rephoto-retake")).toBeEnabled()
+  })
+
+  test("a site that can't take the photo just now asks to try again later, not to check the signal", async ({
+    page,
+  }) => {
+    await page.route("**/api/submit?**", (route) =>
+      route.fulfill({ status: 503, json: { error: "no store" } })
+    )
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+    await expect(page.getByTestId("rephoto-note")).toHaveText(
+      "Not sent. Please try again in a minute."
+    )
+    await expect(send).toHaveText("Send again")
+  })
+
+  test("too many photos from one network says to try later, not in a minute", async ({
+    page,
+  }) => {
+    await page.route("**/api/submit?**", (route) =>
+      route.fulfill({ status: 429, json: { error: "slow down" } })
+    )
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+    await expect(page.getByTestId("rephoto-note")).toHaveText(
+      "Not sent. Many photos came from this network just now. Please try again later."
+    )
+  })
+
+  test("a copy can be kept without sending anything", async ({ page }) => {
+    let sent = 0
+    await page.route("**/api/submit?**", async (route) => {
+      sent += 1
+      await route.fulfill({ json: { ok: true } })
+    })
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-send")).toHaveText("Send photo", {
+      timeout: 30_000,
+    })
+    const save = page.getByTestId("rephoto-save")
+    const downloadPromise = page.waitForEvent("download")
+    await save.click()
+    await downloadPromise
+    await expect(save).toHaveText("In your Downloads")
+    await expect(page.getByTestId("rephoto-consent")).toBeVisible()
+    expect(sent).toBe(0)
+  })
+
+  test("while a photo is sending, it can't be closed or retaken", async ({
+    page,
+  }) => {
+    await page.route("**/api/submit?**", () => {})
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+    await expect(send).toHaveText("Sending…")
+    await expect(send).toBeDisabled()
+    await expect(page.getByTestId("rephoto-retake")).toBeDisabled()
+    await expect(page.getByRole("link", { name: "Close" })).toHaveCount(0)
+  })
+
+  test("the photo store takes only real photos of the site's places, from the site", async ({
+    request,
+  }) => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0xff, 0xd9])
+    const post = (query: string, data: Buffer, headers = {}) =>
+      request.post(`/api/submit?${query}`, { data, headers })
+    const key = "abcdefghijkl0123"
+    expect(
+      (
+        await post(`place=mission-house&key=${key}`, jpeg, {
+          "sec-fetch-site": "cross-site",
+        })
+      ).status()
+    ).toBe(403)
+    expect((await post(`place=mission-house&key=x`, jpeg)).status()).toBe(400)
+    expect((await post(`place=nowhere&key=${key}`, jpeg)).status()).toBe(404)
+    expect(
+      (await post(`place=mission-house&key=${key}`, Buffer.from("hello"))).status()
+    ).toBe(415)
+    // Two marker bytes around rubbish are not a photograph.
+    expect((await post(`place=mission-house&key=${key}`, jpeg)).status()).toBe(415)
+    // A real photograph passes every check and reaches the store, which tests run without.
+    const real = readFileSync(
+      path.join(process.cwd(), "public", archive("mission-house").b_imageUrl)
+    )
+    expect((await post(`place=mission-house&key=${key}`, real)).status()).toBe(503)
   })
 
   test("retake returns to the live camera", async ({ page }) => {
