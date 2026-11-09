@@ -9,7 +9,9 @@ export function newKey() {
   return Array.from(bytes, (b) => b.toString(36).padStart(2, "0")).join("")
 }
 
-export type SendResult = "sent" | "offline" | "refused"
+// offline: no answer at all (no signal, or a minute passed). busy: the site answered but couldn't
+// take it just now. refused: the site won't take this photo, however often it's sent.
+export type SendResult = "sent" | "offline" | "busy" | "refused"
 
 export async function sendPhoto(
   file: Blob,
@@ -32,8 +34,7 @@ export async function sendPhoto(
       signal: controller.signal,
     })
     if (response.ok) return "sent"
-    // Too many at once or a passing fault on the site: worth trying again.
-    if (response.status === 429 || response.status >= 500) return "offline"
+    if (response.status === 429 || response.status >= 500) return "busy"
     return "refused"
   } catch {
     return "offline"

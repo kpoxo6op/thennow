@@ -1,4 +1,5 @@
 import { head, put } from "@vercel/blob"
+import sharp from "sharp"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
 
@@ -37,14 +38,20 @@ function allowed(request: Request) {
   return true
 }
 
-function isJpeg(bytes: Uint8Array) {
-  return (
-    bytes.length > 4 &&
-    bytes[0] === 0xff &&
-    bytes[1] === 0xd8 &&
-    bytes[bytes.length - 2] === 0xff &&
-    bytes[bytes.length - 1] === 0xd9
-  )
+// A real, whole JPEG of camera size, with anything but its pixels left behind. The camera's own
+// files carry no metadata and are kept byte for byte; any other JPEG is drawn again without it.
+async function clean(bytes: Uint8Array): Promise<Buffer | null> {
+  try {
+    const image = sharp(bytes, { limitInputPixels: 40_000_000, failOn: "error" })
+    const meta = await image.metadata()
+    if (meta.format !== "jpeg" || !meta.width || !meta.height) return null
+    await image.clone().stats()
+    if (!meta.exif && !meta.xmp && !meta.iptc && !meta.icc)
+      return Buffer.from(bytes)
+    return await image.jpeg({ quality: 90 }).toBuffer()
+  } catch {
+    return null
+  }
 }
 
 const answer = (status: number, error?: string) =>
@@ -65,27 +72,23 @@ export async function POST(request: Request) {
   if (!places.some((place) => place.slug === slug && !place.sample))
     return answer(404, "no such place")
 
+  if (!allowed(request)) return answer(429, "slow down")
   const length = Number(request.headers.get("content-length") ?? 0)
   if (length > MAX_BYTES) return answer(413, "too big")
   const bytes = new Uint8Array(await request.arrayBuffer())
   if (bytes.length > MAX_BYTES) return answer(413, "too big")
-  if (!isJpeg(bytes)) return answer(415, "not a jpeg")
+  const photo = await clean(bytes)
+  if (!photo) return answer(415, "not a jpeg")
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) return answer(503, "no store")
   const pathname = `submissions/${slug}/${key}.jpg`
+  // The photo is stored last, so a photo in the store always has its note beside it, and a
+  // retry of one already stored is answered without storing it again.
   try {
     await head(pathname)
     return answer(200)
   } catch {}
-  if (!allowed(request)) return answer(429, "slow down")
-
   try {
-    await put(pathname, Buffer.from(bytes), {
-      access: "private",
-      contentType: "image/jpeg",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-    })
     await put(
       `submissions/${slug}/${key}.json`,
       JSON.stringify({
@@ -93,7 +96,7 @@ export async function POST(request: Request) {
         sentAt: new Date().toISOString(),
         // Whether the camera could confirm the photo matches the old one.
         lined: checked,
-        bytes: bytes.length,
+        bytes: photo.length,
       }),
       {
         access: "private",
@@ -102,10 +105,16 @@ export async function POST(request: Request) {
         allowOverwrite: true,
       }
     )
+    await put(pathname, photo, {
+      access: "private",
+      contentType: "image/jpeg",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    })
   } catch (error) {
     console.error(`submit failed ${slug} ${String(error).slice(0, 300)}`)
     return answer(502, "store failed")
   }
-  console.log(`submit-photo ${JSON.stringify({ place: slug, key, checked, bytes: bytes.length })}`)
+  console.log(`submit-photo ${JSON.stringify({ place: slug, key, checked, bytes: photo.length })}`)
   return answer(200)
 }

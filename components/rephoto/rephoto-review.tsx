@@ -45,7 +45,13 @@ interface Props {
 // says nothing about the photo, so it can still be sent. Unmatched: it was compared and isn't
 // the same view, so it can only be taken again.
 type Phase = "aligning" | "aligned" | "unchecked" | "unmatched"
-type Sending = "idle" | "sending" | "failed" | "sent"
+type Sending = "idle" | "sending" | "sent" | "offline" | "busy" | "refused"
+
+const NOT_SENT: Record<string, string> = {
+  offline: "Not sent. Check your signal.",
+  busy: "Not sent. Please try again in a minute.",
+  refused: "This photo can’t be sent. You can keep a copy.",
+}
 
 // The site takes up to 4 MB; stay well under it.
 const MAX_SEND_BYTES = 3_500_000
@@ -108,6 +114,7 @@ export function RephotoReview({
   const [renders, setRenders] = useState(0)
   const [renderFailed, setRenderFailed] = useState(false)
   const [sending, setSending] = useState<Sending>("idle")
+  const [saveNote, setSaveNote] = useState("")
   // One key per framed file: sending it again, after a lost answer, keeps a single copy.
   const keyRef = useRef("")
   const canShare =
@@ -286,7 +293,8 @@ export function RephotoReview({
       { result }
     )
     sendingRef.current = false
-    setSending(result === "sent" ? "sent" : "failed")
+    setSaveNote("")
+    setSending(result)
   }
 
   const save = async () => {
@@ -316,7 +324,7 @@ export function RephotoReview({
         { message: String(error).slice(0, 200) },
         { cancelled }
       )
-      if (!cancelled) setNote("Couldn’t save the copy.")
+      if (!cancelled) setSaveNote("Couldn’t keep a copy.")
     }
   }
 
@@ -329,7 +337,8 @@ export function RephotoReview({
         <div role="status" className="max-w-md space-y-3">
           <h1 className="font-serif text-4xl leading-tight">Thank you.</h1>
           <p className="text-lg leading-snug text-white/85">
-            We’ll look at your photo and add it to this place.
+            Your photo has been sent. We look at every photo before it goes
+            on the site.
           </p>
         </div>
         <Link
@@ -339,14 +348,25 @@ export function RephotoReview({
         >
           Done
         </Link>
+        {file && (
+          <button
+            type="button"
+            data-testid="rephoto-save"
+            onClick={() => void save()}
+            className="min-h-11 text-base text-white/85 underline underline-offset-4"
+          >
+            {saveNote || "Keep a copy"}
+          </button>
+        )}
       </div>
     )
   }
 
   const busy = sending === "sending"
-  const failed = sending === "failed"
+  const failed =
+    sending === "offline" || sending === "busy" || sending === "refused"
   const sendable = phase === "aligned" || phase === "unchecked"
-  const status = failed ? "Not sent. Check your signal." : note
+  const status = saveNote || (failed ? NOT_SENT[sending] : note)
 
   const box = stage.width
     ? (() => {
@@ -453,9 +473,9 @@ export function RephotoReview({
               onClick={onRetake}
               className="inline-flex min-h-12 min-w-40 items-center justify-center rounded-md bg-white px-6 text-lg font-medium text-black"
             >
-              Try again
+              Retake
             </button>
-          ) : (
+          ) : sending === "refused" ? null : (
             <button
               type="button"
               data-testid="rephoto-send"
@@ -470,8 +490,10 @@ export function RephotoReview({
                 ? "Lining up…"
                 : busy
                   ? "Sending…"
-                  : failed || renderFailed
-                    ? "Try again"
+                  : failed
+                    ? "Send again"
+                    : renderFailed
+                      ? "Try again"
                     : "Send photo"}
             </button>
           )}
@@ -482,16 +504,16 @@ export function RephotoReview({
               onClick={() => void save()}
               className="min-h-11 text-base text-white underline underline-offset-4"
             >
-              Save a copy
+              Keep a copy
             </button>
           ) : (
             phase !== "unmatched" && (
               <p
                 data-testid="rephoto-consent"
-                className="max-w-64 text-right text-xs leading-snug text-white/70 landscape:text-center"
+                className="max-w-72 text-right text-sm leading-snug text-white/75 landscape:text-center"
               >
-                By sending, you let then|now publish this photo. No name or
-                location is attached.
+                By sending, you let then|now publish this photo. We don’t
+                receive your name or your phone’s location.
               </p>
             )
           )}
