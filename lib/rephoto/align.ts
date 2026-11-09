@@ -2,6 +2,7 @@ import type { Size } from "@/lib/rephoto/crop"
 import {
   canMatchLocally,
   localMatcherReady,
+  localMatcherWarm,
   matchLocally,
 } from "@/lib/rephoto/local-matcher"
 import {
@@ -113,8 +114,12 @@ export async function align(
   const modelBegun = performance.now()
   let raw = null
   if (canMatchLocally()) {
-    // A warmed-up matcher answers in about a second; one still loading gets a short grace.
-    const local = within(signal, localMatcherReady() ? 8_000 : 3_000)
+    // A warm matcher answers in a few seconds, its first run (compiling as it goes) takes
+    // longer, and one still loading gets a short grace.
+    const local = within(
+      signal,
+      localMatcherWarm() ? 8_000 : localMatcherReady() ? 20_000 : 3_000
+    )
     raw = await matchLocally(archive.gray, frame.gray, local.signal).catch(
       () => null
     )

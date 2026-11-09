@@ -254,9 +254,10 @@ export function RephotoCamera({
       }
     )
     prepareLocalMatcher()
-      ?.then(() =>
+      ?.then(() => {
+        debug("matcher ready")
         report("matcher ready", { ms: Math.round(performance.now() - loading) })
-      )
+      })
       .catch((error) =>
         report(
           "matcher failed",

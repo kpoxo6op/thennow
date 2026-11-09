@@ -33,6 +33,8 @@ type Ort = {
 
 let loading: Promise<{ ort: Ort; session: Session }> | null = null
 let ready = false
+// Whether a run has finished, so the shaders are compiled and later runs take their usual time.
+let warm = false
 // One run at a time: a WebGPU session can't take two at once.
 let queue: Promise<unknown> = Promise.resolve()
 const STUCK_MS = 15_000
@@ -61,6 +63,7 @@ function reset() {
   loading?.then(({ session }) => session.release?.()).catch(() => {})
   loading = null
   ready = false
+  warm = false
   running = null
   queue = Promise.resolve()
 }
@@ -106,20 +109,8 @@ export function prepareLocalMatcher() {
       }),
       60_000
     )
-    // One run on blank pictures compiles the shaders while the shot is still being framed.
-    const blank = new ort.Tensor("float32", new Float32Array(MATCH_BYTES), [
-      1,
-      1,
-      MATCH_HEIGHT,
-      MATCH_WIDTH,
-    ])
-    // A warm-up that never finishes counts as a failed load, so the next try starts afresh.
-    try {
-      await timeLimit(session.run({ image0: blank, image1: blank }), 60_000)
-    } catch (error) {
-      void session.release?.().catch(() => {})
-      throw error
-    }
+    // No warm-up run on blank pictures: the first real match compiles the shaders instead,
+    // which saves a whole run (seconds on a phone) before the old view can first be found.
     ready = true
     return { ort, session }
   })()
@@ -127,9 +118,15 @@ export function prepareLocalMatcher() {
   return loading
 }
 
-// Whether the matcher is loaded and warmed up, so a match takes about a second.
+// Whether the matcher is loaded and can be given a picture.
 export function localMatcherReady() {
   return ready
+}
+
+// Whether it has finished a run already: the first one also compiles its shaders, and takes
+// several times as long.
+export function localMatcherWarm() {
+  return warm
 }
 
 function aborted(signal: AbortSignal) {
@@ -150,7 +147,8 @@ export async function matchLocally(
 ): Promise<Match[]> {
   // A run that never came back (graphics device lost when the phone locked, memory pressure)
   // holds up every later one, so past a limit the matcher starts over with a fresh session.
-  if (running && performance.now() - running.since > STUCK_MS) reset()
+  if (running && performance.now() - running.since > (warm ? STUCK_MS : 60_000))
+    reset()
   const loaded = prepareLocalMatcher()
   if (!loaded) throw new Error("No WebGPU")
   // Giving up doesn't wait for the download; the download carries on for the next shot.
@@ -166,7 +164,12 @@ export async function matchLocally(
     const mine = { since: performance.now() }
     running = mine
     try {
-      return await session.run({ image0: tensor(then), image1: tensor(now) })
+      const result = await session.run({
+        image0: tensor(then),
+        image1: tensor(now),
+      })
+      warm = true
+      return result
     } finally {
       if (running === mine) running = null
     }
