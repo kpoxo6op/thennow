@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import type PostType from "@/interfaces/post"
 import type { PendingPost as PendingPostType } from "@/interfaces/post"
 import { fetchPending, fetchPosts } from "@/lib/api"
-import { SOURCE_LINE, toSections } from "@/components/Desc"
+import { PLACEHOLDER, SOURCE_LINE, toSections } from "@/components/Desc"
 import { PendingPost } from "@/components/pending-post"
 import Post from "@/components/Post"
 
@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: PostProps): Promise<Metadata>
     title: post.name,
     description: toSections(post.description)
       .flatMap((section) => section.lines)
-      .filter((line) => !SOURCE_LINE.test(line) && line !== "Coming soon...")
+      .filter((line) => !SOURCE_LINE.test(line) && line !== PLACEHOLDER)
       .join(" "),
   }
 }
@@ -67,31 +67,15 @@ export default async function PostPage({ params }: PostProps) {
     notFound()
   }
 
-  const posts = await fetchPosts()
-
-  if (post.status === "pending") {
-    const near = <T extends PostType | PendingPostType>(list: T[]) =>
-      list
-        .filter((other) => other.slug !== post.slug)
-        .map(({ name, slug, ...place }) => ({ name, slug, km: kilometres(post, { name, slug, ...place } as T) }))
-        .sort((a, b) => a.km - b.km)
-
-    // Every other place, finished or not, nearest first.
-    return (
-      <PendingPost
-        post={post}
-        nearby={[...near(posts.filter((other) => !other.sample)), ...near(await fetchPending())]
-          .sort((a, b) => a.km - b.km)
-          .slice(0, 6)}
-      />
-    )
-  }
-
-  const originals = posts.filter((other) => !other.sample)
-  const nearby = (post.sample ? posts.filter((other) => other.sample) : originals)
+  // Every other place, photographed twice or not yet, nearest first.
+  const places = post.sample
+    ? (await fetchPosts()).filter((other) => other.sample)
+    : [...(await fetchPosts()), ...(await fetchPending())].filter((other) => !other.sample)
+  const nearby = places
     .filter((other) => other.slug !== post.slug)
-    .map(({ name, slug, ...place }) => ({ name, slug, km: kilometres(post, { name, slug, ...place } as PostType) }))
+    .map((other) => ({ name: other.name, slug: other.slug, km: kilometres(post, other) }))
     .sort((a, b) => a.km - b.km)
+    .slice(0, 6)
 
-  return <Post post={post} nearby={nearby} />
+  return post.status === "pending" ? <PendingPost post={post} nearby={nearby} /> : <Post post={post} nearby={nearby} />
 }

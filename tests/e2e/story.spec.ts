@@ -52,24 +52,23 @@ test.describe("a story page", () => {
     }
   })
 
-  test("next story visits all six originals, never samples, and no two unwritten in a row", async ({ page }) => {
-    const seen: string[] = []
-    let slug = "mill-house"
+  test("a story lists the six nearest other places, upcoming ones too, and no samples", async ({ page }) => {
+    await page.goto("/mill-house")
+    const rows = page.getByTestId("nearby-list").getByRole("link")
+    await expect(rows).toHaveCount(6)
+    const slugs = await rows.evaluateAll((links) => links.map((link) => link.getAttribute("href")))
+    expect(slugs).not.toContain("/mill-house")
+    await expect(page.getByText("Sample", { exact: true })).toHaveCount(0)
+    await expect(page.getByText(/coming soon/i)).toHaveCount(0)
+  })
 
-    for (let step = 0; step < 6; step += 1) {
-      await page.goto(`/${slug}`)
-      await expect(page.getByText("Sample", { exact: true })).toHaveCount(0)
-      seen.push(slug)
-      const unwritten = (await page.locator("article").innerText()).includes("Coming soon...")
-      const nextHref = await page.locator('a[aria-label$="compare then and now"]').getAttribute("href")
-      slug = nextHref!.slice(1)
-      await page.goto(`/${slug}`)
-      const nextUnwritten = (await page.locator("article").innerText()).includes("Coming soon...")
-      expect(unwritten && nextUnwritten, `${seen.at(-1)} to ${slug}`).toBe(false)
-    }
-
-    expect(new Set(seen).size).toBe(6)
-    expect(slug).toBe("mill-house")
+  test("the drag hint goes once the line has been moved", async ({ page }) => {
+    await page.goto("/mill-house")
+    await expect(page.getByText("Drag the line", { exact: true })).toBeVisible()
+    await page.getByTestId("story-show-then").click()
+    await page.getByTestId("story-show-then").click()
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("50")
+    await expect(page.getByText("Drag the line", { exact: true })).toHaveCount(0)
   })
 })
 

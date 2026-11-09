@@ -5,7 +5,7 @@ import Image from "next/image"
 
 import PostType from "@/interfaces/post"
 import { CompareStage } from "@/components/compare-stage"
-import { SOURCE_LINE, toSections } from "@/components/Desc"
+import { PLACEHOLDER, SOURCE_LINE, toSections } from "@/components/Desc"
 import { ResetScroll } from "@/components/reset-scroll"
 import { NearbyList, type Nearby } from "@/components/nearby-list"
 import { StoryMap } from "@/components/story-map"
@@ -61,39 +61,40 @@ function SourceLink({ source }: { source: string }) {
   )
 }
 
-// The first sentence of a passage is its caption, and on a phone comes before its photograph.
-function Chapter({ alt, src, w, h, year, lines }: { alt: string; src: string; w: number; h: number; year?: string; lines: string[] }) {
+// What was written about one of the two photographs, under its year. The photograph
+// itself is the comparison above: its year button shows it whole.
+function Chapter({ year, lines }: { year?: string; lines: string[] }) {
   const words = lines.filter((line) => !SOURCE_LINE.test(line))
   const sources = lines.filter((line) => SOURCE_LINE.test(line))
-  const [lead, ...rest] = words
 
   return (
-    <section className="flex min-w-0 flex-col gap-4">
-      <div className="space-y-2 md:order-2">
-        {year ? <h2 className="text-sm tabular-nums text-muted-foreground">{year}</h2> : null}
-        {lead ? <p className="text-lg leading-relaxed">{lead}</p> : null}
-      </div>
-      <Image
-        src={src}
-        alt={alt}
-        width={w}
-        height={h}
-        sizes="(min-width: 768px) 50vw, 100vw"
-        className="aspect-[var(--ratio)] w-full bg-muted object-cover md:order-1"
-      />
-      {rest.length || sources.length ? (
-        <div className="space-y-3 md:order-3 md:-mt-1">
-          {rest.map((line) => (
-            <p key={line} className="text-lg leading-relaxed">
-              {line}
-            </p>
-          ))}
-          {sources.map((source) => (
-            <SourceLink key={source} source={source} />
-          ))}
-        </div>
-      ) : null}
+    <section className="min-w-0 space-y-3">
+      {year ? <h2 className="text-sm tabular-nums text-muted-foreground">{year}</h2> : null}
+      {words.map((line) => (
+        <p key={line} className="text-lg leading-relaxed">
+          {line}
+        </p>
+      ))}
+      {sources.map((source) => (
+        <SourceLink key={source} source={source} />
+      ))}
     </section>
+  )
+}
+
+// Words without a year, as written; the placeholder for none is left out.
+function Words({ lines }: { lines: string[] }) {
+  const words = lines.filter((line) => line !== PLACEHOLDER)
+  if (!words.length) return null
+
+  return (
+    <div className="mt-4 max-w-2xl space-y-4">
+      {words.map((line) => (
+        <p key={line} className="text-lg leading-relaxed">
+          {line}
+        </p>
+      ))}
+    </div>
   )
 }
 
@@ -216,8 +217,8 @@ export default function Post({ post, nearby }: PostProps) {
     "inline-flex h-8 items-center rounded-md border border-input px-3 tabular-nums transition-colors group-hover:border-foreground group-aria-pressed:border-foreground group-aria-pressed:bg-foreground group-aria-pressed:text-background"
 
   const photos = [
-    { label: "then", year: thenYear, src: post.b_imageUrl, section: dated[0] },
-    { label: "now", year: nowYear, src: post.a_imageUrl, section: dated.length > 1 ? dated[dated.length - 1] : undefined },
+    { label: "then", year: thenYear, section: dated[0] },
+    { label: "now", year: nowYear, section: dated.length > 1 ? dated[dated.length - 1] : undefined },
   ]
 
   return (
@@ -302,20 +303,18 @@ export default function Post({ post, nearby }: PostProps) {
           ) : (
             <>
               {dated.length ? (
-                <div className="mt-8 grid gap-10 md:mt-14 md:grid-cols-2 md:gap-8">
+                <div className="mt-6 grid max-w-3xl gap-8 md:grid-cols-2">
                   {photos.map((photo) => (
                     <Chapter
                       key={photo.label}
-                      alt={`${post.name}, ${photo.year ?? photo.label}`}
-                      src={photo.src}
-                      w={post.w}
-                      h={post.h}
                       year={photo.year}
                       lines={photo.section?.lines ?? []}
                     />
                   ))}
                 </div>
-              ) : null}
+              ) : (
+                <Words lines={undated.flatMap((section) => section.lines)} />
+              )}
               <StoryMap name={post.name} location={post.location} />
             </>
           )}
@@ -323,9 +322,7 @@ export default function Post({ post, nearby }: PostProps) {
       </div>
 
       <section className="tn-story-edge pb-12 md:pb-16">
-        <div className="md:max-w-[50%]">
-          <NearbyList items={nearby} />
-        </div>
+        <NearbyList items={nearby} />
       </section>
     </main>
   )

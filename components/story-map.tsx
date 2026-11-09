@@ -125,7 +125,7 @@ export function StoryMap({ name, location }: Props) {
 
   return (
     <div className="mt-10">
-      <div className="tn-map tn-story-map relative aspect-[4/3] max-h-[60svh] min-h-56 w-full overflow-hidden bg-muted md:aspect-[3/1]">
+      <div className="tn-map tn-story-map relative aspect-video max-h-[60svh] min-h-56 w-full max-w-3xl overflow-hidden bg-muted">
         <div
           ref={containerRef}
           data-testid="story-map"

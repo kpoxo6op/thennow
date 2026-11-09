@@ -14,6 +14,9 @@ type Section = {
 }
 
 const YEAR_LINE = /^\d{4}$/
+// What a story without words yet says; never shown.
+export const PLACEHOLDER = "Coming soon..."
+
 export const SOURCE_LINE = /^[\w-]+(\.[\w-]+)+(\/\S*)?$/
 
 export function toSections(description: string) {

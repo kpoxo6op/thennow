@@ -75,9 +75,7 @@ export function PendingPost({ post, nearby }: Props) {
       </article>
 
       <section className="tn-story-edge pb-12 md:pb-16">
-        <div className="md:max-w-[50%]">
-          <NearbyList items={nearby} />
-        </div>
+        <NearbyList items={nearby} />
       </section>
     </main>
   )
