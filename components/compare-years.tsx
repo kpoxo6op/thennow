@@ -9,7 +9,7 @@ export function CompareYears({
   nowYear?: string
 }) {
   const pill =
-    "tn-year absolute top-3 flex h-7 items-center justify-center rounded-full bg-black/70 font-serif text-[1.0625rem] leading-none text-white md:top-4 md:h-8 md:text-xl"
+    "tn-year absolute top-3 flex h-7 items-center justify-center rounded-md bg-black/70 font-serif text-[1.0625rem] leading-none text-white md:top-4 md:h-8 md:text-xl"
 
   return (
     <>

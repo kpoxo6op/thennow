@@ -267,12 +267,11 @@ test.describe("the homepage comparison", () => {
     test.use({ contextOptions: { reducedMotion: "reduce" } })
 
     // The words moved off the photograph, so nothing has to step aside for it any more.
-    test("the headline and the way onward stay clear of the photograph through a drag", async ({ page }) => {
+    test("the headline stays clear of the photograph through a drag, and the hint goes", async ({ page }) => {
       await page.goto("/")
       const stage = page.getByTestId("compare-stage")
       const box = (await stage.boundingBox())!
       const headline = (await page.getByRole("heading", { level: 1 }).boundingBox())!
-      const explore = page.getByRole("link", { name: "Explore the places" })
       const y = box.y + box.height / 2
       expect(headline.y).toBeGreaterThanOrEqual(box.y + box.height)
       await expect(page.getByTestId("hero-drag-hint")).toBeVisible()
@@ -282,9 +281,7 @@ test.describe("the homepage comparison", () => {
       await page.mouse.move(box.x + box.width * 0.8, y, { steps: 6 })
       await page.mouse.up()
       await expect(page.getByTestId("hero-drag-hint")).toHaveCount(0)
-      await expect(explore).toBeInViewport()
-      await explore.click()
-      await expect(page).toHaveURL(/\/places$/)
+      await expect(page.getByRole("heading", { level: 1 })).toBeInViewport()
     })
 
     test("stays still until asked", async ({ page }) => {
@@ -358,13 +355,15 @@ test("every public page hangs in one room, under one wordmark", async ({ page })
   }
 })
 
-test("the homepage has one way onward, and the map is one choice further in", async ({ page }) => {
+// The places are on the homepage itself, so nothing there points at a second copy of them.
+test("the homepage has no button to its own list, and the map is in Places", async ({ page }) => {
   await page.goto("/")
-  const hero = page.locator("main section").first()
-  await expect(hero.getByRole("link", { name: "Explore the places" })).toBeVisible()
-  await expect(hero.getByRole("link", { name: /map/i })).toHaveCount(0)
+  const main = page.locator("main")
+  await expect(main.getByRole("link", { name: /explore|map/i })).toHaveCount(0)
+  await expect(main.getByRole("heading", { level: 2 })).toHaveText(["Yours to photograph."])
+  await expect(main.getByText(/upcoming/i)).toHaveCount(0)
 
-  await hero.getByRole("link", { name: "Explore the places" }).click()
+  await page.getByTestId("site-header").getByRole("link", { name: "Places", exact: true }).click()
   await expect(cards(page)).toHaveCount(posts.length)
   await page.getByRole("button", { name: "Map" }).click()
   await expect(page).toHaveURL(/view=map/)
@@ -400,7 +399,7 @@ test("search and the view switch stay put between photos and map", async ({ page
     const after = [(await search.boundingBox())!, (await map.boundingBox())!]
     expect(after[0].y).toBeCloseTo(before[0].y, 0)
     expect(after[1].y).toBeCloseTo(before[1].y, 0)
-    await expect(page.getByTestId("places-count")).toBeVisible()
+    await expect(page.getByTestId("places-count")).toBeAttached()
   }
 })
 
@@ -587,10 +586,12 @@ test.describe("a place whose modern photograph is pending", () => {
     })
   }
 
-  test("is counted apart, listed apart, and never served as a finished story", async ({ page, request }) => {
+  test("is listed apart under one heading, with no status label, and never served as a finished story", async ({ page, request }) => {
     await page.goto("/places")
     await expect(cards(page)).toHaveCount(posts.length)
-    await expect(page.getByTestId("places-count")).toHaveText(`${posts.length} stories, ${pendingEntries.length} upcoming`)
+    await expect(page.getByTestId("places-count")).toHaveText(`${posts.length + pendingEntries.length} places`)
+    await expect(page.getByTestId("places-pending").getByRole("heading")).toHaveText("Yours to photograph.")
+    await expect(page.getByText(/upcoming/i)).toHaveCount(0)
     const pendingCards = page.getByTestId("places-pending").getByTestId("pending-card")
     await expect(pendingCards).toHaveCount(pendingEntries.length)
     await pendingCards.first().click()
@@ -602,11 +603,11 @@ test.describe("a place whose modern photograph is pending", () => {
     }
   })
 
-  test("search finds them by name and by the word upcoming, and an area shows both kinds", async ({ page }) => {
-    await page.goto("/places?q=upcoming")
+  test("search finds them by name, and an area shows both kinds", async ({ page }) => {
+    await page.goto(`/places?q=${encodeURIComponent(pendingEntries[0].name)}`)
     await expect(cards(page)).toHaveCount(0)
-    await expect(page.getByTestId("pending-card")).toHaveCount(pendingEntries.length)
-    await expect(page.getByTestId("places-count")).toHaveText(`0 stories, ${pendingEntries.length} upcoming`)
+    await expect(page.getByTestId("pending-card")).toHaveCount(1)
+    await expect(page.getByTestId("places-count")).toHaveText("1 place")
 
     await page.goto("/places?area=Auckland")
     await expect(page.getByTestId("pending-card")).toHaveCount(pendingEntries.length)
@@ -618,14 +619,16 @@ test.describe("a place whose modern photograph is pending", () => {
     for (const entry of pendingEntries) {
       await page.goto(`/places?view=map&lat=${entry.location.lat}&lng=${entry.location.lng}&z=14&story=${entry.slug}`)
       await expect(page.getByTestId("map-selection")).toBeInViewport({ ratio: 1 })
-      await expect(page.getByText("Open upcoming story")).toBeInViewport({ ratio: 1 })
     }
   })
 
-  test("About says what an upcoming story is, and labels their sources", async ({ page }) => {
+  test("About says some places have only the older image, and lists their sources without a status label", async ({ page }) => {
     await page.goto("/about")
-    await expect(page.getByText(/Upcoming stories have the older image/)).toBeVisible()
-    await expect(page.locator("#sources").getByText("Upcoming", { exact: true })).toHaveCount(pendingEntries.length)
+    await expect(page.getByText(/Some places have only the older image/)).toBeVisible()
+    await expect(page.getByText(/upcoming/i)).toHaveCount(0)
+    for (const entry of pendingEntries) {
+      await expect(page.locator("#sources").getByRole("link", { name: entry.name })).toBeVisible()
+    }
   })
 
   test("its page lists every other place nearby, nearest first, under no heading", async ({ page }) => {
@@ -648,8 +651,8 @@ test.describe("a place whose modern photograph is pending", () => {
     const entry = pendingEntries[0]
     await page.getByTestId("map-list-item").filter({ hasText: entry.name }).click()
     const active = page.locator(".tn-map-marker.is-active")
-    await expect(active).toHaveAttribute("aria-label", `${entry.name}, upcoming`)
-    await expect(page.getByTestId("map-selection")).toContainText("Open upcoming story")
+    await expect(active).toHaveAttribute("aria-label", `${entry.name}, then only`)
+    await expect(page.getByTestId("map-selection")).toContainText("Open")
     await expect(page.getByText(entry.name)).toHaveCount(1)
     await page.getByTestId("map-selection").click()
     await expect(page.getByTestId("pending-camera")).toBeVisible()

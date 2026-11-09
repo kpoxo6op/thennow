@@ -17,7 +17,7 @@ import { ArrowRight, ChevronDown, Grid2x2, Map as MapIcon, Search } from "lucide
 import type { Place } from "@/interfaces/post"
 
 import { cn } from "@/lib/utils"
-import { groupByArea, storyArea } from "@/lib/places"
+import { groupByArea, PENDING_HEADING, storyArea } from "@/lib/places"
 import {
   PlacesMap,
   type MapHighlight,
@@ -51,7 +51,7 @@ function normalize(text: string) {
 
 function matches(story: Place, tokens: string[]) {
   const haystack = ` ${normalize(
-    `${story.name} ${story.area ?? ""} ${story.description} ${story.status === "pending" ? "upcoming" : ""}`
+    `${story.name} ${story.area ?? ""} ${story.description}`
   )}`
 
   // Word starts only: "mission" should not find "decommissioned".
@@ -88,10 +88,7 @@ const PhotoGrid = memo(function PhotoGrid({
       ) : null}
       {pending.length > 0 ? (
         <section data-testid="places-pending" className={finished.length > 0 ? "mt-12 md:mt-16" : undefined}>
-          <div className="mx-4 mb-5 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1 border-t pt-4">
-            <h2 className="font-serif text-3xl leading-none md:text-4xl">Photographed once, so far.</h2>
-            <p className="text-muted-foreground">Upcoming stories: the archive photograph is here, the modern one is to come.</p>
-          </div>
+          <h2 className="mx-4 mb-5 border-t pt-4 font-serif text-3xl leading-none md:text-4xl">{PENDING_HEADING}</h2>
           <ul className={`${GRID_CLASS} lg:grid-cols-4`}>
             {pending.map((place) => (
               <li key={place.slug}>
@@ -148,7 +145,7 @@ function StoryRow({
               {story.name}
             </span>
             <span className="mt-0.5 inline-flex items-center gap-1 text-[15px] text-muted-foreground underline-offset-4 group-hover:underline">
-              {story.status === "pending" ? "Open upcoming story" : "Open story"}
+              Open
               <ArrowRight aria-hidden className="size-4" />
             </span>
           </span>
@@ -162,10 +159,7 @@ function StoryRow({
           onBlur={() => onHighlight?.(null)}
         >
           {picture}
-          <span className="min-w-0">
-            <span className="line-clamp-2 text-[15px] font-medium leading-snug">{story.name}</span>
-            {story.status === "pending" ? <span className="block text-[15px] text-muted-foreground">Upcoming</span> : null}
-          </span>
+          <span className="line-clamp-2 min-w-0 text-[15px] font-medium leading-snug">{story.name}</span>
         </button>
       )}
     </div>
@@ -426,7 +420,7 @@ export function PlacesExplorer({ stories }: Props) {
   const isEmpty = filtered.length === 0
   const finishedCount = filtered.filter((story) => story.status === "complete").length
   const pendingCount = filtered.length - finishedCount
-  const resultLabel = `${finishedCount} ${finishedCount === 1 ? "story" : "stories"}${pendingCount ? `, ${pendingCount} upcoming` : ""}`
+  const resultLabel = `${filtered.length} ${filtered.length === 1 ? "place" : "places"}`
 
   return (
     <main className="flex-1">
@@ -434,16 +428,11 @@ export function PlacesExplorer({ stories }: Props) {
         data-testid="places-toolbar"
         className="tn-toolbar flex flex-col justify-center gap-2 bg-background px-4 pb-3 pt-2 md:flex-row md:items-center md:gap-3 md:py-0"
       >
-        <div className="flex items-baseline justify-between gap-4 md:contents">
-          <h1 className="font-serif text-[2.5rem] leading-none md:mr-3 md:text-5xl">Places</h1>
-          <span
-            role="status"
-            data-testid="places-count"
-            className="text-[15px] tabular-nums text-muted-foreground md:order-last"
-          >
-            {resultLabel}
-          </span>
-        </div>
+        <h1 className="font-serif text-[2.5rem] leading-none md:mr-3 md:text-5xl">Places</h1>
+        {/* The grid shows what was found; the count is spoken, not printed. */}
+        <span role="status" data-testid="places-count" className="sr-only">
+          {resultLabel}
+        </span>
         <div className="relative min-w-0 flex-1 md:max-w-md">
           <Search
             aria-hidden
@@ -558,7 +547,7 @@ export function PlacesExplorer({ stories }: Props) {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <span aria-hidden className="size-2.5 rounded-full border-2 border-white" />
-                  Upcoming
+                  Then only
                 </span>
               </p>
             ) : null}

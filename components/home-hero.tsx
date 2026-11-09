@@ -99,7 +99,7 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, capt
           {touched ? null : (
             <span
               data-testid="hero-drag-hint"
-              className="absolute top-[calc(50%+2rem)] -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-3 py-1 text-sm text-white"
+              className="absolute top-[calc(50%+2rem)] -translate-x-1/2 whitespace-nowrap rounded-md bg-black/70 px-3 py-1 text-sm text-white"
               style={{ left: `${position}%` }}
             >
               Drag the line
