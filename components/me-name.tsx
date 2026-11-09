@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useRef, useState, type FormEvent } from "react"
+import { flushSync } from "react-dom"
 
 import { saveName } from "@/components/rephoto/add-name"
 
@@ -12,6 +13,7 @@ export function MeName({ name: saved }: { name: string | null }) {
   const [draft, setDraft] = useState(saved ?? "")
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState("")
+  const field = useRef<HTMLInputElement>(null)
 
   const save = async (event: FormEvent) => {
     event.preventDefault()
@@ -52,8 +54,12 @@ export function MeName({ name: saved }: { name: string | null }) {
             type="button"
             data-testid="me-name-change"
             onClick={() => {
-              setEditing(true)
-              setNote("")
+              // Focused within the tap itself, so the keyboard comes up straight away.
+              flushSync(() => {
+                setEditing(true)
+                setNote("")
+              })
+              field.current?.focus()
             }}
             className="-my-2 py-2 underline underline-offset-4"
           >
@@ -73,10 +79,11 @@ export function MeName({ name: saved }: { name: string | null }) {
       ) : (
         <form onSubmit={(event) => void save(event)} className="space-y-2">
           <label htmlFor="me-name" className="block text-lg">
-            Add your name. If we publish your photos, we’ll credit this name.
+            {name ? "Change your name." : "Add your name."} If we publish your photos, we’ll credit this name.
           </label>
           <div className="flex max-w-md gap-2">
             <input
+              ref={field}
               id="me-name"
               data-testid="me-name-input"
               autoComplete="name"
