@@ -120,6 +120,7 @@ export async function align(
     )
     local.done()
   }
+  timing.modelMs = performance.now() - modelBegun
   signal.throwIfAborted()
   if (!raw) {
     if (!server) return null

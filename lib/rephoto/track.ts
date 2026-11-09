@@ -22,19 +22,32 @@ export type Thumb = { gray: Float32Array; width: number; height: number }
 let canvas: HTMLCanvasElement | null = null
 
 // A tiny grey copy of the picture, each pixel less the copy's mean, so a change of light doesn't
-// read as a slide.
-export function thumb(source: CanvasImageSource, photo: Size): Thumb | null {
+// read as a slide. The browser shrinks the frame off to the side (createImageBitmap), so the
+// page never waits on the graphics chip, which is busy with the matcher: reading pixels straight
+// back from a drawn video frame stalled the phone for half a second each time.
+export async function thumb(
+  source: HTMLVideoElement,
+  photo: Size
+): Promise<Thumb | null> {
   const width = WIDTH
   const height = Math.max(8, Math.round((photo.height / photo.width) * WIDTH))
+  let small: ImageBitmap | null = null
+  try {
+    small = await createImageBitmap(source, {
+      resizeWidth: width,
+      resizeHeight: height,
+      resizeQuality: "low",
+    })
+  } catch {
+    return null
+  }
   canvas ??= document.createElement("canvas")
   canvas.width = width
   canvas.height = height
-  // Not willReadFrequently: that would keep the canvas on the processor, which would then
-  // shrink every full-size video frame itself. The graphics chip shrinks it, and only these few
-  // pixels come back.
-  const context = canvas.getContext("2d")
+  const context = canvas.getContext("2d", { willReadFrequently: true })
   if (!context) return null
-  context.drawImage(source, 0, 0, width, height)
+  context.drawImage(small, 0, 0)
+  small.close()
   const { data } = context.getImageData(0, 0, width, height)
   const gray = new Float32Array(width * height)
   let sum = 0

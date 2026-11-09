@@ -602,7 +602,7 @@ export function RephotoCamera({
     let follows = 0
     let followMs = 0
     let spills = 0
-    const follow = () => {
+    const follow = async () => {
       const video = videoRef.current
       const archive = archiveRef.current
       if (
@@ -618,13 +618,16 @@ export function RephotoCamera({
       try {
         const photo = { width: video.videoWidth, height: video.videoHeight }
         const t0 = performance.now()
-        const now = thumb(video, photo)
-        const by = now && slide(anchor.thumb, now)
+        const from = anchor
+        const now = await thumb(video, photo)
+        // A match or a zoom came in while the frame was being shrunk: it knows better.
+        if (anchor !== from || zooming || controller.signal.aborted) return
+        const by = now && slide(from.thumb, now)
         followMs = followMs * 0.9 + (performance.now() - t0) * 0.1
         if (++follows % 25 === 0)
           debug(`follow ${followMs.toFixed(1)}ms ${by ? "ok" : "lost"}`)
         if (!by) return
-        const crop = shifted(anchor.crop, by, photo)
+        const crop = shifted(from.crop, by, photo)
         const range = rangeRef.current
         // A few frames running, so one bad comparison (a passing car, a flash of light) can't
         // throw the zoom away. The hand moved it off, not the zoom: the ceiling stays.
@@ -642,16 +645,16 @@ export function RephotoCamera({
         spills = 0
         setLock({
           crop,
-          held: anchor.held,
-          steady: anchor.steady && fits(crop, archive.aspect, photo),
-          at: anchor.at,
+          held: from.held,
+          steady: from.steady && fits(crop, archive.aspect, photo),
+          at: from.at,
           followed: true,
         })
       } finally {
         following = false
       }
     }
-    const follower = setInterval(follow, 80)
+    const follower = setInterval(() => void follow(), 80)
     const loop = async () => {
       while (!controller.signal.aborted) {
         const started = performance.now()
@@ -677,7 +680,7 @@ export function RephotoCamera({
           // The placement is as old as the frame it was found in, not the answer.
           const sampled = performance.now()
           const look = zooms
-          const seen = thumb(video, photo)
+          const seen = await thumb(video, photo)
           const found = await align(archive, video, photo, controller.signal, {
             server: false,
             reach,
@@ -736,7 +739,7 @@ export function RephotoCamera({
               previous = null
               // The match is as old as its frame: carry it to where the hand has since taken
               // the picture, then let it grow with the picture, step by confirmed step.
-              const latest = seen && thumb(video, photo)
+              const latest = seen && (await thumb(video, photo))
               const drift = latest && slide(seen, latest)
               const start = drift
                 ? shifted(found.crop, drift, photo)
@@ -756,7 +759,7 @@ export function RephotoCamera({
               // it fits; the next match only has to not disagree.
               if (zoomRef.current !== base) {
                 previous = zoomed(start, photo, zoomRef.current / base)
-                previousThumb = thumb(video, photo)
+                previousThumb = await thumb(video, photo)
                 if (previousThumb)
                   anchor = {
                     crop: previous,
@@ -765,7 +768,7 @@ export function RephotoCamera({
                     steady: fits(previous, archive.aspect, photo),
                     at: performance.now(),
                   }
-                follow()
+                void follow()
               }
               continue
             }
@@ -792,7 +795,7 @@ export function RephotoCamera({
                   at: sampled,
                 }
               : null
-            follow()
+            void follow()
           } else {
             reach = reach < 1 ? 1 : NEAR_REACH
             if (++misses >= 2) {
