@@ -1,0 +1,693 @@
+import { readdirSync, readFileSync } from "fs"
+import path from "path"
+import { expect, test, type Page } from "@playwright/test"
+
+// Chromium's fake camera plays this still: a modern photograph of the Mission House, a little
+// turned, so the camera has a real scene to show.
+const FAKE_CAMERA = path.join(
+  process.cwd(),
+  "tests",
+  "fixtures",
+  "fake-camera.y4m"
+)
+
+test.use({
+  launchOptions: {
+    args: [
+      "--use-fake-ui-for-media-stream",
+      "--use-fake-device-for-media-stream",
+      `--use-file-for-fake-video-capture=${FAKE_CAMERA}`,
+    ],
+  },
+  permissions: ["camera"],
+})
+
+function archive(slug: string) {
+  const folder = path.join(process.cwd(), "public", "posts")
+  for (const name of readdirSync(folder)) {
+    const json = JSON.parse(
+      readFileSync(path.join(folder, name, `${name}.json`), "utf8")
+    )
+    if (json.slug === slug)
+      return json as { w: number; h: number; b_imageUrl: string }
+  }
+  throw new Error(`No place ${slug}`)
+}
+
+type Crop = { cx: number; cy: number; width: number; rotation: number }
+
+async function readCrop(page: Page): Promise<Crop> {
+  return JSON.parse(
+    (await page.getByTestId("rephoto-review").getAttribute("data-crop")) ?? "{}"
+  )
+}
+
+async function openCamera(page: Page, slug: string) {
+  await page.goto(`/${slug}/camera`)
+  await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+  await expect
+    .poll(() =>
+      page
+        .getByTestId("rephoto-video")
+        .evaluate((video: HTMLVideoElement) => video.videoWidth)
+    )
+    .toBeGreaterThan(0)
+}
+
+const FAKE_ORT = readFileSync(
+  path.join(process.cwd(), "tests", "fixtures", "fake-ort.mjs"),
+  "utf8"
+)
+
+// A phone that matches on its own graphics chip: WebGPU with half precision, and a runtime that
+// answers like the real model does.
+async function onPhoneMatcher(page: Page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "gpu", {
+      configurable: true,
+      get: () => ({
+        requestAdapter: async () => ({ features: new Set(["shader-f16"]) }),
+      }),
+    })
+  })
+  await page.route("https://cdn.jsdelivr.net/**/ort.webgpu.min.mjs", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: FAKE_ORT,
+      headers: { "access-control-allow-origin": "*" },
+    })
+  )
+}
+
+async function shoot(page: Page) {
+  await page.getByTestId("rephoto-shutter").click()
+  await expect(page.getByTestId("rephoto-review")).toBeVisible()
+  await expect(page.getByTestId("rephoto-review-frame")).toBeVisible()
+}
+
+test.describe("the rephotography camera", () => {
+  // Test browsers have no graphics chip, so matching goes to the site's server unless a test
+  // gives the page one.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      // @ts-expect-error removing WebGPU for the test
+      delete Navigator.prototype.gpu
+    })
+  })
+
+  test("an upcoming place offers the camera", async ({ page }) => {
+    await page.goto("/tamaki-road-board-offices")
+    await expect(page.getByTestId("pending-camera")).toHaveAttribute(
+      "href",
+      "/tamaki-road-board-offices/camera"
+    )
+  })
+
+  test("on a phone that allows it, the camera opens full screen and sideways, and gives the screen back on close", async ({
+    page,
+  }) => {
+    const calls = await phoneScreen(page)
+    await page.goto("/tamaki-road-board-offices")
+    await page.getByTestId("pending-camera").click()
+    await expect(page.getByTestId("rephoto-camera")).toBeVisible()
+    await expect.poll(calls).toEqual(["fullscreen", "lock landscape"])
+    await page.getByRole("link", { name: "Close camera" }).click()
+    await expect
+      .poll(calls)
+      .toEqual(["fullscreen", "lock landscape", "unlock", "exit"])
+  })
+
+  test('on a phone that allows it, tapping "Turn sideways" turns the screen', async ({
+    page,
+  }) => {
+    const calls = await phoneScreen(page)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openCamera(page, "mission-house")
+    await page.getByRole("button", { name: "Turn sideways" }).click()
+    await expect.poll(calls).toEqual(["fullscreen", "lock landscape"])
+  })
+
+  test("the live view shows only the old photograph over the camera, a close button and the shutter", async ({
+    page,
+  }) => {
+    const place = archive("mission-house")
+    await openCamera(page, "mission-house")
+
+    await expect(page.getByTestId("rephoto-ghost")).toHaveAttribute(
+      "src",
+      place.b_imageUrl
+    )
+    const frame = (await page.getByTestId("rephoto-frame").boundingBox())!
+    expect(frame.height / frame.width).toBeCloseTo(place.h / place.w, 2)
+    const video = await page
+      .getByTestId("rephoto-video")
+      .evaluate((element: HTMLVideoElement) => {
+        const box = element.getBoundingClientRect()
+        const scale = Math.min(
+          box.width / element.videoWidth,
+          box.height / element.videoHeight
+        )
+        const width = element.videoWidth * scale
+        const height = element.videoHeight * scale
+        return {
+          left: box.left + (box.width - width) / 2,
+          top: box.top + (box.height - height) / 2,
+          width,
+          height,
+        }
+      })
+    expect(frame.x).toBeGreaterThanOrEqual(video.left - 0.5)
+    expect(frame.y).toBeGreaterThanOrEqual(video.top - 0.5)
+    expect(frame.x + frame.width).toBeLessThanOrEqual(
+      video.left + video.width + 0.5
+    )
+    expect(frame.y + frame.height).toBeLessThanOrEqual(
+      video.top + video.height + 0.5
+    )
+
+    // No words on a landscape screen for a landscape photograph.
+    await page.setViewportSize({ width: 844, height: 390 })
+    await expect(page.getByTestId("rephoto-hint")).toHaveCount(0)
+    const words = await page.getByTestId("rephoto-camera").innerText()
+    expect(words.trim()).toBe("")
+  })
+
+  test("holding the view hides the old photograph until let go", async ({
+    page,
+  }) => {
+    await openCamera(page, "mission-house")
+    const ghost = page.getByTestId("rephoto-ghost")
+    await expect(ghost).toHaveCSS("opacity", "0.4")
+    const stage = (await page.getByTestId("rephoto-stage").boundingBox())!
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2)
+    await page.mouse.down()
+    await expect(ghost).toHaveCSS("opacity", "0")
+    await page.mouse.up()
+    await expect(ghost).toHaveCSS("opacity", "0.4")
+  })
+
+  test("a shot is lined up with the old photograph by itself, then shown on its own", async ({
+    page,
+  }) => {
+    const place = archive("mission-house")
+    await openCamera(page, "mission-house")
+    const photo = await page
+      .getByTestId("rephoto-video")
+      .evaluate((video: HTMLVideoElement) => ({
+        width: video.videoWidth,
+        height: video.videoHeight,
+      }))
+    await shoot(page)
+
+    const review = page.getByTestId("rephoto-review")
+    await expect(review).toHaveAttribute("data-phase", "aligned", {
+      timeout: 30_000,
+    })
+    // The fake camera's picture is the modern view turned 1.5 degrees; the crop turns with it.
+    const crop = await readCrop(page)
+    const degrees = (crop.rotation * 180) / Math.PI
+    expect(Math.abs(degrees)).toBeGreaterThan(0.5)
+    expect(Math.abs(degrees)).toBeLessThan(4)
+    expect(crop.width / photo.width).toBeGreaterThan(0.7)
+    expect(crop.width / photo.width).toBeLessThan(1.3)
+    expect(Math.abs(crop.cx - photo.width / 2)).toBeLessThan(photo.width * 0.15)
+    const frame = (await page
+      .getByTestId("rephoto-review-frame")
+      .boundingBox())!
+    expect(frame.height / frame.width).toBeCloseTo(place.h / place.w, 2)
+
+    // Once settled, the old photograph fades and the real one is left.
+    await expect(page.getByTestId("rephoto-review-ghost")).toHaveCSS(
+      "opacity",
+      "0"
+    )
+  })
+
+  test("a phone with its own matcher lines the old photograph up on the live view", async ({
+    page,
+  }) => {
+    await onPhoneMatcher(page)
+    await openCamera(page, "mission-house")
+    await expect(page.getByTestId("rephoto-stage")).not.toHaveAttribute(
+      "data-lock",
+      "none",
+      { timeout: 30_000 }
+    )
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligned",
+      { timeout: 30_000 }
+    )
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __localRuns: number }).__localRuns
+      )
+    ).toBeGreaterThan(1)
+  })
+
+  test("a shot keeps the live placement when the full picture can't be matched again", async ({
+    page,
+  }) => {
+    await onPhoneMatcher(page)
+    await openCamera(page, "mission-house")
+    const stage = page.getByTestId("rephoto-stage")
+    await expect(stage).toHaveAttribute("data-lock", /held|steady/, {
+      timeout: 30_000,
+    })
+    await page.route("**/api/align", (route) => route.abort())
+    await page.evaluate(
+      () =>
+        ((window as unknown as { __matcherDown: boolean }).__matcherDown = true)
+    )
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligned",
+      { timeout: 30_000 }
+    )
+    await expect(page.getByTestId("rephoto-note")).toHaveCount(0)
+    const crop = await readCrop(page)
+    expect(crop.rotation).not.toBe(0)
+  })
+
+  test("the photo can be saved straight away, while it is still being lined up", async ({
+    page,
+  }) => {
+    await page.route("**/api/align", () => {})
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligning"
+    )
+    await expect(page.getByTestId("rephoto-save")).toBeEnabled({
+      timeout: 3_000,
+    })
+  })
+
+  test("a phone whose own matcher can't load lines the shot up on the server", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, "gpu", {
+        configurable: true,
+        get: () => ({
+          requestAdapter: async () => ({ features: new Set(["shader-f16"]) }),
+        }),
+      })
+    })
+    await page.route("https://cdn.jsdelivr.net/**", (route) => route.abort())
+    let serverCalls = 0
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/align")) serverCalls++
+    })
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligned",
+      { timeout: 30_000 }
+    )
+    expect(serverCalls).toBe(1)
+  })
+
+  test("a shot that can't be matched keeps the levelled framing", async ({
+    page,
+  }) => {
+    await page.route("**/api/align", (route) =>
+      route.fulfill({ json: { matches: [] } })
+    )
+    await openCamera(page, "mission-house")
+    const photo = await page
+      .getByTestId("rephoto-video")
+      .evaluate((video: HTMLVideoElement) => ({
+        width: video.videoWidth,
+        height: video.videoHeight,
+      }))
+    await shoot(page)
+
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "unmatched"
+    )
+    await expect(page.getByTestId("rephoto-note")).toHaveText(
+      "Couldn’t align this photo."
+    )
+    const crop = await readCrop(page)
+    expect(crop.rotation).toBe(0)
+    expect(crop.cx).toBeCloseTo(photo.width / 2, 0)
+    expect(crop.cy).toBeCloseTo(photo.height / 2, 0)
+    await expect(page.getByTestId("rephoto-save")).toBeEnabled()
+  })
+
+  test("the matcher refuses anything but two pictures of the agreed size", async ({
+    request,
+  }) => {
+    const response = await request.post("/api/align", {
+      data: Buffer.alloc(10),
+    })
+    expect(response.status()).toBe(400)
+  })
+
+  test("the matcher serves only this site's own pages", async ({ request }) => {
+    const response = await request.post("/api/align", {
+      data: Buffer.alloc(10),
+      headers: { "sec-fetch-site": "cross-site" },
+    })
+    expect(response.status()).toBe(403)
+  })
+
+  test("each step of a visit is reported, without the pictures", async ({
+    page,
+  }) => {
+    const reports: Record<string, unknown>[] = []
+    await page.route("**/api/camera-log", async (route) => {
+      reports.push(JSON.parse(route.request().postData() ?? "{}"))
+      await route.fulfill({ status: 204 })
+    })
+    await page.route("**/api/align", (route) =>
+      route.fulfill({ json: { matches: [] } })
+    )
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      /aligned|unmatched/
+    )
+    await expect
+      .poll(() => reports.map((report) => report.event))
+      .toEqual(
+        expect.arrayContaining(["open", "stream", "live", "shot", "review"])
+      )
+    const visits = new Set(reports.map((report) => report.visit))
+    expect(visits.size).toBe(1)
+    expect(JSON.stringify(reports).length).toBeLessThan(4000)
+  })
+
+  test("the camera's reports are taken only from this site", async ({
+    request,
+  }) => {
+    const send = (headers: Record<string, string>, data: string) =>
+      request.post("/api/camera-log", { headers, data })
+    expect(
+      (
+        await send({ "sec-fetch-site": "cross-site" }, '{"event":"open"}')
+      ).status()
+    ).toBe(403)
+    expect((await send({}, "not json")).status()).toBe(400)
+    expect((await send({}, "x".repeat(5000))).status()).toBe(413)
+    expect((await send({}, '{"event":"open"}')).status()).toBe(204)
+  })
+
+  test("holding the result shows the old photograph over it", async ({
+    page,
+  }) => {
+    await page.route("**/api/align", (route) =>
+      route.fulfill({ json: { matches: [] } })
+    )
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const ghost = page.getByTestId("rephoto-review-ghost")
+    await expect(ghost).toHaveCSS("opacity", "0")
+    const frame = (await page
+      .getByTestId("rephoto-review-frame")
+      .boundingBox())!
+    await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2)
+    await page.mouse.down()
+    await expect(ghost).toHaveCSS("opacity", "0.5")
+    await page.mouse.up()
+    await expect(ghost).toHaveCSS("opacity", "0")
+  })
+
+  test("saving gives one photograph at the old one's shape, then Done leads back to the story", async ({
+    page,
+  }) => {
+    const place = archive("mission-house")
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligned",
+      { timeout: 30_000 }
+    )
+    await expect(page.getByTestId("rephoto-save")).toBeEnabled({
+      timeout: 30_000,
+    })
+
+    const downloadPromise = page.waitForEvent("download")
+    await page.getByTestId("rephoto-save").click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toMatch(
+      /^mission-house-now-\d{4}-\d{2}-\d{2}\.jpg$/
+    )
+    const size = await page.evaluate(
+      async (url) => {
+        const image = new Image()
+        image.src = url
+        await image.decode()
+        return { width: image.naturalWidth, height: image.naturalHeight }
+      },
+      await download.url()
+    )
+    expect(size.height / size.width).toBeCloseTo(place.h / place.w, 2)
+
+    await expect(page.getByTestId("rephoto-done")).toHaveAttribute(
+      "href",
+      "/mission-house"
+    )
+  })
+
+  test("retake returns to the live camera", async ({ page }) => {
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await page.getByTestId("rephoto-retake").click()
+    await expect(page.getByTestId("rephoto-camera")).toBeVisible()
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+  })
+
+  test("a phone leaning to one side is levelled when the shot can't be matched", async ({
+    page,
+  }) => {
+    await page.route("**/api/align", (route) =>
+      route.fulfill({ json: { matches: [] } })
+    )
+    await openCamera(page, "mission-house")
+    // Gravity as a phone held upright with its top leaning about three degrees clockwise.
+    const lean = Math.atan2(0.5, 9.8)
+    await page.evaluate(() => {
+      for (let i = 0; i < 40; i++) {
+        window.dispatchEvent(
+          new DeviceMotionEvent("devicemotion", {
+            accelerationIncludingGravity: { x: -0.5, y: 9.8, z: 0.2 },
+          })
+        )
+      }
+    })
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "unmatched"
+    )
+    expect((await readCrop(page)).rotation).toBeCloseTo(-lean, 3)
+  })
+
+  test("a camera stuck without a picture says to restart the browser", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      HTMLMediaElement.prototype.play = () => new Promise(() => {})
+    })
+    await page.goto("/mission-house/camera")
+    await page
+      .getByRole("button", { name: "Start camera" })
+      .click({ timeout: 15_000 })
+    await expect(page.getByTestId("rephoto-error")).toHaveText(
+      "Camera stuck. Close the browser fully and reopen.",
+      { timeout: 15_000 }
+    )
+  })
+
+  test("a camera that never answers is asked again more plainly", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const real = navigator.mediaDevices.getUserMedia.bind(
+        navigator.mediaDevices
+      )
+      let calls = 0
+      navigator.permissions.query = async () =>
+        ({ state: "granted" }) as PermissionStatus
+      navigator.mediaDevices.getUserMedia = (constraints) =>
+        ++calls === 1 ? new Promise(() => {}) : real(constraints)
+    })
+    await page.goto("/mission-house/camera")
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled({
+      timeout: 15_000,
+    })
+  })
+
+  test("a picture that stops without a word gets the camera opened again", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const real = navigator.mediaDevices.getUserMedia.bind(
+        navigator.mediaDevices
+      )
+      const w = window as unknown as { __opens: number; __frozen: boolean }
+      w.__opens = 0
+      navigator.mediaDevices.getUserMedia = (constraints) => {
+        w.__opens++
+        return real(constraints)
+      }
+      // Frames stop arriving while the track still says it is live.
+      const frame = HTMLVideoElement.prototype.requestVideoFrameCallback
+      HTMLVideoElement.prototype.requestVideoFrameCallback = function (
+        callback
+      ) {
+        return frame.call(this, (...args) => {
+          if (!w.__frozen) callback(...args)
+        })
+      }
+    })
+    await page.goto("/mission-house/camera")
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    await page.evaluate(() => {
+      ;(window as unknown as { __frozen: boolean }).__frozen = true
+    })
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => (window as unknown as { __opens: number }).__opens
+          ),
+        {
+          timeout: 10_000,
+        }
+      )
+      .toBe(2)
+  })
+
+  test("the camera is let go while the page is out of sight", async ({
+    page,
+  }) => {
+    await page.goto("/mission-house/camera")
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    const live = () =>
+      page.evaluate(
+        () =>
+          (document.querySelector("video")?.srcObject as MediaStream | null)
+            ?.getVideoTracks()
+            .some((track) => track.readyState === "live") ?? false
+      )
+    const setVisibility = (state: "hidden" | "visible") =>
+      page.evaluate((state) => {
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          get: () => state,
+        })
+        document.dispatchEvent(new Event("visibilitychange"))
+      }, state)
+    await setVisibility("hidden")
+    await expect.poll(live).toBe(false)
+    await setVisibility("visible")
+    await expect.poll(live).toBe(true)
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+  })
+
+  test("a camera that answers after the page went out of sight is let go", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const real = navigator.mediaDevices.getUserMedia.bind(
+        navigator.mediaDevices
+      )
+      const w = window as unknown as { __streams: MediaStream[] }
+      w.__streams = []
+      let calls = 0
+      navigator.mediaDevices.getUserMedia = async (constraints) => {
+        const slow = ++calls > 1
+        const stream = await real(constraints)
+        w.__streams.push(stream)
+        if (slow) await new Promise((resolve) => setTimeout(resolve, 1500))
+        return stream
+      }
+    })
+    await page.goto("/mission-house/camera")
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    await page.evaluate(async () => {
+      const set = (state: string) => {
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          get: () => state,
+        })
+        document.dispatchEvent(new Event("visibilitychange"))
+      }
+      set("hidden")
+      set("visible")
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      set("hidden")
+    })
+    await page.waitForTimeout(2500)
+    expect(
+      await page.evaluate(() =>
+        (window as unknown as { __streams: MediaStream[] }).__streams.some(
+          (stream) =>
+            stream.getTracks().some((track) => track.readyState === "live")
+        )
+      )
+    ).toBe(false)
+  })
+
+  test("a refused camera says how to fix it and offers to try again", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      navigator.mediaDevices.getUserMedia = () =>
+        Promise.reject(new DOMException("denied", "NotAllowedError"))
+    })
+    await page.goto("/mission-house/camera")
+    await expect(page.getByTestId("rephoto-error")).toHaveText(
+      "Allow camera access in your browser settings."
+    )
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible()
+    await expect(page.getByTestId("rephoto-shutter")).toBeDisabled()
+  })
+})
+
+// A phone whose browser lets a tap go full screen and turn the screen; records what was asked.
+async function phoneScreen(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __calls: string[] }
+    w.__calls = []
+    const real = window.matchMedia.bind(window)
+    window.matchMedia = (query: string) =>
+      query === "(pointer: coarse)"
+        ? ({ matches: true } as MediaQueryList)
+        : real(query)
+    Object.defineProperty(document, "fullscreenEnabled", { get: () => true })
+    let full: Element | null = null
+    Object.defineProperty(document, "fullscreenElement", {
+      get: () => full,
+    })
+    Element.prototype.requestFullscreen = async function () {
+      full = this
+      w.__calls.push("fullscreen")
+    }
+    document.exitFullscreen = async () => {
+      full = null
+      w.__calls.push("exit")
+    }
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock: (o: string) => Promise<void>
+    }
+    orientation.lock = async (o: string) => {
+      w.__calls.push(`lock ${o}`)
+    }
+    orientation.unlock = () => {
+      w.__calls.push("unlock")
+    }
+  })
+  return () =>
+    page.evaluate(() => (window as unknown as { __calls: string[] }).__calls)
+}

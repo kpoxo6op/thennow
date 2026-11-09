@@ -1,7 +1,9 @@
 import Image from "next/image"
 import Link from "next/link"
-
 import type { PendingPost as PendingPostType } from "@/interfaces/post"
+import { Camera } from "lucide-react"
+
+import { CameraLink } from "@/components/rephoto/camera-link"
 import { ResetScroll } from "@/components/reset-scroll"
 import { StoryMap } from "@/components/story-map"
 
@@ -29,7 +31,9 @@ function OnwardList({ title, items }: { title: string; items: Onward[] }) {
               className="flex items-baseline justify-between gap-4 py-3 text-lg leading-snug transition-colors hover:text-accent"
             >
               <span className="min-w-0">{item.name}</span>
-              <span className="shrink-0 text-[15px] tabular-nums text-muted-foreground">{distanceLabel(item.km)}</span>
+              <span className="shrink-0 text-[15px] tabular-nums text-muted-foreground">
+                {distanceLabel(item.km)}
+              </span>
             </Link>
           </li>
         ))}
@@ -64,12 +68,29 @@ export function PendingPost({ post, stories, pending }: Props) {
       <div className="tn-story-edge flex min-h-11 flex-wrap items-center gap-x-5 py-1">
         <p className="inline-flex items-center gap-1.5 text-sm">
           <span className="text-muted-foreground">then</span>
-          <span className="tn-reading text-base leading-none">{archive.date}</span>
+          <span className="tn-reading text-base leading-none">
+            {archive.date}
+          </span>
         </p>
-        <p data-testid="pending-status" className="inline-flex items-center gap-2 text-sm font-medium">
-          <span aria-hidden className="size-2.5 rounded-full border-2 border-foreground" />
-          Upcoming: modern photograph to come
+        <p
+          data-testid="pending-status"
+          className="inline-flex items-center gap-2 text-sm font-medium"
+        >
+          <span
+            aria-hidden
+            className="size-2.5 rounded-full border-2 border-foreground"
+          />
+          Upcoming
         </p>
+        <CameraLink
+          href={`/${post.slug}/camera`}
+          landscape={post.w > post.h}
+          data-testid="pending-camera"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md bg-foreground px-5 text-sm font-medium text-background transition-opacity hover:opacity-85"
+        >
+          <Camera className="size-4" aria-hidden />
+          Take it now
+        </CameraLink>
       </div>
 
       <article className="tn-story-edge pb-14 pt-3">
@@ -77,10 +98,14 @@ export function PendingPost({ post, stories, pending }: Props) {
           {post.name}
         </h1>
         <div className="mt-6 max-w-2xl space-y-4">
-          <p className="tn-reading text-xl leading-snug md:text-[1.375rem]">{post.description}</p>
+          <p className="tn-reading text-xl leading-snug md:text-[1.375rem]">
+            {post.description}
+          </p>
           <p className="text-[15px] leading-snug text-muted-foreground">
-            {archive.photographer === "Unknown" ? "Photographer unknown" : `Photograph: ${archive.photographer}`}.{" "}
-            {archive.credit}. {archive.rights}.{" "}
+            {archive.photographer === "Unknown"
+              ? "Photographer unknown"
+              : `Photograph: ${archive.photographer}`}
+            . {archive.credit}. {archive.rights}.{" "}
             <a
               href={archive.sourceUrl}
               target="_blank"
@@ -92,16 +117,24 @@ export function PendingPost({ post, stories, pending }: Props) {
           </p>
         </div>
         <StoryMap name={post.name} location={post.location} />
-        <p className="mt-2 text-[15px] text-muted-foreground">The pin marks the place, not where the photograph was taken.</p>
+        <p className="mt-2 text-[15px] text-muted-foreground">
+          The pin marks the place, not where the photograph was taken.
+        </p>
       </article>
 
       <section className="tn-story-edge border-t pb-12 pt-8 md:pb-16">
         <div className="grid gap-10 md:grid-cols-2 md:gap-8">
-          <OnwardList title="Stories to compare, nearest first" items={stories} />
+          <OnwardList
+            title="Stories to compare, nearest first"
+            items={stories}
+          />
           <div>
             <OnwardList title="Also upcoming" items={pending} />
             <div className="mt-4 flex flex-wrap gap-x-6">
-              <Link href="/places" className="inline-block py-2 underline underline-offset-4">
+              <Link
+                href="/places"
+                className="inline-block py-2 underline underline-offset-4"
+              >
                 All places
               </Link>
               <Link

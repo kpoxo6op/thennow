@@ -31,6 +31,7 @@
     "maplibre-gl": "^5.23.0",
     "next": "16.2.4",
     "next-themes": "0.4.6",
+    "onnxruntime-node": "1.23.2",
     "react": "19.2.5",
     "react-compare-image": "3.5.16",
     "react-compare-slider": "4.0.0",
