@@ -1,4 +1,5 @@
 import * as React from "react"
+import Link from "next/link"
 
 import { cn } from "@/lib/utils"
 import { appVersion } from "@/lib/version"
@@ -17,6 +18,13 @@ const SiteFooter = React.forwardRef<
       {...props}
     >
       <span className="ml-auto flex items-center gap-4">
+        <Link
+          href="/me"
+          data-testid="footer-your-photos"
+          className="-my-2 py-2 underline underline-offset-2"
+        >
+          Your photos
+        </Link>
         <a href="/feed.xml" className="-my-2 py-2 underline underline-offset-2">
           RSS
         </a>

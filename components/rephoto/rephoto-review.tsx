@@ -20,6 +20,7 @@ import {
 import { loadImage } from "@/lib/rephoto/pixels"
 import { newKey, sendPhoto } from "@/lib/rephoto/submit"
 import { report } from "@/lib/rephoto/telemetry"
+import { AddName } from "@/components/rephoto/add-name"
 
 export type Shot = {
   // The real photograph, at the camera's full resolution.
@@ -97,6 +98,20 @@ const SETTLE_MS = 350
 
 class NoMatch extends Error {}
 
+// The name already given on this phone, if any. Asking also gives the phone its cookie. Only one
+// question is out at a time, so two answers can never bring two different cookies.
+let asking: Promise<string | null> | null = null
+function askMe() {
+  asking ??= fetch("/api/me", { cache: "no-store", signal: AbortSignal.timeout(10_000) })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((me) => (typeof me?.name === "string" ? me.name : null))
+    .catch(() => null)
+    .finally(() => {
+      asking = null
+    })
+  return asking
+}
+
 function stamp(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
@@ -126,6 +141,11 @@ export function RephotoReview({
   const [sending, setSending] = useState<Sending>("idle")
   const [saveNote, setSaveNote] = useState("")
   const [kept, setKept] = useState(false)
+  // The name already given on this phone, if any. Asking also gives the phone its cookie, so the
+  // photo goes out already linked to it.
+  const [credit, setCredit] = useState<string | null>(null)
+  // The key the photo was sent under, once it's sent.
+  const [sentKey, setSentKey] = useState("")
   // One key per framed file: sending it again, after a lost answer, keeps a single copy.
   const keyRef = useRef("")
   // Keeping a copy means the phone's photos. An iPhone puts a file there only through its share
@@ -144,6 +164,14 @@ export function RephotoReview({
     },
     [shot.canvas]
   )
+
+  useEffect(() => {
+    let current = true
+    void askMe().then((name) => current && name && setCredit(name))
+    return () => {
+      current = false
+    }
+  }, [])
 
   useEffect(() => {
     const element = stageRef.current
@@ -298,9 +326,12 @@ export function RephotoReview({
     sendingRef.current = true
     setSending("sending")
     const began = performance.now()
+    // The cookie comes first, so a first photo is sent and filed under the cookie the phone keeps.
+    await askMe()
+    const key = keyRef.current
     const result = await sendPhoto(file, {
       slug,
-      key: keyRef.current,
+      key,
       checked: confirmed,
     })
     report(
@@ -310,6 +341,7 @@ export function RephotoReview({
     )
     sendingRef.current = false
     setSaveNote("")
+    setSentKey(key)
     setSending(result)
   }
 
@@ -350,7 +382,7 @@ export function RephotoReview({
     return (
       <div
         data-testid="rephoto-sent"
-        className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-8 bg-black px-6 text-center text-white"
+        className="fixed inset-0 z-[60] flex flex-col items-center justify-center-safe gap-8 overflow-y-auto bg-black px-6 py-8 text-center text-white"
       >
         <div role="status" className="max-w-md space-y-3">
           <h1 className="font-serif text-4xl leading-tight">Thank you.</h1>
@@ -376,6 +408,10 @@ export function RephotoReview({
             {saveNote || (kept ? "In your Downloads" : "Keep a copy")}
           </button>
         )}
+        <AddName
+          name={credit}
+          sent={{ place: slug, key: sentKey }}
+        />
       </div>
     )
   }
@@ -524,7 +560,8 @@ export function RephotoReview({
               className="max-w-72 text-right text-sm leading-snug text-white/75 landscape:text-center"
             >
               By sending, you let then|now publish this photo. We don’t
-              receive your name or your phone’s location.
+              collect your location. This phone’s photos are kept together, so
+              you can add your name later.
             </p>
           )}
           {file && !busy && phase !== "aligning" && (
