@@ -74,6 +74,7 @@ export async function writeProfile(id: string, name: string) {
       contentType: "application/json",
       addRandomSuffix: false,
       allowOverwrite: true,
+      // Every read of a profile skips the cache (useCache: false), so this only bounds the CDN.
       cacheControlMaxAge: 60,
     }
   )
@@ -83,19 +84,19 @@ export async function removeProfile(id: string) {
   await del(profilePath(id))
 }
 
-export async function hasPhotos(id: string) {
+// Whether this phone has sent a photo. The photo just sent is checked directly, because a fresh
+// photo can take a moment to show up in a listing.
+export async function hasPhotos(id: string, sent?: { place: string; key: string }) {
+  if (sent) {
+    try {
+      await head(photoPath(id, sent.place, sent.key))
+      return true
+    } catch {}
+  }
   const { blobs } = await list({ prefix: photosPrefix(id), limit: 1 })
   return blobs.length > 0
 }
 
-export async function exists(pathname: string) {
-  try {
-    await head(pathname)
-    return true
-  } catch {
-    return false
-  }
-}
 
 const HIDDEN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu
 

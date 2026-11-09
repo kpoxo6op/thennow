@@ -524,7 +524,9 @@ test.describe("the rephotography camera", () => {
     await expect(page.getByTestId("rephoto-named")).toHaveText(
       "Thanks, Margaret T. Your photos"
     )
-    expect(names).toEqual([{ name: "Margaret T" }])
+    expect(names).toHaveLength(1)
+    expect(names[0]).toMatchObject({ name: "Margaret T", place: "mission-house" })
+    expect((names[0] as { key: string }).key).toMatch(/^[a-z0-9]{24}$/)
     await expect(page.getByTestId("rephoto-your-photos")).toHaveAttribute(
       "href",
       "/me"

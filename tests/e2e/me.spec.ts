@@ -59,7 +59,7 @@ test("asking for the name gives a cookie once and keeps it, and replaces a broke
   expect(replaced).toMatch(/^[A-Za-z0-9_-]{32}$/)
 })
 
-test("a name is taken only from the site, from a phone with a cookie, and only a real name", async ({
+test("a name is taken only from the site, from a phone with a cookie, and only a real name (the photo check needs the store, so it's checked on a preview)", async ({
   request,
 }) => {
   const post = (data: unknown, headers: Record<string, string> = {}) =>
@@ -80,7 +80,7 @@ test("a name is taken only from the site, from a phone with a cookie, and only a
   expect((await post({ name: "Margaret" }, withCookie)).status()).toBe(503)
 })
 
-test("a phone's photos are shown only to that phone", async ({ request }) => {
+test("a photo is never shown without a cookie, or for a made-up place", async ({ request }) => {
   const query = "place=mission-house&key=abcdefghijkl0123"
   expect((await request.get(`/api/me/photo?${query}`)).status()).toBe(404)
   expect(

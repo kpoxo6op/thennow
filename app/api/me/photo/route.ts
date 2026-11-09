@@ -27,7 +27,8 @@ export async function GET(request: Request) {
     return new Response(found.stream, {
       headers: {
         "content-type": "image/jpeg",
-        "cache-control": "private, max-age=86400",
+        // Not kept by the browser: once its cookie is cleared, the phone's photos are gone from it.
+        "cache-control": "private, no-store",
       },
     })
   } catch {

@@ -1,53 +1,79 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useRef, useState, type FormEvent } from "react"
 import Link from "next/link"
+import { flushSync } from "react-dom"
 
 import { report } from "@/lib/rephoto/telemetry"
 
 // After a photo is sent: the one, optional, way to put a name to it. Nothing here stands between
 // the person and Done; it can be done now, later on Your photos, or never.
 
-type Saving = "idle" | "saving" | "failed"
+export type Saved = { name: string } | { note: string }
 
-export async function saveName(name: string): Promise<string | null> {
+const NOTES: Record<number, string> = {
+  401: "Not saved yet. Please try again in a moment.",
+  429: "Not saved. Please try again later.",
+}
+const OFFLINE = "Not saved. Check your signal and try again."
+
+export async function saveName(
+  name: string,
+  sent?: { place: string; key: string }
+): Promise<Saved> {
   try {
     const response = await fetch("/api/me", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...sent }),
     })
-    if (!response.ok) return null
-    return (await response.json()).name ?? null
+    if (!response.ok) return { note: NOTES[response.status] ?? OFFLINE }
+    const saved = (await response.json()).name
+    return typeof saved === "string" ? { name: saved } : { note: OFFLINE }
   } catch {
-    return null
+    return { note: OFFLINE }
   }
 }
 
-export function AddName({ name: known }: { name: string | null }) {
+interface Props {
+  // The name this phone already has, if any.
+  name: string | null
+  // The photo just sent, which proves this phone has one even before it's listed.
+  sent: { place: string; key: string }
+}
+
+export function AddName({ name: known, sent }: Props) {
   const [name, setName] = useState(known)
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState("")
-  const [saving, setSaving] = useState<Saving>("idle")
+  const [saving, setSaving] = useState(false)
+  const [note, setNote] = useState("")
   const [thanked, setThanked] = useState(false)
+  const field = useRef<HTMLInputElement>(null)
+  const after = useRef<HTMLAnchorElement>(null)
 
   const save = async (event: FormEvent) => {
     event.preventDefault()
-    if (!draft.trim() || saving === "saving") return
-    setSaving("saving")
-    const saved = await saveName(draft)
-    report("name", {}, { result: saved ? "saved" : "failed" })
-    if (!saved) return setSaving("failed")
-    setName(saved)
-    setThanked(true)
-    setSaving("idle")
+    if (!draft.trim() || saving) return
+    setSaving(true)
+    setNote("")
+    const saved = await saveName(draft, sent)
+    setSaving(false)
+    report("name", {}, { result: "name" in saved ? "saved" : saved.note.slice(0, 40) })
+    if (!("name" in saved)) return setNote(saved.note)
+    flushSync(() => {
+      setName(saved.name)
+      setThanked(true)
+    })
+    after.current?.focus()
   }
 
   if (name)
     return (
-      <p data-testid="rephoto-named" className="text-base text-white/85">
+      <p role="status" data-testid="rephoto-named" className="text-base text-white/85">
         {thanked ? `Thanks, ${name}.` : `Sent as ${name}.`}{" "}
         <Link
+          ref={after}
           href="/me"
           data-testid="rephoto-your-photos"
           className="inline-flex min-h-11 items-center text-white underline underline-offset-4"
@@ -62,7 +88,11 @@ export function AddName({ name: known }: { name: string | null }) {
       <button
         type="button"
         data-testid="rephoto-add-name"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          // Focused within the tap itself, or an iPhone won't bring up its keyboard.
+          flushSync(() => setOpen(true))
+          field.current?.focus()
+        }}
         className="min-h-11 text-base text-white/85 underline underline-offset-4"
       >
         Add your name
@@ -80,9 +110,9 @@ export function AddName({ name: known }: { name: string | null }) {
       </label>
       <div className="flex gap-2">
         <input
+          ref={field}
           id="rephoto-name"
           data-testid="rephoto-name"
-          autoFocus
           autoComplete="name"
           autoCapitalize="words"
           enterKeyHint="done"
@@ -95,15 +125,15 @@ export function AddName({ name: known }: { name: string | null }) {
         <button
           type="submit"
           data-testid="rephoto-name-save"
-          disabled={!draft.trim() || saving === "saving"}
+          disabled={!draft.trim() || saving}
           className="min-h-12 rounded-md border border-white px-5 text-lg font-medium text-white disabled:opacity-50"
         >
-          {saving === "saving" ? "Saving…" : "Save"}
+          {saving ? "Saving…" : "Save"}
         </button>
       </div>
-      {saving === "failed" && (
+      {note && (
         <p role="status" className="text-base text-white/85">
-          Not saved. Check your signal and try again.
+          {note}
         </p>
       )}
     </form>

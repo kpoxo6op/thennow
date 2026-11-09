@@ -130,6 +130,8 @@ export function RephotoReview({
   // The name already given on this phone, if any. Asking also gives the phone its cookie, so the
   // photo goes out already linked to it.
   const [credit, setCredit] = useState<string | null>(null)
+  // The key the photo was sent under, once it's sent.
+  const [sentKey, setSentKey] = useState("")
   // One key per framed file: sending it again, after a lost answer, keeps a single copy.
   const keyRef = useRef("")
   // Keeping a copy means the phone's photos. An iPhone puts a file there only through its share
@@ -149,9 +151,12 @@ export function RephotoReview({
     [shot.canvas]
   )
 
+  // Sending waits for this answer (a few seconds at most), so the photo and the phone's cookie
+  // never cross: a first photo is sent with the cookie this answer brings.
+  const meRef = useRef<Promise<unknown> | null>(null)
   useEffect(() => {
     let current = true
-    fetch("/api/me", { cache: "no-store" })
+    meRef.current = fetch("/api/me", { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
       .then((me) => current && typeof me?.name === "string" && setCredit(me.name))
       .catch(() => {})
@@ -313,9 +318,14 @@ export function RephotoReview({
     sendingRef.current = true
     setSending("sending")
     const began = performance.now()
+    await Promise.race([
+      meRef.current,
+      new Promise((resolve) => setTimeout(resolve, 3_000)),
+    ])
+    const key = keyRef.current
     const result = await sendPhoto(file, {
       slug,
-      key: keyRef.current,
+      key,
       checked: confirmed,
     })
     report(
@@ -325,6 +335,7 @@ export function RephotoReview({
     )
     sendingRef.current = false
     setSaveNote("")
+    setSentKey(key)
     setSending(result)
   }
 
@@ -365,7 +376,7 @@ export function RephotoReview({
     return (
       <div
         data-testid="rephoto-sent"
-        className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-8 overflow-y-auto bg-black px-6 py-8 text-center text-white"
+        className="fixed inset-0 z-[60] flex flex-col items-center justify-center-safe gap-8 overflow-y-auto bg-black px-6 py-8 text-center text-white"
       >
         <div role="status" className="max-w-md space-y-3">
           <h1 className="font-serif text-4xl leading-tight">Thank you.</h1>
@@ -391,7 +402,11 @@ export function RephotoReview({
             {saveNote || (kept ? "In your Downloads" : "Keep a copy")}
           </button>
         )}
-        <AddName name={credit} />
+        <AddName
+          key={credit ?? ""}
+          name={credit}
+          sent={{ place: slug, key: sentKey }}
+        />
       </div>
     )
   }

@@ -10,7 +10,6 @@ import {
   personId,
   photoPath,
   readCookie,
-  readProfile,
 } from "@/lib/people"
 
 // Receives a photograph taken with the site's camera at one of its places and keeps it in the
@@ -94,7 +93,6 @@ export async function POST(request: Request) {
     return done()
   } catch {}
   if (!allowed(request)) return answer(429, "slow down")
-  const profile = await readProfile(id)
 
   // The photo is stored last, so a photo in the store always has its note beside it.
   try {
@@ -106,9 +104,8 @@ export async function POST(request: Request) {
         // Whether the camera could confirm the photo matches the old one.
         lined: checked,
         bytes: photo.length,
-        // The sending phone's folder under people/, and its name when it had one at the time.
+        // The sending phone's folder: its name, if it adds one, is in people/<by>.json.
         by: id,
-        ...(profile ? { name: profile.name } : {}),
       }),
       {
         access: "private",
@@ -130,7 +127,7 @@ export async function POST(request: Request) {
     return answer(502, "store failed")
   }
   console.log(
-    `submit-photo ${JSON.stringify({ place: slug, key, checked, bytes: photo.length, named: !!profile })}`
+    `submit-photo ${JSON.stringify({ place: slug, key, checked, bytes: photo.length })}`
   )
   return done()
 }

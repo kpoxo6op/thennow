@@ -49,17 +49,21 @@ export async function POST(request: Request) {
   if (Number(request.headers.get("content-length") ?? 0) > 2_000)
     return Response.json({ error: "too big" }, { status: 413 })
   let name: string | null = null
+  let sent: { place: string; key: string } | undefined
   try {
     const text = await request.text()
     if (text.length > 2_000) return Response.json({ error: "too big" }, { status: 413 })
-    name = cleanName(JSON.parse(text)?.name)
+    const body = JSON.parse(text)
+    name = cleanName(body?.name)
+    if (/^[a-z0-9-]{1,80}$/.test(body?.place) && /^[a-z0-9]{12,40}$/.test(body?.key))
+      sent = { place: body.place, key: body.key }
   } catch {}
   if (!name) return Response.json({ error: "bad name" }, { status: 400 })
   if (!process.env.BLOB_READ_WRITE_TOKEN)
     return Response.json({ error: "no store" }, { status: 503 })
   const id = personId(cookie)
   try {
-    if (!(await hasPhotos(id))) return Response.json({ error: "no photos" }, { status: 401 })
+    if (!(await hasPhotos(id, sent))) return Response.json({ error: "no photos" }, { status: 401 })
     if (!allowed(request)) return Response.json({ error: "slow down" }, { status: 429 })
     await writeProfile(id, name)
   } catch (error) {

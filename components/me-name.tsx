@@ -19,9 +19,9 @@ export function MeName({ name: saved }: { name: string | null }) {
     setBusy(true)
     const result = await saveName(draft)
     setBusy(false)
-    if (!result) return setNote("Not saved. Check your signal and try again.")
-    setName(result)
-    setDraft(result)
+    if (!("name" in result)) return setNote(result.note)
+    setName(result.name)
+    setDraft(result.name)
     setEditing(false)
     setNote("Saved.")
   }
