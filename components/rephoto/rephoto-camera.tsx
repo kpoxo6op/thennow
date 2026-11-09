@@ -644,7 +644,12 @@ export function RephotoCamera({
         }
         // Gentler on the battery after the first minute.
         const pace = performance.now() - began > 60_000 ? 2000 : 700
-        lockLife.current = pace * 1.5 + 1500
+        // A placement lives until the next one is due: that's two matches away from its frame on
+        // a phone whose matching takes longer than the pace.
+        lockLife.current = Math.max(
+          pace * 1.5 + 1500,
+          (performance.now() - started) * 2 + 500
+        )
         await new Promise((resolve) =>
           setTimeout(resolve, Math.max(0, pace - (performance.now() - started)))
         )
