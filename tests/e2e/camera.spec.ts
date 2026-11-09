@@ -488,6 +488,133 @@ test.describe("the rephotography camera", () => {
     )
   })
 
+  test("after sending, a name can be added in one step, and it never stands in the way of Done", async ({
+    page,
+  }) => {
+    const names: unknown[] = []
+    await page.route("**/api/submit?**", (route) =>
+      route.fulfill({ json: { ok: true } })
+    )
+    await page.route("**/api/me", async (route) => {
+      if (route.request().method() === "POST") {
+        names.push(route.request().postDataJSON())
+        return route.fulfill({ json: { name: "Margaret T" } })
+      }
+      await route.fulfill({ json: { name: null } })
+    })
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-consent")).toContainText(
+      "add your name later"
+    )
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+
+    const sent = page.getByTestId("rephoto-sent")
+    await expect(sent).toContainText("Thank you.")
+    await expect(page.getByTestId("rephoto-done")).toBeVisible()
+    await expect(page.getByTestId("rephoto-name-form")).toHaveCount(0)
+    await page.getByTestId("rephoto-add-name").click()
+    const field = page.getByTestId("rephoto-name")
+    await expect(field).toBeFocused()
+    await expect(page.getByTestId("rephoto-name-save")).toBeDisabled()
+    await field.fill("Margaret T")
+    await field.press("Enter")
+    await expect(page.getByTestId("rephoto-named")).toHaveText(
+      "Thanks, Margaret T. Your photos"
+    )
+    expect(names).toEqual([{ name: "Margaret T" }])
+    await expect(page.getByTestId("rephoto-your-photos")).toHaveAttribute(
+      "href",
+      "/me"
+    )
+    await expect(page.getByTestId("rephoto-done")).toHaveAttribute(
+      "href",
+      "/mission-house"
+    )
+  })
+
+  test("a phone that already has a name is told whose name the photo went with", async ({
+    page,
+  }) => {
+    await page.route("**/api/submit?**", (route) =>
+      route.fulfill({ json: { ok: true } })
+    )
+    await page.route("**/api/me", (route) =>
+      route.fulfill({ json: { name: "Margaret T" } })
+    )
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+    await expect(page.getByTestId("rephoto-named")).toHaveText(
+      "Sent as Margaret T. Your photos"
+    )
+    await expect(page.getByTestId("rephoto-add-name")).toHaveCount(0)
+  })
+
+  test("a name that can't be saved says so and can be tried again, and Done still works", async ({
+    page,
+  }) => {
+    let tries = 0
+    await page.route("**/api/submit?**", (route) =>
+      route.fulfill({ json: { ok: true } })
+    )
+    await page.route("**/api/me", async (route) => {
+      if (route.request().method() !== "POST")
+        return route.fulfill({ json: { name: null } })
+      tries += 1
+      if (tries === 1) return route.abort("internetdisconnected")
+      await route.fulfill({ json: { name: "Margaret" } })
+    })
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+    await page.getByTestId("rephoto-add-name").click()
+    await page.getByTestId("rephoto-name").fill("Margaret")
+    await page.getByTestId("rephoto-name-save").click()
+    await expect(page.getByTestId("rephoto-name-form")).toContainText(
+      "Not saved. Check your signal and try again."
+    )
+    await page.getByTestId("rephoto-name-save").click()
+    await expect(page.getByTestId("rephoto-named")).toContainText(
+      "Thanks, Margaret."
+    )
+    await page.getByTestId("rephoto-done").click()
+    await expect(page).toHaveURL(/\/mission-house$/)
+  })
+
+  test("the review gives the phone its own lasting cookie before anything is sent", async ({
+    page,
+    context,
+  }) => {
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect
+      .poll(async () =>
+        (await context.cookies()).find((cookie) => cookie.name === "tn_me")
+      )
+      .toBeTruthy()
+    const cookie = (await context.cookies()).find((c) => c.name === "tn_me")!
+    expect(cookie.value).toMatch(/^[A-Za-z0-9_-]{32}$/)
+    expect(cookie.httpOnly).toBe(true)
+    expect(cookie.sameSite).toBe("Lax")
+    expect(cookie.expires * 1000 - Date.now()).toBeGreaterThan(
+      399 * 24 * 60 * 60_000
+    )
+    // Asking again keeps the same cookie.
+    const asked = page.waitForResponse("**/api/me")
+    await page.getByTestId("rephoto-retake").click()
+    await shoot(page)
+    await asked
+    const again = (await context.cookies()).find((c) => c.name === "tn_me")!
+    expect(again.value).toBe(cookie.value)
+  })
+
   test("a photo that fails to send can be kept and sent again, as one photo", async ({
     page,
   }) => {

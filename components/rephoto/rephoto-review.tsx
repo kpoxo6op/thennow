@@ -20,6 +20,7 @@ import {
 import { loadImage } from "@/lib/rephoto/pixels"
 import { newKey, sendPhoto } from "@/lib/rephoto/submit"
 import { report } from "@/lib/rephoto/telemetry"
+import { AddName } from "@/components/rephoto/add-name"
 
 export type Shot = {
   // The real photograph, at the camera's full resolution.
@@ -126,6 +127,9 @@ export function RephotoReview({
   const [sending, setSending] = useState<Sending>("idle")
   const [saveNote, setSaveNote] = useState("")
   const [kept, setKept] = useState(false)
+  // The name already given on this phone, if any. Asking also gives the phone its cookie, so the
+  // photo goes out already linked to it.
+  const [credit, setCredit] = useState<string | null>(null)
   // One key per framed file: sending it again, after a lost answer, keeps a single copy.
   const keyRef = useRef("")
   // Keeping a copy means the phone's photos. An iPhone puts a file there only through its share
@@ -144,6 +148,17 @@ export function RephotoReview({
     },
     [shot.canvas]
   )
+
+  useEffect(() => {
+    let current = true
+    fetch("/api/me", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((me) => current && typeof me?.name === "string" && setCredit(me.name))
+      .catch(() => {})
+    return () => {
+      current = false
+    }
+  }, [])
 
   useEffect(() => {
     const element = stageRef.current
@@ -350,7 +365,7 @@ export function RephotoReview({
     return (
       <div
         data-testid="rephoto-sent"
-        className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-8 bg-black px-6 text-center text-white"
+        className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-8 overflow-y-auto bg-black px-6 py-8 text-center text-white"
       >
         <div role="status" className="max-w-md space-y-3">
           <h1 className="font-serif text-4xl leading-tight">Thank you.</h1>
@@ -376,6 +391,7 @@ export function RephotoReview({
             {saveNote || (kept ? "In your Downloads" : "Keep a copy")}
           </button>
         )}
+        <AddName name={credit} />
       </div>
     )
   }
@@ -524,7 +540,8 @@ export function RephotoReview({
               className="max-w-72 text-right text-sm leading-snug text-white/75 landscape:text-center"
             >
               By sending, you let then|now publish this photo. We don’t
-              receive your name or your phone’s location.
+              collect your location. This phone’s photos are kept together, so
+              you can add your name later.
             </p>
           )}
           {file && !busy && phase !== "aligning" && (

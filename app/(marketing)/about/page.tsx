@@ -106,8 +106,14 @@ export default async function AboutPage() {
         <h2 className="font-serif text-4xl leading-none md:text-5xl">Your photos</h2>
         <p className="tn-reading max-w-2xl text-lg leading-relaxed">
           Photos sent from the camera are seen only by then|now until we add them to a place. They
-          carry no name or location. The camera also sends anonymous reports of how it worked, never
-          the pictures.
+          carry no location. Your phone’s browser keeps a random number so the photos it sends stay
+          together on{" "}
+          <Link href="/me" className="underline underline-offset-4">
+            Your photos
+          </Link>
+          , where you can add a name to be credited, change it or remove it. Photos and names are
+          kept in then|now’s private store, with Vercel in Sydney. The camera also sends anonymous
+          reports of how it worked, never the pictures.
         </p>
       </section>
 
