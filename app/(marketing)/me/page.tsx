@@ -73,18 +73,18 @@ export default async function MePage() {
         <h1 className="font-serif text-6xl leading-none md:text-7xl">Your photos</h1>
         <div className="max-w-2xl space-y-5">
           {failed ? (
-            <p className="tn-reading text-lg leading-relaxed">
+            <p className="text-lg leading-relaxed">
               Your photos can’t be shown just now. Please try again in a minute.
             </p>
           ) : photos.length ? (
             <>
-              <p className="tn-reading text-lg leading-relaxed">
+              <p className="text-lg leading-relaxed">
                 Sent from this phone. We look at every photo before it goes on the site.
               </p>
               <MeName name={name} />
             </>
           ) : (
-            <p data-testid="me-empty" className="tn-reading text-lg leading-relaxed">
+            <p data-testid="me-empty" className="text-lg leading-relaxed">
               Photos you send from the camera on this phone will appear here.{" "}
               <Link href="/places" className="underline underline-offset-4">
                 Find a place to photograph

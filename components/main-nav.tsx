@@ -63,7 +63,7 @@ export function MainNav({ items }: MainNavProps) {
             href={item.href}
             aria-current={pathname === item.href ? "page" : undefined}
             onClick={returnIfJustLeft(item.href)}
-            className="-my-3 py-3 text-[13px] text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:text-foreground aria-[current=page]:underline aria-[current=page]:decoration-accent aria-[current=page]:decoration-2 aria-[current=page]:underline-offset-[6px] sm:text-sm"
+            className="-my-3 py-3 text-sm text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:text-foreground aria-[current=page]:underline aria-[current=page]:decoration-accent aria-[current=page]:decoration-2 aria-[current=page]:underline-offset-[6px]"
           >
             {item.title}
           </Link>

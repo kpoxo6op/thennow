@@ -234,10 +234,6 @@
   }
 }
 
-.tn-reading {
-  font-family: var(--font-reading), Georgia, serif;
-}
-
 /* Nothing to drag, so a pending photograph needs no room for controls beyond its status line. */
 .tn-story--pending .tn-compare-image {
   background: hsl(var(--muted));

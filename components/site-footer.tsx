@@ -11,8 +11,9 @@ const SiteFooter = React.forwardRef<
   return (
     <footer
       ref={ref}
+      data-version={appVersion}
       className={cn(
-        "mt-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t px-4 py-5 text-sm text-muted-foreground",
+        "mt-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 text-sm text-muted-foreground",
         className
       )}
       {...props}
@@ -25,10 +26,6 @@ const SiteFooter = React.forwardRef<
         >
           Your photos
         </Link>
-        <a href="/feed.xml" className="-my-2 py-2 underline underline-offset-2">
-          RSS
-        </a>
-        <span>Version {appVersion}</span>
       </span>
     </footer>
   )
