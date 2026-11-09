@@ -287,7 +287,8 @@ test.describe("a story's own map", () => {
   }
 
   test("the map waits until the reader nears it, and its space is held from the start", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
+    // Mill House has the longest text, so its map starts furthest below a small phone's first screen.
+    await page.setViewportSize({ width: 390, height: 700 })
     await page.goto("/mill-house")
     await page.waitForLoadState("load")
     await page.waitForTimeout(400)
