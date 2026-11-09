@@ -20,7 +20,6 @@ import {
 import { loadImage } from "@/lib/rephoto/pixels"
 import { newKey, sendPhoto } from "@/lib/rephoto/submit"
 import { report } from "@/lib/rephoto/telemetry"
-import { AddName } from "@/components/rephoto/add-name"
 
 export type Shot = {
   // The real photograph, at the camera's full resolution.
@@ -144,8 +143,6 @@ export function RephotoReview({
   // The name already given on this phone, if any. Asking also gives the phone its cookie, so the
   // photo goes out already linked to it.
   const [credit, setCredit] = useState<string | null>(null)
-  // The key the photo was sent under, once it's sent.
-  const [sentKey, setSentKey] = useState("")
   // One key per framed file: sending it again, after a lost answer, keeps a single copy.
   const keyRef = useRef("")
   // Keeping a copy means the phone's photos. An iPhone puts a file there only through its share
@@ -341,7 +338,6 @@ export function RephotoReview({
     )
     sendingRef.current = false
     setSaveNote("")
-    setSentKey(key)
     setSending(result)
   }
 
@@ -408,10 +404,13 @@ export function RephotoReview({
             {saveNote || (kept ? "In your Downloads" : "Keep a copy")}
           </button>
         )}
-        <AddName
-          name={credit}
-          sent={{ place: slug, key: sentKey }}
-        />
+        <Link
+          href="/me"
+          data-testid="rephoto-your-photos"
+          className="inline-flex min-h-11 items-center text-base text-white/85 underline underline-offset-4"
+        >
+          {credit ? `Sent as ${credit}` : "Sign up to be credited"}
+        </Link>
       </div>
     )
   }
@@ -560,8 +559,7 @@ export function RephotoReview({
               className="max-w-72 text-right text-sm leading-snug text-white/75 landscape:text-center"
             >
               By sending, you let then|now publish this photo. We don’t
-              collect your location. This phone’s photos are kept together, so
-              you can add your name later.
+              collect your location.
             </p>
           )}
           {file && !busy && phase !== "aligning" && (
