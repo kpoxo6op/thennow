@@ -82,7 +82,9 @@ async function onPhoneMatcher(page: Page) {
 // These tests are about what happens after a photo, not matching it: the server's matcher is
 // left out (as with no signal, so the photo can still be sent) to keep its CPU for other tests.
 async function withoutServerMatcher(page: Page) {
-  await page.route("**/api/align", (route) => route.abort("internetdisconnected"))
+  await page.route("**/api/align", (route) =>
+    route.abort("internetdisconnected")
+  )
 }
 
 async function shoot(page: Page) {
@@ -123,14 +125,11 @@ test.describe("the rephotography camera", () => {
       .toEqual(["fullscreen", "lock landscape", "unlock", "exit"])
   })
 
-  test('on a phone that allows it, tapping "Turn sideways" turns the screen', async ({
-    page,
-  }) => {
-    const calls = await phoneScreen(page)
+  test("an upright phone shows no hint to turn it", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await openCamera(page, "mission-house")
-    await page.getByRole("button", { name: "Turn sideways" }).click()
-    await expect.poll(calls).toEqual(["fullscreen", "lock landscape"])
+    await expect(page.getByTestId("rephoto-ghost")).toBeVisible()
+    await expect(page.getByText(/Turn sideways|Hold upright/)).toHaveCount(0)
   })
 
   test("the live view shows only the old photograph over the camera, a close button and the shutter", async ({
@@ -173,7 +172,6 @@ test.describe("the rephotography camera", () => {
 
     // No words on a landscape screen for a landscape photograph.
     await page.setViewportSize({ width: 844, height: 390 })
-    await expect(page.getByTestId("rephoto-hint")).toHaveCount(0)
     const words = await page.getByTestId("rephoto-camera").innerText()
     expect(words.trim()).toBe("")
   })
@@ -532,7 +530,10 @@ test.describe("the rephotography camera", () => {
       "Thanks, Margaret T. Your photos"
     )
     expect(names).toHaveLength(1)
-    expect(names[0]).toMatchObject({ name: "Margaret T", place: "mission-house" })
+    expect(names[0]).toMatchObject({
+      name: "Margaret T",
+      place: "mission-house",
+    })
     expect((names[0] as { key: string }).key).toMatch(/^[a-z0-9]{24}$/)
     await expect(page.getByTestId("rephoto-your-photos")).toHaveAttribute(
       "href",
@@ -618,7 +619,9 @@ test.describe("the rephotography camera", () => {
     const send = page.getByTestId("rephoto-send")
     await expect(send).toHaveText("Send photo", { timeout: 30_000 })
     await send.click()
-    await expect(page.getByTestId("rephoto-sent")).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId("rephoto-sent")).toBeVisible({
+      timeout: 15_000,
+    })
     expect(order).toEqual(["cookie", "photo"])
   })
 
@@ -792,15 +795,21 @@ test.describe("the rephotography camera", () => {
     expect((await post(`place=mission-house&key=x`, jpeg)).status()).toBe(400)
     expect((await post(`place=nowhere&key=${key}`, jpeg)).status()).toBe(404)
     expect(
-      (await post(`place=mission-house&key=${key}`, Buffer.from("hello"))).status()
+      (
+        await post(`place=mission-house&key=${key}`, Buffer.from("hello"))
+      ).status()
     ).toBe(415)
     // Two marker bytes around rubbish are not a photograph.
-    expect((await post(`place=mission-house&key=${key}`, jpeg)).status()).toBe(415)
+    expect((await post(`place=mission-house&key=${key}`, jpeg)).status()).toBe(
+      415
+    )
     // A real photograph passes every check and reaches the store, which tests run without.
     const real = readFileSync(
       path.join(process.cwd(), "public", archive("mission-house").b_imageUrl)
     )
-    expect((await post(`place=mission-house&key=${key}`, real)).status()).toBe(503)
+    expect((await post(`place=mission-house&key=${key}`, real)).status()).toBe(
+      503
+    )
   })
 
   test("retake returns to the live camera", async ({ page }) => {
