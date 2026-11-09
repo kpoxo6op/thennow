@@ -1,15 +1,16 @@
 import { createHash, randomBytes } from "crypto"
-import { del, get, head, list, put } from "@vercel/blob"
+import { del, get, list, put, rename } from "@vercel/blob"
 
-// The people who send photos, without accounts. A phone's browser gets a random cookie the first
-// time it reaches the camera's review; the photos it sends are kept together under that cookie, so
-// whoever holds the phone can add a name to them, now or later. Nothing else identifies them.
+// The people who send photos. A browser gets a random cookie the first time it reaches the
+// camera's review or signs up; the photos it sends are kept together under that cookie, so its
+// owner can sign up with a name before or after sending. Signing up also saves a passkey
+// (lib/passkey) that carries the cookie to their other devices. Nothing else identifies them.
 
 export const COOKIE = "tn_me"
 // Browsers keep a cookie for at most 400 days; each visit to the review renews it.
 const MAX_AGE = 400 * 24 * 60 * 60
 
-const VALID = /^[A-Za-z0-9_-]{32}$/
+export const VALID = /^[A-Za-z0-9_-]{32}$/
 
 export function readCookie(request: Request): string | null {
   const header = request.headers.get("cookie") ?? ""
@@ -46,7 +47,7 @@ export const photosPrefix = (id: string) => `people/${id}/`
 export const photoPath = (id: string, place: string, key: string) =>
   `people/${id}/${place}/${key}.jpg`
 
-export type Profile = { name: string; createdAt: string; updatedAt: string }
+export type Profile = { name: string; createdAt: string; updatedAt: string; passkey?: true }
 
 // No profile is null; a store that can't be reached throws, so it isn't mistaken for no name.
 export async function readProfile(id: string): Promise<Profile | null> {
@@ -57,12 +58,15 @@ export async function readProfile(id: string): Promise<Profile | null> {
   return typeof profile?.name === "string" && profile.name ? profile : null
 }
 
-export async function writeProfile(id: string, name: string) {
+export async function writeProfile(id: string, change: { name?: string; passkey?: true }) {
   const now = new Date().toISOString()
   const before = await readProfile(id)
+  const name = change.name ?? before?.name
+  if (!name) return null
+  const passkey = change.passkey ?? before?.passkey
   await put(
     profilePath(id),
-    JSON.stringify({ name, createdAt: before?.createdAt ?? now, updatedAt: now }),
+    JSON.stringify({ name, createdAt: before?.createdAt ?? now, updatedAt: now, passkey }),
     {
       access: "private",
       contentType: "application/json",
@@ -72,25 +76,51 @@ export async function writeProfile(id: string, name: string) {
       cacheControlMaxAge: 60,
     }
   )
+  return { name, passkey: !!passkey }
 }
 
 export async function removeProfile(id: string) {
   await del(profilePath(id))
 }
 
-// Whether this phone has sent a photo. The photo just sent is checked directly, because a fresh
-// photo can take a moment to show up in a listing.
-export async function hasPhotos(id: string, sent?: { place: string; key: string }) {
-  if (sent) {
-    try {
-      await head(photoPath(id, sent.place, sent.key))
-      return true
-    } catch {}
-  }
-  const { blobs } = await list({ prefix: photosPrefix(id), limit: 1 })
-  return blobs.length > 0
+const PRIVATE = { access: "private", addRandomSuffix: false, allowOverwrite: true } as const
+
+// Files a small copy of a stored photo under the person who sent it.
+export function filePhoto(id: string, place: string, key: string, small: Buffer) {
+  return put(photoPath(id, place, key), small, { ...PRIVATE, contentType: "image/jpeg" })
 }
 
+// Points a stored photo's note at the person it now belongs to.
+export async function followPhoto(place: string, key: string, id: string) {
+  const pathname = `submissions/${place}/${key}.json`
+  const found = await get(pathname, { access: "private", useCache: false })
+  if (!found || found.statusCode !== 200) return
+  const note = JSON.parse(await new Response(found.stream).text())
+  if (note.by === id) return
+  await put(pathname, JSON.stringify({ ...note, by: id }), {
+    ...PRIVATE,
+    contentType: "application/json",
+  })
+}
+
+// Signing in on a browser that has already sent photos: they join the person's others. The note
+// moves first, so a move that stops half-way is finished by signing in again.
+export async function movePhotos(from: string, to: string) {
+  if (from === to) return
+  const { blobs } = await list({ prefix: photosPrefix(from), limit: 200 })
+  await Promise.all(
+    blobs.map(async (blob) => {
+      const [place, file] = blob.pathname.slice(photosPrefix(from).length).split("/")
+      const key = file?.replace(/\.jpg$/, "")
+      if (!place || !key) return
+      await followPhoto(place, key, to)
+      await rename(blob.pathname, photoPath(to, place, key), {
+        ...PRIVATE,
+        contentType: "image/jpeg",
+      })
+    })
+  )
+}
 
 const HIDDEN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu
 

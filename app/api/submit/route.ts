@@ -1,10 +1,12 @@
-import { get, head, put } from "@vercel/blob"
+import { head, put } from "@vercel/blob"
 import sharp from "sharp"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
 import { limiter, sameSite } from "@/lib/limit"
 import {
   cookieHeader,
+  filePhoto,
+  followPhoto,
   isSecure,
   newCookie,
   personId,
@@ -17,7 +19,7 @@ import {
 // here: a photo goes on the site only once the owner adds it by hand. No name, address or
 // location is kept; the JPEG comes from a canvas, so it carries no camera or GPS details. Each
 // photo is also filed, as a small copy, under the sending phone's random cookie (lib/people), so
-// that phone can see its photos and add a name to them.
+// its owner can see their photos and sign up for the credit.
 
 export const runtime = "nodejs"
 export const maxDuration = 30
@@ -91,8 +93,8 @@ export async function POST(request: Request) {
       // Not done until the phone's copy is filed too; the camera then simply sends again. A phone
       // that lost its first answer may come back with a new cookie: the note follows it.
       // The note moves first, so a retry after any failure here does both steps again.
-      const moved = await follow(slug, key, id)
-        .then(() => file(filed, small))
+      const moved = await followPhoto(slug, key, id)
+        .then(() => filePhoto(id, slug, key, small))
         .then(() => true, () => false)
       if (!moved) return answer(502, "store failed")
     }
@@ -127,7 +129,7 @@ export async function POST(request: Request) {
       allowOverwrite: true,
     })
     // Filed last, so the phone's list only ever shows photos that were stored.
-    await file(filed, small)
+    await filePhoto(id, slug, key, small)
   } catch (error) {
     console.error(`submit failed ${slug} ${String(error).slice(0, 300)}`)
     return answer(502, "store failed")
@@ -136,27 +138,4 @@ export async function POST(request: Request) {
     `submit-photo ${JSON.stringify({ place: slug, key, checked, bytes: photo.length })}`
   )
   return done()
-}
-
-async function follow(slug: string, key: string, id: string) {
-  const pathname = `submissions/${slug}/${key}.json`
-  const found = await get(pathname, { access: "private", useCache: false })
-  if (!found || found.statusCode !== 200) return
-  const note = JSON.parse(await new Response(found.stream).text())
-  if (note.by === id) return
-  await put(pathname, JSON.stringify({ ...note, by: id }), {
-    access: "private",
-    contentType: "application/json",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  })
-}
-
-function file(pathname: string, small: Buffer) {
-  return put(pathname, small, {
-    access: "private",
-    contentType: "image/jpeg",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  })
 }

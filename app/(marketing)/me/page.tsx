@@ -8,8 +8,8 @@ import { COOKIE, personId, photosPrefix, readProfile } from "@/lib/people"
 import { MeName } from "@/components/me-name"
 import { MeRenew } from "@/components/me-renew"
 
-// Your photos: the photos this phone's browser has sent, and the name that goes with them. No
-// account: the phone's cookie is the only key, so the page is never cached or shared.
+// Your photos: where someone signs up with a name, at any time, and sees the photos they have
+// sent. The browser's cookie is the only key, so the page is never cached or shared.
 
 export const dynamic = "force-dynamic"
 
@@ -52,14 +52,15 @@ export default async function MePage() {
   const names = new Map(places.map((place) => [place.slug, place.name]))
   let photos: Photo[] = []
   let name: string | null = null
+  let passkey = false
   let failed = false
   if (valid) {
     const id = personId(cookie)
     try {
-      ;[photos, name] = await Promise.all([
-        photosOf(id, names),
-        readProfile(id).then((profile) => profile?.name ?? null),
-      ])
+      const [sent, profile] = await Promise.all([photosOf(id, names), readProfile(id)])
+      photos = sent
+      name = profile?.name ?? null
+      passkey = !!profile?.passkey
     } catch (error) {
       console.error(`me failed ${String(error).slice(0, 300)}`)
       failed = true
@@ -76,21 +77,23 @@ export default async function MePage() {
             <p className="text-lg leading-relaxed">
               Your photos can’t be shown just now. Please try again in a minute.
             </p>
-          ) : photos.length ? (
-            <>
-              <p className="text-lg leading-relaxed">
-                Sent from this phone. We look at every photo before it goes on the site.
-              </p>
-              <MeName name={name} />
-            </>
           ) : (
-            <p data-testid="me-empty" className="text-lg leading-relaxed">
-              Photos you send from the camera on this phone will appear here.{" "}
-              <Link href="/places" className="underline underline-offset-4">
-                Find a place to photograph
-              </Link>
-              .
-            </p>
+            <>
+              {photos.length ? (
+                <p className="text-lg leading-relaxed">
+                  We look at every photo before it goes on the site.
+                </p>
+              ) : (
+                <p data-testid="me-empty" className="text-lg leading-relaxed">
+                  Photos you send from the camera will appear here.{" "}
+                  <Link href="/places" className="underline underline-offset-4">
+                    Find a place to photograph
+                  </Link>
+                  .
+                </p>
+              )}
+              <MeName name={name} passkey={passkey} />
+            </>
           )}
         </div>
       </div>
@@ -118,9 +121,7 @@ export default async function MePage() {
       )}
 
       <p className="mt-14 max-w-2xl border-t pt-6 text-[15px] leading-relaxed text-muted-foreground lg:ml-[calc(50%+1.25rem)]">
-        Your photos are linked to this phone’s browser, not to an account. If the browser is
-        cleared, we still have the photos, but this page can’t show them. Your name is kept only to
-        credit your photos.{" "}
+        Signing up saves a passkey, so you can sign in on another device. No email, no password. Your name is kept only to credit your photos.{" "}
         <Link href="/about#your-photos" className="underline underline-offset-4">
           Privacy
         </Link>
