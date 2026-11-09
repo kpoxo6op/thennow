@@ -88,7 +88,7 @@ function Words({ lines }: { lines: string[] }) {
   if (!words.length) return null
 
   return (
-    <div className="mt-4 max-w-2xl space-y-4">
+    <div className="mt-4 max-w-3xl space-y-4">
       {words.map((line) => (
         <p key={line} className="text-lg leading-relaxed">
           {line}
@@ -303,7 +303,7 @@ export default function Post({ post, nearby }: PostProps) {
           ) : (
             <>
               {dated.length ? (
-                <div className="mt-6 grid max-w-3xl gap-8 md:grid-cols-2">
+                <div className="mt-6 grid max-w-3xl gap-8">
                   {photos.map((photo) => (
                     <Chapter
                       key={photo.label}

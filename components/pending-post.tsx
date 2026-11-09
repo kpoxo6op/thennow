@@ -54,7 +54,7 @@ export function PendingPost({ post, nearby }: Props) {
         <h1 className="text-pretty font-serif text-[2.125rem] leading-[1.06] md:text-balance md:text-[clamp(2.25rem,5.8svh,3.25rem)]">
           {post.name}
         </h1>
-        <div className="mt-4 max-w-2xl space-y-4">
+        <div className="mt-4 max-w-3xl space-y-4">
           <p className="text-lg leading-relaxed">{post.description}</p>
           <p className="text-sm leading-snug text-muted-foreground">
             {archive.photographer === "Unknown"
