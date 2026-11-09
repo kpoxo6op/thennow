@@ -177,7 +177,7 @@ export function MeName({ name: saved, passkey }: { name: string | null; passkey:
               data-testid="me-sign-in"
               disabled={busy}
               onClick={() => void signIn()}
-              className="-my-2 py-2 text-lg underline underline-offset-4"
+              className="block py-2 text-lg underline underline-offset-4"
             >
               Sign in
             </button>
