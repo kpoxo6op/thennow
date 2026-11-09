@@ -14,7 +14,7 @@ import {
 import { loadImage } from "@/lib/rephoto/pixels"
 import { browserName, report } from "@/lib/rephoto/telemetry"
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
-import { zoomFor, type ZoomRange } from "@/lib/rephoto/zoom"
+import { zoomed, zoomFor, type ZoomRange } from "@/lib/rephoto/zoom"
 import { releaseScreen } from "@/components/rephoto/camera-link"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
@@ -485,22 +485,44 @@ export function RephotoCamera({
       firstFound: -1,
       firstSteady: -1,
     }
-    // The zoom moves in small steps, so the picture glides rather than jumps.
+    // Once the view is lost after zooming in, the camera never zooms in that far again.
+    let ceiling = Infinity
+    // The zoom moves in small steps, so the picture glides rather than jumps. Only the zoom the
+    // camera says it reached is believed; a camera that refuses is left alone from then on.
     const zoomTo = async (target: number) => {
       const track = streamRef.current?.getVideoTracks()[0]
       if (!track) return
+      const current = () =>
+        !controller.signal.aborted &&
+        streamRef.current?.getVideoTracks()[0] === track
       const from = zoomRef.current
       report("zoom", {}, { from, to: target })
-      for (let step = 1; step <= 5 && !controller.signal.aborted; step++) {
+      for (let step = 1; step <= 5; step++) {
         const zoom =
           Math.round((from + ((target - from) * step) / 5) * 100) / 100
-        await track
+        const ok = await track
           .applyConstraints({ advanced: [{ zoom } as MediaTrackConstraintSet] })
-          .catch(() => {})
-        zoomRef.current = zoom
+          .then(
+            () => true,
+            () => false
+          )
+        if (!current()) return
+        const reached = (track.getSettings() as { zoom?: number }).zoom
+        if (!ok || reached == null) {
+          rangeRef.current = null
+          report("zoom failed", { step, reached: reached ?? null })
+          return
+        }
+        zoomRef.current = reached
         await new Promise((resolve) => setTimeout(resolve, 60))
+        if (!current()) return
       }
-      zoomRef.current = target
+      if (Math.abs(zoomRef.current - target) > 0.05) {
+        rangeRef.current = null
+        report("zoom failed", { reached: zoomRef.current, target })
+      }
+      // Let a frame at the new zoom reach the preview before looking again.
+      await new Promise((resolve) => setTimeout(resolve, 150))
     }
     const loop = async () => {
       while (!controller.signal.aborted) {
@@ -545,17 +567,20 @@ export function RephotoCamera({
             const range = rangeRef.current
             const zoom =
               near && range
-                ? zoomFor(
-                    found.crop,
-                    archive.aspect,
-                    photo,
-                    zoomRef.current,
-                    range
-                  )
+                ? zoomFor(found.crop, archive.aspect, photo, zoomRef.current, {
+                    min: range.min,
+                    max: Math.min(range.max, ceiling),
+                  })
                 : null
             if (zoom != null) {
               previous = null
-              setLock(null)
+              // The old photograph grows with the picture rather than leaving its place.
+              setLock({
+                crop: zoomed(found.crop, photo, zoom / zoomRef.current),
+                held: false,
+                steady: false,
+                at: performance.now(),
+              })
               await zoomTo(zoom)
               continue
             }
@@ -575,8 +600,10 @@ export function RephotoCamera({
             previous = null
             setLock(null)
             // Lost while zoomed in: back out so the old view can be found again.
-            if (misses >= 4 && zoomRef.current > (rangeRef.current?.min ?? 1)) {
-              await zoomTo(Math.max(1, rangeRef.current?.min ?? 1))
+            const lowest = Math.max(1, rangeRef.current?.min ?? 1)
+            if (misses >= 4 && rangeRef.current && zoomRef.current > lowest) {
+              ceiling = Math.max(lowest, zoomRef.current - 0.2)
+              await zoomTo(lowest)
               misses = 0
             }
           }

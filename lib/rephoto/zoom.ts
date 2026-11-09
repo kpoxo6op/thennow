@@ -2,7 +2,7 @@ import { fits, type Crop, type Size } from "@/lib/rephoto/crop"
 
 // The camera zooms itself so the old view fills the picture, never further than this. Past about
 // 2x a phone's main sensor runs out of real detail, and a page can't tell its telephoto lens
-// from digital zoom, so this is as far as the zoom stays optical-quality on any phone.
+// from digital zoom, so a further zoom could quietly blur the shot.
 export const MAX_ZOOM = 2
 
 // The old view is kept this much smaller than the picture, for room to turn and sway.
