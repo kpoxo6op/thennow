@@ -86,6 +86,10 @@ function cut(source: CanvasImageSource, part: Region) {
   return canvas
 }
 
+// Where the time of the last match went, for the camera's report: getting the picture ready,
+// and the model itself.
+export const timing = { prepareMs: 0, modelMs: 0 }
+
 // Finds the archive view in a picture: on the phone's graphics chip when it can, otherwise, if
 // allowed, on the server. Null when the two can't be matched.
 export async function align(
@@ -95,6 +99,7 @@ export async function align(
   signal: AbortSignal,
   { server, reach = 1 }: { server: boolean; reach?: number }
 ): Promise<Fit | null> {
+  const begun = performance.now()
   const part = region(photo, archive.aspect, reach)
   const picture = part ? cut(source, part) : null
   const frame = picture
@@ -104,6 +109,8 @@ export async function align(
     picture.width = 0
     picture.height = 0
   }
+  timing.prepareMs = performance.now() - begun
+  const modelBegun = performance.now()
   let raw = null
   if (canMatchLocally()) {
     // A warmed-up matcher answers in about a second; one still loading gets a short grace.
@@ -124,6 +131,7 @@ export async function align(
     }
   }
   signal.throwIfAborted()
+  timing.modelMs = performance.now() - modelBegun
   const matches = unplace(raw, archive.placement, frame.placement).map(
     ([u0, v0, u1, v1]): (typeof raw)[number] =>
       part

@@ -8,6 +8,7 @@ import {
   align,
   NEAR_REACH,
   prepareArchive,
+  timing,
   type Archive,
 } from "@/lib/rephoto/align"
 import {
@@ -504,6 +505,8 @@ export function RephotoCamera({
       runs: 0,
       found: 0,
       matchMs: 0,
+      prepareMs: 0,
+      modelMs: 0,
       firstFound: -1,
       firstSteady: -1,
     }
@@ -678,6 +681,8 @@ export function RephotoCamera({
           if (look !== zooms) continue
           stats.runs++
           stats.matchMs += performance.now() - sampled
+          stats.prepareMs += timing.prepareMs
+          stats.modelMs += timing.modelMs
           if (found) {
             stats.found++
             if (stats.firstFound < 0)
@@ -810,6 +815,10 @@ export function RephotoCamera({
           runs: stats.runs,
           found: stats.found,
           matchMs: stats.runs ? Math.round(stats.matchMs / stats.runs) : null,
+          prepareMs: stats.runs
+            ? Math.round(stats.prepareMs / stats.runs)
+            : null,
+          modelMs: stats.runs ? Math.round(stats.modelMs / stats.runs) : null,
           firstFound: stats.firstFound,
           firstSteady: stats.firstSteady,
           seconds: Math.round((performance.now() - began) / 1000),
