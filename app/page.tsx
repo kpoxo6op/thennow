@@ -4,9 +4,8 @@ import type PostType from "@/interfaces/post"
 import { ArrowRight } from "lucide-react"
 
 import { fetchPending, fetchPosts, toPendingSummary } from "@/lib/api"
-import { placesHref } from "@/lib/places"
+import { PENDING_HEADING } from "@/lib/places"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
-import { CtaLink } from "@/components/cta-link"
 import { HomeHero } from "@/components/home-hero"
 import { PendingTile } from "@/components/pending-tile"
 import { StoryTile } from "@/components/story-tile"
@@ -63,26 +62,14 @@ export default async function IndexPage() {
                 ninety<span className="mx-[-0.05em]">-</span>three years apart.
               </span>
             </h1>
-            <div className="flex flex-col gap-3 md:w-[20rem] md:shrink-0 md:items-start lg:w-[26rem]">
-              <p className="text-[17px] leading-snug text-muted-foreground">
-                Old photographs of New Zealand places, paired with modern retakes.
-              </p>
-              <CtaLink href="/places" className="w-full md:w-auto">
-                Explore the places
-              </CtaLink>
-            </div>
+            <p className="text-[17px] leading-snug text-muted-foreground md:w-[20rem] md:shrink-0 lg:w-[26rem]">
+              Old photographs of New Zealand places, paired with modern retakes.
+            </p>
           </div>
         </section>
 
-        <section className="px-4 pb-20 md:pb-28">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2 border-t pt-4 md:pt-5">
-            <h2 className="font-serif text-3xl leading-none md:text-4xl">Photographed twice.</h2>
-            <Link href={placesHref({ view: "map" })} className="-my-1 py-1 underline underline-offset-4">
-              Look around the map
-            </Link>
-          </div>
-
-          <ul className="mt-5 grid grid-cols-1 gap-x-3 gap-y-8 sm:grid-cols-2 md:mt-6 md:gap-x-6 md:gap-y-12 lg:grid-cols-12">
+        <section className="px-4 pb-20 md:pb-28 md:pt-5">
+          <ul className="grid grid-cols-1 gap-x-3 gap-y-8 sm:grid-cols-2 md:gap-x-6 md:gap-y-12 lg:grid-cols-12">
             {rest.map((story, index) => (
               <li
                 key={story.slug}
@@ -95,10 +82,7 @@ export default async function IndexPage() {
 
           {pending.length > 0 ? (
             <div data-testid="home-pending" className="mt-14 border-t pt-4 md:mt-20 md:pt-5">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
-                <h2 className="font-serif text-3xl leading-none md:text-4xl">Photographed once, so far.</h2>
-                <p className="text-muted-foreground">Upcoming stories: the archive photograph is here, the modern one is to come.</p>
-              </div>
+              <h2 className="font-serif text-3xl leading-none md:text-4xl">{PENDING_HEADING}</h2>
               <ul className="mt-5 grid grid-cols-2 gap-x-3 gap-y-6 md:mt-6 md:gap-x-6 lg:grid-cols-4">
                 {pending.map((place) => (
                   <li key={place.slug}>
