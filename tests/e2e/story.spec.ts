@@ -52,7 +52,9 @@ test.describe("a story page", () => {
     }
   })
 
-  test("a story lists the six nearest other places, upcoming ones too, and no samples", async ({ page }) => {
+  test("a story lists nearby places, upcoming ones too, and no samples; a remote one still gets three", async ({ page }) => {
+    await page.goto("/sheep")
+    await expect(page.getByTestId("nearby-list").getByRole("link")).toHaveCount(3)
     await page.goto("/mill-house")
     const rows = page.getByTestId("nearby-list").getByRole("link")
     await expect(rows).toHaveCount(6)
