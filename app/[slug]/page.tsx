@@ -2,7 +2,9 @@ import { Metadata } from "next"
 import { notFound } from "next/navigation"
 import type PostType from "@/interfaces/post"
 import type { PendingPost as PendingPostType } from "@/interfaces/post"
+import { siteConfig } from "@/config/site"
 import { fetchPending, fetchPosts } from "@/lib/api"
+import { linkPreview } from "@/lib/preview"
 import { PLACEHOLDER, SOURCE_LINE, toSections } from "@/components/Desc"
 import { PendingPost } from "@/components/pending-post"
 import Post from "@/components/Post"
@@ -31,16 +33,31 @@ export async function generateMetadata({ params }: PostProps): Promise<Metadata>
     return {}
   }
 
-  if (post.status === "pending") {
-    return { title: post.name, description: post.description }
-  }
+  const pending = post.status === "pending"
+  const description = pending
+    ? post.description
+    : toSections(post.description)
+        .flatMap((section) => section.lines)
+        .filter((line) => !SOURCE_LINE.test(line) && line !== PLACEHOLDER)
+        .join(" ") || siteConfig.description
 
   return {
     title: post.name,
-    description: toSections(post.description)
-      .flatMap((section) => section.lines)
-      .filter((line) => !SOURCE_LINE.test(line) && line !== PLACEHOLDER)
-      .join(" "),
+    description,
+    // A sample place repeats another's photographs: it is not sent as itself or indexed.
+    ...(post.sample
+      ? { robots: { index: false } }
+      : linkPreview({
+          path: `/${post.slug}`,
+          title: post.name,
+          description,
+          picture: {
+            src: pending ? post.b_imageUrl : post.ba_imageUrl,
+            w: post.w,
+            h: post.h,
+            alt: pending ? `${post.name}, ${post.archive.date}` : `${post.name}, then and now`,
+          },
+        })),
   }
 }
 

@@ -1,8 +1,10 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import type PostType from "@/interfaces/post"
 
 import { ArrowRight } from "lucide-react"
 
+import { siteConfig } from "@/config/site"
 import { fetchPending, fetchPosts, toPendingSummary } from "@/lib/api"
 import { PENDING_HEADING } from "@/lib/places"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
@@ -12,7 +14,9 @@ import { StoryTile } from "@/components/story-tile"
 import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 
-const HERO_SLUG = "sheep"
+const HERO_SLUG = siteConfig.heroSlug
+
+export const metadata: Metadata = { alternates: { canonical: "/", types: { "application/rss+xml": "/feed.xml" } } }
 
 // Dated, written sections only: several stories are still "Coming soon...".
 function datedSections(story: PostType) {
