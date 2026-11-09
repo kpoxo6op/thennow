@@ -63,7 +63,8 @@ export function shrinkToFit(crop: Crop, aspect: number, photo: Size): Crop {
   return next
 }
 
-const MAX_OUTPUT_WIDTH = 4096
+// Wide enough for a full-screen comparison, small enough to send over a phone connection.
+export const MAX_OUTPUT_WIDTH = 2560
 
 // Hands a canvas's memory back straight away; iPhone otherwise holds it until much later.
 export function releaseCanvas(canvas: HTMLCanvasElement) {
@@ -71,8 +72,8 @@ export function releaseCanvas(canvas: HTMLCanvasElement) {
   canvas.height = 0
 }
 
-function outputSize(crop: Crop, aspect: number): Size {
-  const width = Math.round(Math.min(MAX_OUTPUT_WIDTH, crop.width))
+function outputSize(crop: Crop, aspect: number, maxWidth: number): Size {
+  const width = Math.round(Math.min(maxWidth, crop.width))
   return { width, height: Math.round(width * aspect) }
 }
 
@@ -81,9 +82,10 @@ export function renderCrop(
   photo: CanvasImageSource,
   crop: Crop,
   aspect: number,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement,
+  maxWidth = MAX_OUTPUT_WIDTH
 ) {
-  const size = outputSize(crop, aspect)
+  const size = outputSize(crop, aspect, maxWidth)
   canvas.width = size.width
   canvas.height = size.height
   const context = canvas.getContext("2d")
