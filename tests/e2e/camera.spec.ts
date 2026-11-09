@@ -571,6 +571,50 @@ test.describe("the rephotography camera", () => {
     await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
   })
 
+  test("a camera that answers after the page went out of sight is let go", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const real = navigator.mediaDevices.getUserMedia.bind(
+        navigator.mediaDevices
+      )
+      const w = window as unknown as { __streams: MediaStream[] }
+      w.__streams = []
+      let calls = 0
+      navigator.mediaDevices.getUserMedia = async (constraints) => {
+        const slow = ++calls > 1
+        const stream = await real(constraints)
+        w.__streams.push(stream)
+        if (slow) await new Promise((resolve) => setTimeout(resolve, 1500))
+        return stream
+      }
+    })
+    await page.goto("/mission-house/camera")
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    await page.evaluate(async () => {
+      const set = (state: string) => {
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          get: () => state,
+        })
+        document.dispatchEvent(new Event("visibilitychange"))
+      }
+      set("hidden")
+      set("visible")
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      set("hidden")
+    })
+    await page.waitForTimeout(2500)
+    expect(
+      await page.evaluate(() =>
+        (window as unknown as { __streams: MediaStream[] }).__streams.some(
+          (stream) =>
+            stream.getTracks().some((track) => track.readyState === "live")
+        )
+      )
+    ).toBe(false)
+  })
+
   test("a refused camera says how to fix it and offers to try again", async ({
     page,
   }) => {

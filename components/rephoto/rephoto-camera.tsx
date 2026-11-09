@@ -80,6 +80,8 @@ function timeLimit<T>(
   ]).finally(() => clearTimeout(timer))
 }
 
+const pageHidden = () => document.visibilityState === "hidden"
+
 const stopStream = (stream: MediaStream) =>
   stream.getTracks().forEach((track) => track.stop())
 
@@ -280,11 +282,13 @@ export function RephotoCamera({
     const mine = ++attempt.current
     const asked = performance.now()
     stop()
+    // Never open the camera behind the user's back: coming back into sight opens it.
+    if (pageHidden()) return
     setStatus("starting")
     try {
       const stream = await openCamera(plain.current)
       const video = videoRef.current
-      if (mine !== attempt.current || !video) {
+      if (mine !== attempt.current || !video || pageHidden()) {
         stream.getTracks().forEach((track) => track.stop())
         return
       }
