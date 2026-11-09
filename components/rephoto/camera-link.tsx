@@ -18,35 +18,49 @@ interface Props {
 // the camera opens full screen and turned sideways, like the phone's own camera. Elsewhere the
 // camera asks to be turned.
 export function CameraLink({ href, landscape, children, ...rest }: Props) {
-  const turn = () => {
-    const orientation = screen.orientation as ScreenOrientation & {
-      lock?: (orientation: "landscape") => Promise<void>
-    }
-    if (
-      !landscape ||
-      !document.fullscreenEnabled ||
-      !orientation?.lock ||
-      !matchMedia("(pointer: coarse)").matches
-    )
-      return
-    document.documentElement
-      .requestFullscreen({ navigationUI: "hide" })
-      .then(() => orientation.lock!("landscape"))
-      .then(() => report("turned", {}, { ok: true }))
-      .catch((error) => {
-        report(
-          "turned",
-          { message: String(error).slice(0, 120) },
-          { ok: false }
-        )
-        if (document.fullscreenElement) void document.exitFullscreen()
-      })
-  }
   return (
-    <Link href={href} onClick={turn} {...rest}>
+    <Link
+      href={href}
+      onClick={() => landscape && turnScreen("landscape")}
+      {...rest}
+    >
       {children}
     </Link>
   )
+}
+
+type Lockable = ScreenOrientation & {
+  lock?: (orientation: "landscape" | "portrait") => Promise<void>
+}
+
+// Whether a tap can turn the screen: Android browsers on a phone, not iPhones.
+export function canTurnScreen() {
+  return (
+    typeof document !== "undefined" &&
+    document.fullscreenEnabled &&
+    !!(screen.orientation as Lockable)?.lock &&
+    matchMedia("(pointer: coarse)").matches
+  )
+}
+
+// Full screen and turned, from a tap; nothing where the browser doesn't allow it.
+export function turnScreen(to: "landscape" | "portrait") {
+  if (!canTurnScreen()) return
+  const orientation = screen.orientation as Lockable
+  const full = document.fullscreenElement
+    ? Promise.resolve()
+    : document.documentElement.requestFullscreen({ navigationUI: "hide" })
+  full
+    .then(() => orientation.lock!(to))
+    .then(() => report("turned", { to }, { ok: true }))
+    .catch((error) => {
+      report(
+        "turned",
+        { to, message: String(error).slice(0, 120) },
+        { ok: false }
+      )
+      if (document.fullscreenElement) void document.exitFullscreen()
+    })
 }
 
 // Hands the screen back when the camera is left.

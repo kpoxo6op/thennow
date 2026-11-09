@@ -15,7 +15,11 @@ import { loadImage } from "@/lib/rephoto/pixels"
 import { browserName, report } from "@/lib/rephoto/telemetry"
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { zoomed, zoomFor, type ZoomRange } from "@/lib/rephoto/zoom"
-import { releaseScreen } from "@/components/rephoto/camera-link"
+import {
+  canTurnScreen,
+  releaseScreen,
+  turnScreen,
+} from "@/components/rephoto/camera-link"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
 interface Props {
@@ -840,16 +844,37 @@ export function RephotoCamera({
         )}
 
         {status === "live" && (turnSideways || holdUpright) && (
-          <p
-            data-testid="rephoto-hint"
-            className="pointer-events-none absolute inset-x-0 top-[max(1.25rem,env(safe-area-inset-top))] flex items-center justify-center gap-2 text-sm text-white/90 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]"
-          >
-            <Smartphone
-              className={turnSideways ? "size-4 rotate-90" : "size-4"}
-              aria-hidden
-            />
-            {turnSideways ? "Turn sideways" : "Hold upright"}
-          </p>
+          <div className="pointer-events-none absolute inset-x-0 top-[max(1.25rem,env(safe-area-inset-top))] flex justify-center">
+            {/* Where a tap can turn the screen it does; elsewhere the phone is turned by hand. */}
+            {canTurnScreen() ? (
+              <button
+                type="button"
+                data-testid="rephoto-hint"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() =>
+                  turnScreen(turnSideways ? "landscape" : "portrait")
+                }
+                className="pointer-events-auto flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 text-sm text-white backdrop-blur-sm active:bg-black/60"
+              >
+                <Smartphone
+                  className={turnSideways ? "size-4 rotate-90" : "size-4"}
+                  aria-hidden
+                />
+                {turnSideways ? "Turn sideways" : "Hold upright"}
+              </button>
+            ) : (
+              <p
+                data-testid="rephoto-hint"
+                className="flex items-center gap-2 text-sm text-white/90 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]"
+              >
+                <Smartphone
+                  className={turnSideways ? "size-4 rotate-90" : "size-4"}
+                  aria-hidden
+                />
+                {turnSideways ? "Turn sideways" : "Hold upright"}
+              </p>
+            )}
+          </div>
         )}
 
         {debugText && (

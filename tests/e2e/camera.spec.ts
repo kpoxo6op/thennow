@@ -106,47 +106,25 @@ test.describe("the rephotography camera", () => {
   test("on a phone that allows it, the camera opens full screen and sideways, and gives the screen back on close", async ({
     page,
   }) => {
-    await page.addInitScript(() => {
-      const w = window as unknown as { __calls: string[] }
-      w.__calls = []
-      const real = window.matchMedia.bind(window)
-      window.matchMedia = (query: string) =>
-        query === "(pointer: coarse)"
-          ? ({ matches: true } as MediaQueryList)
-          : real(query)
-      Object.defineProperty(document, "fullscreenEnabled", { get: () => true })
-      let full: Element | null = null
-      Object.defineProperty(document, "fullscreenElement", {
-        get: () => full,
-      })
-      Element.prototype.requestFullscreen = async function () {
-        full = this
-        w.__calls.push("fullscreen")
-      }
-      document.exitFullscreen = async () => {
-        full = null
-        w.__calls.push("exit")
-      }
-      const orientation = screen.orientation as ScreenOrientation & {
-        lock: (o: string) => Promise<void>
-      }
-      orientation.lock = async (o: string) => {
-        w.__calls.push(`lock ${o}`)
-      }
-      orientation.unlock = () => {
-        w.__calls.push("unlock")
-      }
-    })
+    const calls = await phoneScreen(page)
     await page.goto("/tamaki-road-board-offices")
     await page.getByTestId("pending-camera").click()
     await expect(page.getByTestId("rephoto-camera")).toBeVisible()
-    const calls = () =>
-      page.evaluate(() => (window as unknown as { __calls: string[] }).__calls)
     await expect.poll(calls).toEqual(["fullscreen", "lock landscape"])
     await page.getByRole("link", { name: "Close camera" }).click()
     await expect
       .poll(calls)
       .toEqual(["fullscreen", "lock landscape", "unlock", "exit"])
+  })
+
+  test('on a phone that allows it, tapping "Turn sideways" turns the screen', async ({
+    page,
+  }) => {
+    const calls = await phoneScreen(page)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openCamera(page, "mission-house")
+    await page.getByRole("button", { name: "Turn sideways" }).click()
+    await expect.poll(calls).toEqual(["fullscreen", "lock landscape"])
   })
 
   test("the live view shows only the old photograph over the camera, a close button and the shutter", async ({
@@ -676,3 +654,40 @@ test.describe("the rephotography camera", () => {
     await expect(page.getByTestId("rephoto-shutter")).toBeDisabled()
   })
 })
+
+// A phone whose browser lets a tap go full screen and turn the screen; records what was asked.
+async function phoneScreen(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __calls: string[] }
+    w.__calls = []
+    const real = window.matchMedia.bind(window)
+    window.matchMedia = (query: string) =>
+      query === "(pointer: coarse)"
+        ? ({ matches: true } as MediaQueryList)
+        : real(query)
+    Object.defineProperty(document, "fullscreenEnabled", { get: () => true })
+    let full: Element | null = null
+    Object.defineProperty(document, "fullscreenElement", {
+      get: () => full,
+    })
+    Element.prototype.requestFullscreen = async function () {
+      full = this
+      w.__calls.push("fullscreen")
+    }
+    document.exitFullscreen = async () => {
+      full = null
+      w.__calls.push("exit")
+    }
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock: (o: string) => Promise<void>
+    }
+    orientation.lock = async (o: string) => {
+      w.__calls.push(`lock ${o}`)
+    }
+    orientation.unlock = () => {
+      w.__calls.push("unlock")
+    }
+  })
+  return () =>
+    page.evaluate(() => (window as unknown as { __calls: string[] }).__calls)
+}
