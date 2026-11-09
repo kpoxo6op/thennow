@@ -44,7 +44,7 @@ export default async function AboutPage() {
           <p className="font-serif text-[2rem] leading-[1.1] md:text-[2.75rem]">
             then|now is a visual archive of places photographed across time.
           </p>
-          <p className="tn-reading text-lg leading-relaxed md:text-xl md:leading-relaxed">
+          <p className="text-lg leading-relaxed md:text-xl md:leading-relaxed">
             Each story pairs an older image with a modern retake so visitors can see what stayed,
             what disappeared, and what the street looks like now. Upcoming stories have the older image
             so far, with the modern retake to come.
@@ -104,7 +104,7 @@ export default async function AboutPage() {
         className="mt-14 grid scroll-mt-20 gap-6 border-t pt-6 md:mt-20 lg:grid-cols-2 lg:gap-10"
       >
         <h2 className="font-serif text-4xl leading-none md:text-5xl">Your photos</h2>
-        <p className="tn-reading max-w-2xl text-lg leading-relaxed">
+        <p className="max-w-2xl text-lg leading-relaxed">
           Photos sent from the camera are seen only by then|now until we add them to a place. They
           carry no location. Your phone’s browser keeps a random number so the photos it sends stay
           together on{" "}

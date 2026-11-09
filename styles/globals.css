@@ -223,22 +223,7 @@
   }
 }
 
-/* The full instruction only where the legend has the room for it on one line. */
-@media (min-width: 1024px) and (min-height: 800px) {
-  .tn-hint-long {
-    display: block;
-  }
-
-  .tn-hint-short {
-    display: none;
-  }
-}
-
-.tn-reading {
-  font-family: var(--font-reading), Georgia, serif;
-}
-
-/* Nothing to drag, so a pending photograph needs no room for controls beyond its status line. */
+/* Nothing to drag: a pending photograph sits on a plain ground. */
 .tn-story--pending .tn-compare-image {
   background: hsl(var(--muted));
 }

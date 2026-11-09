@@ -124,9 +124,8 @@ export function StoryMap({ name, location }: Props) {
   const ew = location.lng < 0 ? "W" : "E"
 
   return (
-    <section className="mt-8 border-t pt-4 md:mt-10">
-      <h2 className="tn-reading text-[1.75rem] leading-none text-muted-foreground">Where</h2>
-      <div className="tn-map tn-story-map relative mt-4 aspect-[4/3] max-h-[60svh] min-h-56 w-full overflow-hidden bg-muted md:aspect-[3/1]">
+    <div className="mt-10">
+      <div className="tn-map tn-story-map relative aspect-video max-h-[60svh] min-h-56 w-full max-w-3xl overflow-hidden bg-muted">
         <div
           ref={containerRef}
           data-testid="story-map"
@@ -144,6 +143,6 @@ export function StoryMap({ name, location }: Props) {
           </p>
         ) : null}
       </div>
-    </section>
+    </div>
   )
 }

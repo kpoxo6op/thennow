@@ -2,25 +2,17 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
-import Link from "next/link"
 
 import PostType from "@/interfaces/post"
-import { STORY_TRIM } from "@/lib/places"
 import { CompareStage } from "@/components/compare-stage"
-import { SOURCE_LINE, toSections } from "@/components/Desc"
+import { PLACEHOLDER, SOURCE_LINE, toSections } from "@/components/Desc"
 import { ResetScroll } from "@/components/reset-scroll"
-import { SeamTile } from "@/components/seam-tile"
+import { NearbyList, type Nearby } from "@/components/nearby-list"
 import { StoryMap } from "@/components/story-map"
-
-export type StoryLink = Pick<PostType, "name" | "slug" | "b_imageUrl" | "a_imageUrl" | "w" | "h" | "sample"> & {
-  // Whether the story has any dated text yet, or only its photographs.
-  written: boolean
-}
 
 interface PostProps {
   post: PostType
-  next?: StoryLink
-  nearby: (StoryLink & { km: number })[]
+  nearby: Nearby[]
 }
 
 const DEFAULT_POSITION = 50
@@ -52,10 +44,6 @@ function ease(t: number) {
   return 1 - (1 - t) ** 3
 }
 
-function distanceLabel(km: number) {
-  return km < 1 ? "Under 1 km away" : `${Math.round(km)} km away`
-}
-
 // A source reads by its host. The full address is the link, and stays in the text for
 // screen readers and copying.
 function SourceLink({ source }: { source: string }) {
@@ -64,9 +52,8 @@ function SourceLink({ source }: { source: string }) {
   const path = slash === -1 ? "" : source.slice(slash)
 
   return (
-    <p className="text-[15px] leading-snug text-muted-foreground">
-      Source:{" "}
-      <a href={`https://${source}`} target="_blank" rel="noreferrer" className="text-foreground underline underline-offset-4">
+    <p className="text-sm leading-snug text-muted-foreground">
+      <a href={`https://${source}`} target="_blank" rel="noreferrer" className="underline underline-offset-4">
         {host}
         <span className="text-[0px]">{path}</span>
       </a>
@@ -74,45 +61,48 @@ function SourceLink({ source }: { source: string }) {
   )
 }
 
-// The first sentence of a passage is its caption, and on a phone comes before its photograph.
-function Chapter({ alt, src, w, h, year, lines }: { alt: string; src: string; w: number; h: number; year?: string; lines: string[] }) {
+// What was written about one of the two photographs, under its year. The photograph
+// itself is the comparison above: its year button shows it whole.
+function Chapter({ year, lines }: { year?: string; lines: string[] }) {
   const words = lines.filter((line) => !SOURCE_LINE.test(line))
   const sources = lines.filter((line) => SOURCE_LINE.test(line))
-  const [lead, ...rest] = words
 
   return (
-    <section className="flex min-w-0 flex-col gap-4">
-      <div className="space-y-2 md:order-2">
-        {year ? <h2 className="tn-reading text-[1.75rem] leading-none tabular-nums text-muted-foreground">{year}</h2> : null}
-        {lead ? <p className="tn-reading text-xl leading-snug md:text-[1.375rem]">{lead}</p> : null}
-      </div>
-      <Image
-        src={src}
-        alt={alt}
-        width={w}
-        height={h}
-        sizes="(min-width: 768px) 50vw, 100vw"
-        className="aspect-[var(--ratio)] w-full bg-muted object-cover md:order-1"
-      />
-      {rest.length || sources.length ? (
-        <div className="space-y-3 md:order-3 md:-mt-1">
-          {rest.map((line) => (
-            <p key={line} className="tn-reading text-lg leading-relaxed md:text-xl md:leading-relaxed">
-              {line}
-            </p>
-          ))}
-          {sources.map((source) => (
-            <SourceLink key={source} source={source} />
-          ))}
-        </div>
-      ) : null}
+    <section className="min-w-0 space-y-3">
+      {year ? <h2 className="text-sm tabular-nums text-muted-foreground">{year}</h2> : null}
+      {words.map((line) => (
+        <p key={line} className="text-lg leading-relaxed">
+          {line}
+        </p>
+      ))}
+      {sources.map((source) => (
+        <SourceLink key={source} source={source} />
+      ))}
     </section>
   )
 }
 
-export default function Post({ post, next, nearby }: PostProps) {
+// Words without a year, as written; the placeholder for none is left out.
+function Words({ lines }: { lines: string[] }) {
+  const words = lines.filter((line) => line !== PLACEHOLDER)
+  if (!words.length) return null
+
+  return (
+    <div className="mt-4 max-w-3xl space-y-4">
+      {words.map((line) => (
+        <p key={line} className="text-lg leading-relaxed">
+          {line}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+export default function Post({ post, nearby }: PostProps) {
   const [position, setPosition] = useState(DEFAULT_POSITION)
   const [lineHidden, setLineHidden] = useState(false)
+  // Once the line has been moved, the hint has done its job.
+  const [touched, setTouched] = useState(false)
   const glideRef = useRef<number | null>(null)
   // Where the line was before a whole photograph was asked for; asking again returns there.
   const returnRef = useRef(DEFAULT_POSITION)
@@ -206,11 +196,10 @@ export default function Post({ post, next, nearby }: PostProps) {
   const undated = sections.filter((section) => !section.year)
   const thenYear = dated[0]?.year
   const nowYear = dated.length > 1 ? dated[dated.length - 1]?.year : undefined
-  const yearsApart = thenYear && nowYear ? Number(nowYear) - Number(thenYear) : undefined
   const rounded = Math.round(position)
-  const wholeShown = rounded === ALL_THEN || rounded === ALL_NOW
 
   const showWhole = (target: number) => {
+    setTouched(true)
     if (rounded === target) {
       glideTo(returnRef.current, position)
       return
@@ -223,14 +212,13 @@ export default function Post({ post, next, nearby }: PostProps) {
     glideTo(target, position)
   }
 
-  const legendClass =
-    "group -my-0.5 inline-flex h-11 shrink-0 items-center rounded-full"
+  const legendClass = "group -my-0.5 inline-flex h-11 shrink-0 items-center"
   const legendPill =
-    "inline-flex h-8 items-center gap-1.5 rounded-full border border-input px-3 text-sm transition-colors group-hover:border-foreground group-aria-pressed:border-foreground group-aria-pressed:bg-foreground group-aria-pressed:text-background"
+    "inline-flex h-8 items-center rounded-md border border-input px-3 tabular-nums transition-colors group-hover:border-foreground group-aria-pressed:border-foreground group-aria-pressed:bg-foreground group-aria-pressed:text-background"
 
   const photos = [
-    { label: "then", year: thenYear, src: post.b_imageUrl, section: dated[0] },
-    { label: "now", year: nowYear, src: post.a_imageUrl, section: dated.length > 1 ? dated[dated.length - 1] : undefined },
+    { label: "then", year: thenYear, section: dated[0] },
+    { label: "now", year: nowYear, section: dated.length > 1 ? dated[dated.length - 1] : undefined },
   ]
 
   return (
@@ -249,7 +237,10 @@ export default function Post({ post, next, nearby }: PostProps) {
               ratio={post.w / post.h}
               position={position}
               onPositionChange={applyPosition}
-              onInteract={stopGlide}
+              onInteract={() => {
+                stopGlide()
+                setTouched(true)
+              }}
               onLineStepsAside={setLineHidden}
               priority
               className="tn-story-stage"
@@ -271,18 +262,11 @@ export default function Post({ post, next, nearby }: PostProps) {
               className={legendClass}
               onClick={() => showWhole(ALL_THEN)}
             >
-              <span className={legendPill}>
-                then
-                {thenYear ? <span className="tn-reading text-base leading-none tabular-nums">{thenYear}</span> : null}
-              </span>
+              <span className={legendPill}>{thenYear ?? "then"}</span>
             </button>
-            <p className="tn-hint-long hidden min-w-0 px-3 text-center text-sm text-muted-foreground">
-              {wholeShown
-                ? "Press the highlighted button, or drag the line, to compare"
-                : "Drag the line, or choose then or now to see a whole photograph"}
-            </p>
-            <p className="tn-hint-short px-2 text-center text-sm text-muted-foreground">
-              {lineHidden ? "Tap to compare" : "Drag the line"}
+            {/* One hint until the line is first moved; after that only when there is no line to see. */}
+            <p className="px-2 text-center text-sm text-muted-foreground">
+              {lineHidden ? "Tap to compare" : touched ? null : "Drag the line"}
             </p>
             <button
               type="button"
@@ -292,29 +276,19 @@ export default function Post({ post, next, nearby }: PostProps) {
               className={legendClass}
               onClick={() => showWhole(ALL_NOW)}
             >
-              <span className={legendPill}>
-                now
-                {nowYear ? <span className="tn-reading text-base leading-none tabular-nums">{nowYear}</span> : null}
-              </span>
+              <span className={legendPill}>{nowYear ?? "now"}</span>
             </button>
           </div>
         </div>
 
         <article className="tn-story-edge pb-14 pt-3">
-          <header className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-            <h1
+          <h1
               className={
-                post.sample
-                  ? "text-pretty font-serif text-[1.75rem] leading-[1.1] md:text-balance md:text-[clamp(2rem,4.5svh,2.5rem)]"
-                  : "text-pretty font-serif text-[2.125rem] leading-[1.06] md:text-balance md:text-[clamp(2.25rem,5.8svh,3.25rem)]"
+                "text-pretty font-serif text-[2.125rem] leading-[1.06] md:text-balance md:text-[clamp(2.25rem,5.8svh,3.25rem)]"
               }
             >
               {post.name}
             </h1>
-            {yearsApart ? (
-              <p className="tabular-nums text-muted-foreground">{yearsApart} years apart</p>
-            ) : null}
-          </header>
 
           {post.sample ? (
             <div className="mt-2 max-w-3xl space-y-1">
@@ -329,23 +303,17 @@ export default function Post({ post, next, nearby }: PostProps) {
           ) : (
             <>
               {dated.length ? (
-                <div className="mt-8 grid gap-10 md:mt-14 md:grid-cols-2 md:gap-8">
+                <div className="mt-6 grid max-w-3xl gap-8">
                   {photos.map((photo) => (
                     <Chapter
                       key={photo.label}
-                      alt={`${post.name}, ${photo.year ?? photo.label}`}
-                      src={photo.src}
-                      w={post.w}
-                      h={post.h}
                       year={photo.year}
                       lines={photo.section?.lines ?? []}
                     />
                   ))}
                 </div>
               ) : (
-                <p className="mt-2 text-muted-foreground">
-                  {undated.flatMap((section) => section.lines).join(" ")}
-                </p>
+                <Words lines={undated.flatMap((section) => section.lines)} />
               )}
               <StoryMap name={post.name} location={post.location} />
             </>
@@ -353,72 +321,8 @@ export default function Post({ post, next, nearby }: PostProps) {
         </article>
       </div>
 
-      <section className="tn-story-edge border-t pb-12 pt-8 md:pb-16">
-        {next ? (
-          <h2 className="mb-5 font-serif text-[2rem] leading-none md:text-[2.5rem]">
-            {post.sample ? "Where these photographs come from" : "Next story"}
-          </h2>
-        ) : null}
-        <div className="grid gap-10 md:grid-cols-2 md:gap-8">
-          {next ? (
-            <div>
-              {post.sample ? null : (
-                <SeamTile
-                  href={`/${next.slug}`}
-                  name={next.name}
-                  thenSrc={next.b_imageUrl}
-                  nowSrc={next.a_imageUrl}
-                  ratio={16 / 9}
-                  trim={STORY_TRIM[next.slug]}
-                  sizes="(min-width: 768px) 50vw, 100vw"
-                />
-              )}
-              <Link
-                href={`/${next.slug}`}
-                className={`block py-1 text-xl font-medium leading-snug underline underline-offset-4 ${post.sample ? "" : "mt-2 no-underline hover:underline"}`}
-              >
-                {next.name}
-              </Link>
-              {next.written ? null : <p className="text-[15px] text-muted-foreground">Text coming soon</p>}
-            </div>
-          ) : null}
-          <div>
-            <h3 className="mb-3 text-[15px] text-muted-foreground">
-              {post.sample ? "Nearby sample places" : "The other stories, nearest first"}
-            </h3>
-            <ul>
-              {nearby.map((story) => (
-                <li key={story.slug} className="border-b first:border-t">
-                  <Link
-                    href={`/${story.slug}`}
-                    className="flex items-baseline justify-between gap-4 py-3 text-lg leading-snug transition-colors hover:text-accent"
-                  >
-                    <span className="min-w-0">
-                      {story.name}
-                      {story.sample || story.written ? null : (
-                        <span className="block text-[15px] text-muted-foreground">Text coming soon</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-[15px] tabular-nums text-muted-foreground">
-                      {story.sample ? "Sample" : distanceLabel(story.km)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-4 flex flex-wrap gap-x-6">
-              <Link href="/places" className="inline-block py-2 underline underline-offset-4">
-                All places
-              </Link>
-              <Link
-                href={`/places?view=map&lat=${post.location.lat}&lng=${post.location.lng}&z=13&story=${post.slug}`}
-                className="inline-block py-2 underline underline-offset-4"
-              >
-                Map
-              </Link>
-            </div>
-          </div>
-        </div>
+      <section className="tn-story-edge pb-12 md:pb-16">
+        <NearbyList items={nearby} />
       </section>
     </main>
   )

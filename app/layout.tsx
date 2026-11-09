@@ -3,7 +3,7 @@ import "@/styles/globals.css"
 import { Metadata, Viewport } from "next"
 
 import { siteConfig } from "@/config/site"
-import { fontReading, fontSans, fontSerif } from "@/lib/fonts"
+import { fontSans, fontSerif } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -17,6 +17,10 @@ export const metadata: Metadata = {
   description: siteConfig.description,
   icons: {
     icon: "/favicon.ico",
+  },
+  // Feed readers find the feed here; the page needs no link to it.
+  alternates: {
+    types: { "application/rss+xml": "/feed.xml" },
   },
 }
 
@@ -35,8 +39,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         className={cn(
           "flex min-h-screen flex-col bg-background font-sans antialiased",
           fontSans.variable,
-          fontSerif.variable,
-          fontReading.variable
+          fontSerif.variable
         )}
       >
         <ThemeProvider attribute="class" forcedTheme="dark">
