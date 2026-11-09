@@ -1,7 +1,7 @@
 // passkey-check.mjs <base-url> : signs up, signs in on a "second device" and claims its photo, in
 // a real browser with a virtual passkey, against a real deployment and its real store (it leaves
 // one test photo in submissions/mission-house, named in the last line).
-import { chromium } from "playwright"
+import { chromium } from "@playwright/test"
 import sharp from "sharp"
 
 const [base] = process.argv.slice(2)
