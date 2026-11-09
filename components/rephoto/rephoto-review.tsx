@@ -45,11 +45,19 @@ interface Props {
 // says nothing about the photo, so it can still be sent. Unmatched: it was compared and isn't
 // the same view, so it can only be taken again.
 type Phase = "aligning" | "aligned" | "unchecked" | "unmatched"
-type Sending = "idle" | "sending" | "sent" | "offline" | "busy" | "refused"
+type Sending =
+  | "idle"
+  | "sending"
+  | "sent"
+  | "offline"
+  | "busy"
+  | "limited"
+  | "refused"
 
 const NOT_SENT: Record<string, string> = {
   offline: "Not sent. Check your signal.",
   busy: "Not sent. Please try again in a minute.",
+  limited: "Not sent. Many photos came from this network just now. Please try again later.",
   refused: "This photo can’t be sent. You can keep a copy.",
 }
 
@@ -107,6 +115,8 @@ export function RephotoReview({
   const [stage, setStage] = useState({ width: 0, height: 0 })
   const [crop, setCrop] = useState<Crop>(shot.crop)
   const [phase, setPhase] = useState<Phase>("aligning")
+  // Whether the matcher itself confirmed the match, not just the live view's placement.
+  const [confirmed, setConfirmed] = useState(false)
   const [settled, setSettled] = useState(false)
   const [peek, setPeek] = useState(false)
   const [note, setNote] = useState("")
@@ -211,6 +221,7 @@ export function RephotoReview({
           zoom: Math.round((found.crop.width / photo.width) * 100),
           turn: Math.round((found.crop.rotation * 180) / Math.PI),
         })
+        setConfirmed(true)
         setPhase("aligned")
       } catch (error) {
         if (controller.signal.aborted) return
@@ -290,7 +301,7 @@ export function RephotoReview({
     const result = await sendPhoto(file, {
       slug,
       key: keyRef.current,
-      checked: phase === "aligned",
+      checked: confirmed,
     })
     report(
       "send",
@@ -370,7 +381,10 @@ export function RephotoReview({
 
   const busy = sending === "sending"
   const failed =
-    sending === "offline" || sending === "busy" || sending === "refused"
+    sending === "offline" ||
+    sending === "busy" ||
+    sending === "limited" ||
+    sending === "refused"
   const sendable = phase === "aligned" || phase === "unchecked"
   const status = saveNote || (failed ? NOT_SENT[sending] : note)
 
@@ -503,7 +517,16 @@ export function RephotoReview({
                     : "Send photo"}
             </button>
           )}
-          {failed && file ? (
+          {!failed && phase !== "unmatched" && (
+            <p
+              data-testid="rephoto-consent"
+              className="max-w-72 text-right text-sm leading-snug text-white/75 landscape:text-center"
+            >
+              By sending, you let then|now publish this photo. We don’t
+              receive your name or your phone’s location.
+            </p>
+          )}
+          {file && !busy && phase !== "aligning" && (
             <button
               type="button"
               data-testid="rephoto-save"
@@ -512,16 +535,6 @@ export function RephotoReview({
             >
               {kept ? "Copy saved" : "Keep a copy"}
             </button>
-          ) : (
-            phase !== "unmatched" && (
-              <p
-                data-testid="rephoto-consent"
-                className="max-w-72 text-right text-sm leading-snug text-white/75 landscape:text-center"
-              >
-                By sending, you let then|now publish this photo. We don’t
-                receive your name or your phone’s location.
-              </p>
-            )
           )}
         </div>
       </div>

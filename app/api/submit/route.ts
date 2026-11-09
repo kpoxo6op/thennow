@@ -13,7 +13,8 @@ export const maxDuration = 30
 
 // Below Vercel's 4.5 MB request limit; the camera sends about 1-2 MB.
 const MAX_BYTES = 4_000_000
-const LIMIT = 20
+// Generous: a walking group on one Wi-Fi or a shared mobile address all count as one.
+const LIMIT = 60
 const WINDOW_MS = 60 * 60_000
 const recent = new Map<string, number[]>()
 
@@ -72,7 +73,6 @@ export async function POST(request: Request) {
   if (!places.some((place) => place.slug === slug && !place.sample))
     return answer(404, "no such place")
 
-  if (!allowed(request)) return answer(429, "slow down")
   const length = Number(request.headers.get("content-length") ?? 0)
   if (length > MAX_BYTES) return answer(413, "too big")
   const bytes = new Uint8Array(await request.arrayBuffer())
@@ -82,12 +82,14 @@ export async function POST(request: Request) {
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) return answer(503, "no store")
   const pathname = `submissions/${slug}/${key}.jpg`
-  // The photo is stored last, so a photo in the store always has its note beside it, and a
-  // retry of one already stored is answered without storing it again.
+  // A retry of a photo already stored is answered at once, and doesn't count against the limit.
   try {
     await head(pathname)
     return answer(200)
   } catch {}
+  if (!allowed(request)) return answer(429, "slow down")
+
+  // The photo is stored last, so a photo in the store always has its note beside it.
   try {
     await put(
       `submissions/${slug}/${key}.json`,

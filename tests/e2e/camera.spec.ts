@@ -562,6 +562,42 @@ test.describe("the rephotography camera", () => {
     await expect(send).toHaveText("Send again")
   })
 
+  test("too many photos from one network says to try later, not in a minute", async ({
+    page,
+  }) => {
+    await page.route("**/api/submit?**", (route) =>
+      route.fulfill({ status: 429, json: { error: "slow down" } })
+    )
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    const send = page.getByTestId("rephoto-send")
+    await expect(send).toHaveText("Send photo", { timeout: 30_000 })
+    await send.click()
+    await expect(page.getByTestId("rephoto-note")).toHaveText(
+      "Not sent. Many photos came from this network just now. Please try again later."
+    )
+  })
+
+  test("a copy can be kept without sending anything", async ({ page }) => {
+    let sent = 0
+    await page.route("**/api/submit?**", async (route) => {
+      sent += 1
+      await route.fulfill({ json: { ok: true } })
+    })
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-send")).toHaveText("Send photo", {
+      timeout: 30_000,
+    })
+    const save = page.getByTestId("rephoto-save")
+    const downloadPromise = page.waitForEvent("download")
+    await save.click()
+    await downloadPromise
+    await expect(save).toHaveText("Copy saved")
+    await expect(page.getByTestId("rephoto-consent")).toBeVisible()
+    expect(sent).toBe(0)
+  })
+
   test("while a photo is sending, it can't be closed or retaken", async ({
     page,
   }) => {
