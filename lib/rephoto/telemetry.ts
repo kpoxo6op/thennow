@@ -31,8 +31,10 @@ export function report(
       ...counted,
       ...details,
     })
-    if (!navigator.sendBeacon?.("/api/camera-log", body))
-      void fetch("/api/camera-log", { method: "POST", body, keepalive: true })
+    // Not sendBeacon: Firefox on Android says it sent one and never does.
+    fetch("/api/camera-log", { method: "POST", body, keepalive: true }).catch(
+      () => {}
+    )
   } catch {}
 }
 
