@@ -68,6 +68,7 @@ for (const size of sizes) {
       await expect(page.getByTestId("story-zen")).toHaveAccessibleName(
         "Close full screen"
       )
+      await expect(page.getByTestId("story-zen")).toBeFocused()
 
       const block = (await zen.boundingBox())!
       expect(block.x).toBe(0)

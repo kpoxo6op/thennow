@@ -222,6 +222,8 @@ export default function Post({ post, nearby }: PostProps) {
     const { overflow, overscrollBehavior } = root.style
     root.style.overflow = "hidden"
     root.style.overscrollBehavior = "none"
+    // Focus starts on the close button, whatever opened zen.
+    button?.focus({ preventScroll: true })
 
     // Everything else on the page is out of reach while zen is open, for screen readers too.
     const hidden: HTMLElement[] = []
