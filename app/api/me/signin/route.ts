@@ -1,5 +1,5 @@
 import { limiter, sameSite } from "@/lib/limit"
-import { challengeHeader, finishSignIn, signInOptions } from "@/lib/passkey"
+import { challengeHeader, finishSignIn, rememberChallenge, signInOptions } from "@/lib/passkey"
 import { cookieHeader, isSecure, movePhotos, personId, readCookie } from "@/lib/people"
 import { hasStore } from "@/lib/store"
 
@@ -13,14 +13,25 @@ export const maxDuration = 30
 const allowed = limiter(30, 60 * 60_000)
 const no = (status: number, error: string) => Response.json({ error }, { status })
 
+// Asking writes a small note to the store, so asking is limited too.
+const asked = limiter(60, 60 * 60_000)
+
 export async function GET(request: Request) {
-  const options = await signInOptions(request)
-  return Response.json(options, {
-    headers: {
-      "cache-control": "private, no-store",
-      "set-cookie": challengeHeader(options.challenge, request),
-    },
-  })
+  if (!hasStore()) return no(503, "no store")
+  if (!asked(request)) return no(429, "slow down")
+  try {
+    const options = await signInOptions(request)
+    await rememberChallenge(options.challenge)
+    return Response.json(options, {
+      headers: {
+        "cache-control": "private, no-store",
+        "set-cookie": challengeHeader(options.challenge, request),
+      },
+    })
+  } catch (error) {
+    console.error(`sign in question failed ${String(error).slice(0, 300)}`)
+    return no(502, "store failed")
+  }
 }
 
 export async function POST(request: Request) {
