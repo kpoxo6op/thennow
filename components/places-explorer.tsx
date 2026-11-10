@@ -307,6 +307,12 @@ export function PlacesExplorer({ stories }: Props) {
         return
       }
 
+      // Nor may a map still settling after the photos were chosen bring its old camera back:
+      // the address changes at once, while the map leaves the page a moment later.
+      if (new URLSearchParams(window.location.search).get("view") !== "map") {
+        return
+      }
+
       writeParams((params) => {
         params.set("lat", String(next.lat))
         params.set("lng", String(next.lng))

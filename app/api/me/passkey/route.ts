@@ -1,5 +1,5 @@
 import { limiter, sameSite } from "@/lib/limit"
-import { challengeHeader, finishSignUp, signUpOptions } from "@/lib/passkey"
+import { challengeHeader, finishSignUp, rememberChallenge, signUpOptions } from "@/lib/passkey"
 import { personId, readCookie, readProfile, writeProfile } from "@/lib/people"
 import { hasStore } from "@/lib/store"
 
@@ -10,6 +10,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const allowed = limiter(30, 60 * 60_000)
+const asked = limiter(60, 60 * 60_000)
 const no = (status: number, error: string) => Response.json({ error }, { status })
 
 export async function GET(request: Request) {
@@ -19,7 +20,9 @@ export async function GET(request: Request) {
   try {
     const profile = await readProfile(personId(cookie))
     if (!profile) return no(401, "not signed up")
+    if (!asked(request)) return no(429, "slow down")
     const options = await signUpOptions(request, cookie, profile.name)
+    await rememberChallenge(options.challenge)
     return Response.json(options, {
       headers: {
         "cache-control": "private, no-store",
