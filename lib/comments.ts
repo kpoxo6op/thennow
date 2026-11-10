@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto"
 import { revalidateTag, unstable_cache } from "next/cache"
+import { after } from "next/server"
 
 import { del, get, list, put, storeBorn } from "@/lib/store"
 
@@ -153,22 +154,35 @@ async function readList(place: string): Promise<Comment[]> {
   return comments.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 }
 
-const A_DAY = 24 * 60 * 60
+const SIX_HOURS = 6 * 60 * 60
 const tagOf = (place: string) => `comments:${place}`
 
 // The list for a place is kept in Next's data cache, which every server instance shares, and is
-// read from the store again only after it changed here (see changed) or after a day. Listing the
-// store is the costly call: the store's plan allows about two thousand a month, and going over
-// blocks the whole store, photos included. What is kept says who wrote each comment, so it never
-// leaves the server as it is.
+// read from the store again only after it changed here (see changed) or after six hours. Listing
+// the store is the costly call: the store's plan allows about two thousand a month, and going over
+// blocks the whole store, photos included. The cache refuses an entry over 2 MB, which is thousands
+// of comments on one place; past that every read would list the store again, and the list would
+// need cutting. What is kept says who wrote each comment, so it never leaves the server as it is.
 export const listComments = (place: string): Promise<Comment[]> =>
   unstable_cache(() => readList(place), ["comments", storeBorn, place], {
     tags: [tagOf(place)],
-    revalidate: A_DAY,
+    revalidate: SIX_HOURS,
   })()
 
-// Stale lists are never served: the next read after this goes to the store.
-const changed = (place: string) => revalidateTag(tagOf(place), { expire: 0 })
+const SETTLE = 5000
+
+// Stale lists are not served: the next read after this goes to the store. A list that was being
+// read while this happened may still be kept afterwards, without the change, so the list is
+// thrown away once more a little later, when the answer has gone out. Six hours bounds a read
+// slower than that.
+function changed(place: string) {
+  const tag = tagOf(place)
+  revalidateTag(tag, { expire: 0 })
+  after(async () => {
+    await new Promise((resolve) => setTimeout(resolve, SETTLE))
+    revalidateTag(tag, { expire: 0 })
+  })
+}
 
 // A tiny note that this person wrote that comment, so signing in can find a person's comments
 // without reading everyone's.
@@ -244,15 +258,23 @@ export async function moveComments(from: string, to: string) {
                 allowOverwrite: true,
               }
             )
-            // Removing a comment deletes its note too, so a missing note means it was removed while
-            // being rewritten: take it out again rather than bring it back.
             const note = await get(pathname, {
               access: "private",
               useCache: false,
             })
-            if (!note || note.statusCode !== 200)
-              await del(commentPath(place, key))
-            else await mark(to, place, key, at)
+            if (note && note.statusCode === 200) await mark(to, place, key, at)
+            else {
+              // The old note is gone. If the comment already has its new note, this same sign-in
+              // ran twice and the other run finished the move. If not, the comment was removed
+              // while being rewritten (removing deletes the note too): take it out again rather
+              // than bring it back.
+              const moved = await get(markPath(to, place, key), {
+                access: "private",
+                useCache: false,
+              })
+              if (!moved || moved.statusCode !== 200)
+                await del(commentPath(place, key))
+            }
           } else if (comment && comment.by === to) {
             await mark(to, place, key, comment.at)
           }

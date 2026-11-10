@@ -810,6 +810,109 @@ test("a list that could not be read is read again", async ({
   await context.close()
 })
 
+test("a list that already holds the new comment does not show it twice", async ({
+  browser,
+  playwright,
+}) => {
+  const { context, page } = await person(browser)
+  let releaseList: (body: unknown) => void = () => {}
+  const heldList = new Promise<unknown>((resolve) => (releaseList = resolve))
+  let stored: () => void = () => {}
+  const isStored = new Promise<void>((resolve) => (stored = resolve))
+  let releasePost: () => void = () => {}
+  const heldPost = new Promise<void>((resolve) => (releasePost = resolve))
+  await page.route(/\/api\/comments/, async (route) => {
+    const request = route.request()
+    if (request.method() === "GET")
+      return route.fulfill({ json: await heldList })
+    const name = request.method() === "POST" && request.postDataJSON()?.name
+    if (typeof name === "string" && name) {
+      const response = await route.fetch()
+      stored()
+      await heldPost
+      return route.fulfill({ response })
+    }
+    return route.fallback()
+  })
+  const text = words("twice")
+  await open(page)
+  await page.getByTestId("comment-text-input").fill(text)
+  await page.getByTestId("comment-post").click()
+  await expect(page.getByTestId("comment-note")).toHaveText(
+    "Please add your name."
+  )
+  await page.getByTestId("comment-name-input").fill("Alice")
+  await page.getByTestId("comment-post").click()
+  await isStored
+
+  const other = await visitor(playwright)
+  const seen = await listed(other)
+  await other.dispose()
+  releaseList(seen)
+  await expect(rowWith(page, text)).toBeVisible()
+  await expect(rowWith(page, text).getByTestId("comment-remove")).toHaveCount(0)
+
+  releasePost()
+  await expect(rowWith(page, text)).toHaveCount(1)
+  await expect(rowWith(page, text).getByTestId("comment-remove")).toBeVisible()
+  await expect(rowWith(page, text)).toBeFocused()
+  await expect(page.getByTestId("comment-name-input")).toHaveCount(0)
+  await context.close()
+})
+
+test("what one visitor posts or removes, the next read shows another", async ({
+  playwright,
+}) => {
+  const reader = await visitor(playwright)
+  const writer = await visitor(playwright)
+  await listed(reader)
+  await listed(reader)
+
+  const posted = await send(writer, { text: words("next"), name: "Bob" })
+  expect(posted.status()).toBe(200)
+  const id = (await posted.json()).comment.id as string
+  expect((await listed(reader)).comments.map((c) => c.id)).toContain(id)
+
+  await listed(reader)
+  const removed = await writer.delete(`/api/comments?place=${PLACE}&id=${id}`)
+  expect(removed.status()).toBe(200)
+  expect((await listed(reader)).comments.map((c) => c.id)).not.toContain(id)
+  await reader.dispose()
+  await writer.dispose()
+})
+
+test("a list that could not be read is asked for again when the signal returns", async ({
+  browser,
+  playwright,
+}) => {
+  test.slow()
+  const other = await visitor(playwright)
+  const earlier = words("earlier")
+  expect((await send(other, { text: earlier, name: "Bob" })).status()).toBe(200)
+  await other.dispose()
+
+  const { context, page } = await person(browser)
+  let calls = 0
+  let down = true
+  await page.route(/\/api\/comments\?place=/, (route) => {
+    if (route.request().method() !== "GET") return route.fallback()
+    calls += 1
+    if (down) return route.abort("internetdisconnected")
+    return route.fallback()
+  })
+  await open(page)
+  await expect.poll(() => calls, { timeout: 20_000 }).toBe(3)
+  await page.waitForTimeout(5000)
+  expect(calls).toBe(3)
+
+  down = false
+  await page.evaluate(() => window.dispatchEvent(new Event("online")))
+  await expect(rowWith(page, earlier)).toBeVisible()
+  expect(calls).toBe(4)
+  await expect(page.getByTestId("comment-note")).toHaveCount(0)
+  await context.close()
+})
+
 test("a hidden field filled by the browser does not lose the words", async ({
   browser,
 }) => {

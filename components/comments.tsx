@@ -59,13 +59,17 @@ export function Comments({ place }: { place: string }) {
     if (!container) return
     let isMounted = true
     let timer: ReturnType<typeof setTimeout> | undefined
+    let gaveUp = false
     // A list that cannot be read is tried again, quietly, a couple of times. What the reader has
     // written in the meantime stays, and so does what was removed: the list may have been asked for
-    // before that.
+    // before that. When the tries run out, the list is asked for once more each time the reader
+    // comes back to the page or the phone finds its signal again.
     function load(retries: number) {
+      gaveUp = false
       const again = () => {
-        if (isMounted && retries > 0)
-          timer = setTimeout(() => load(retries - 1), 4000)
+        if (!isMounted) return
+        if (retries > 0) timer = setTimeout(() => load(retries - 1), 4000)
+        else gaveUp = true
       }
       fetch(`/api/comments?place=${encodeURIComponent(place)}`, {
         cache: "no-store",
@@ -89,6 +93,11 @@ export function Comments({ place }: { place: string }) {
         })
         .catch(again)
     }
+    const wake = () => {
+      if (gaveUp && document.visibilityState === "visible") load(0)
+    }
+    document.addEventListener("visibilitychange", wake)
+    window.addEventListener("online", wake)
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return
@@ -102,6 +111,8 @@ export function Comments({ place }: { place: string }) {
       isMounted = false
       clearTimeout(timer)
       observer.disconnect()
+      document.removeEventListener("visibilitychange", wake)
+      window.removeEventListener("online", wake)
     }
   }, [place])
 
@@ -133,7 +144,13 @@ export function Comments({ place }: { place: string }) {
       })
       if (response.ok) {
         const json = await response.json()
-        setComments((now) => [...now, json.comment])
+        // The list may have brought this comment already: then the answer takes its place, since
+        // it knows the comment is this reader's.
+        setComments((now) =>
+          now.some((c) => c.id === json.comment.id)
+            ? now.map((c) => (c.id === json.comment.id ? json.comment : c))
+            : [...now, json.comment]
+        )
         setFresh(json.comment.id)
         setKnown(json.name)
         setText("")
@@ -198,7 +215,7 @@ export function Comments({ place }: { place: string }) {
               ref={comment.id === fresh ? freshRow : undefined}
               tabIndex={comment.id === fresh ? -1 : undefined}
               data-testid="comment"
-              className="border-b py-4 outline-none first:border-t"
+              className="border-b py-4 first:border-t"
             >
               <div className="flex items-baseline justify-between gap-4 text-sm text-muted-foreground">
                 <p className="min-w-0 break-words">
