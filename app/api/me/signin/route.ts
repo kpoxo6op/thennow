@@ -1,6 +1,7 @@
 import { limiter, sameSite } from "@/lib/limit"
 import { challengeHeader, finishSignIn, signInOptions } from "@/lib/passkey"
 import { cookieHeader, isSecure, movePhotos, personId, readCookie } from "@/lib/people"
+import { hasStore } from "@/lib/store"
 
 // Signing in with the passkey saved at sign-up: this browser gets the person's cookie, and any
 // photos it had already sent on its own join theirs.
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!sameSite(request)) return no(403, "forbidden")
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return no(503, "no store")
+  if (!hasStore()) return no(503, "no store")
   if (!allowed(request)) return no(429, "slow down")
   try {
     const text = await request.text()

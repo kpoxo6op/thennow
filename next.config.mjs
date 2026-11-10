@@ -1,3 +1,17 @@
+// The memory store is for the test suite alone (lib/store.ts). A deployment asked to use it stops here.
+const DEPLOYED = [
+  'VERCEL',
+  'VERCEL_ENV',
+  'VERCEL_URL',
+  'VERCEL_DEPLOYMENT_ID',
+  'AWS_LAMBDA_FUNCTION_NAME',
+  'AWS_EXECUTION_ENV',
+  'LAMBDA_TASK_ROOT',
+]
+if (process.env.TN_FAKE_STORE && DEPLOYED.some((name) => process.env[name])) {
+  throw new Error('TN_FAKE_STORE is set on a deployment. Remove it: the memory store is for tests only.')
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,

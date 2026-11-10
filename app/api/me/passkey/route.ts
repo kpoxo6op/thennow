@@ -1,6 +1,7 @@
 import { limiter, sameSite } from "@/lib/limit"
 import { challengeHeader, finishSignUp, signUpOptions } from "@/lib/passkey"
 import { personId, readCookie, readProfile, writeProfile } from "@/lib/people"
+import { hasStore } from "@/lib/store"
 
 // The second half of signing up: once a name is saved, the phone saves a passkey for it, so the
 // same person can sign in on another device or after clearing this one.
@@ -14,7 +15,7 @@ const no = (status: number, error: string) => Response.json({ error }, { status 
 export async function GET(request: Request) {
   const cookie = readCookie(request)
   if (!cookie) return no(401, "not signed up")
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return no(503, "no store")
+  if (!hasStore()) return no(503, "no store")
   try {
     const profile = await readProfile(personId(cookie))
     if (!profile) return no(401, "not signed up")
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
   if (!sameSite(request)) return no(403, "forbidden")
   const cookie = readCookie(request)
   if (!cookie) return no(401, "not signed up")
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return no(503, "no store")
+  if (!hasStore()) return no(503, "no store")
   if (!allowed(request)) return no(429, "slow down")
   try {
     const text = await request.text()

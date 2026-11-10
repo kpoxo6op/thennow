@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "crypto"
-import { del, get, list, put, rename } from "@vercel/blob"
+import { del, get, hasStore, list, put, rename } from "@/lib/store"
 
 // The people who send photos. A browser gets a random cookie the first time it reaches the
 // camera's review or signs up; the photos it sends are kept together under that cookie, so its
@@ -51,7 +51,7 @@ export type Profile = { name: string; createdAt: string; updatedAt: string; pass
 
 // No profile is null; a store that can't be reached throws, so it isn't mistaken for no name.
 export async function readProfile(id: string): Promise<Profile | null> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return null
+  if (!hasStore()) return null
   const found = await get(profilePath(id), { access: "private", useCache: false })
   if (!found || found.statusCode !== 200) return null
   const profile = JSON.parse(await new Response(found.stream).text())
