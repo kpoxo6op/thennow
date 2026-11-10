@@ -761,6 +761,30 @@ test.describe("the rephotography camera", () => {
     )
   })
 
+  test("one network can only knock on the photo store so often, whatever it sends", async ({
+    request,
+  }) => {
+    // Its own address, so no other test (or an earlier run on a reused server) shares the count.
+    const headers = { "x-real-ip": `test-${Date.now()}-${Math.random()}` }
+    const junk = Buffer.from("hello")
+    const post = () =>
+      request.post("/api/submit?place=mission-house&key=abcdefghijkl0123", {
+        data: junk,
+        headers,
+      })
+    for (let i = 0; i < 240; i++) expect((await post()).status()).toBe(415)
+    expect((await post()).status()).toBe(429)
+    // Somebody else's address is not held up by it.
+    expect(
+      (
+        await request.post("/api/submit?place=mission-house&key=abcdefghijkl0123", {
+          data: junk,
+          headers: { "x-real-ip": `other-${Date.now()}-${Math.random()}` },
+        })
+      ).status()
+    ).toBe(415)
+  })
+
   test("retake returns to the live camera", async ({ page }) => {
     await openCamera(page, "mission-house")
     await shoot(page)
