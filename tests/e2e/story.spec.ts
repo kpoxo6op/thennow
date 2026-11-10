@@ -163,7 +163,8 @@ for (const width of [320, 390, 768]) {
           await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from + ((to - from) * i) / 8, y }] })
         }
         await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
-        await page.waitForTimeout(100)
+        // The address follows the line once it rests.
+        await page.waitForTimeout(400)
         await page.reload()
         await expect(page).toHaveURL(/p=\d+$/)
         await page.waitForTimeout(300)
