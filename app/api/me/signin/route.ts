@@ -1,6 +1,17 @@
 import { limiter, sameSite } from "@/lib/limit"
-import { challengeHeader, finishSignIn, rememberChallenge, signInOptions } from "@/lib/passkey"
-import { cookieHeader, isSecure, movePhotos, personId, readCookie } from "@/lib/people"
+import {
+  challengeHeader,
+  finishSignIn,
+  rememberChallenge,
+  signInOptions,
+} from "@/lib/passkey"
+import {
+  cookieHeader,
+  isSecure,
+  movePhotos,
+  personId,
+  readCookie,
+} from "@/lib/people"
 import { hasStore } from "@/lib/store"
 
 // Signing in with the passkey saved at sign-up: this browser gets the person's cookie, and any
@@ -11,7 +22,8 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 30
 
 const allowed = limiter(30, 60 * 60_000)
-const no = (status: number, error: string) => Response.json({ error }, { status })
+const no = (status: number, error: string) =>
+  Response.json({ error }, { status })
 
 // Asking writes a small note to the store, so asking is limited too.
 const asked = limiter(60, 60 * 60_000)
@@ -44,7 +56,8 @@ export async function POST(request: Request) {
     const cookie = await finishSignIn(request, JSON.parse(text))
     if (!cookie) return no(401, "not signed up")
     const before = readCookie(request)
-    if (before && before !== cookie) await movePhotos(personId(before), personId(cookie))
+    if (before && before !== cookie)
+      await movePhotos(personId(before), personId(cookie))
     const headers = new Headers({ "cache-control": "private, no-store" })
     headers.append("set-cookie", cookieHeader(cookie, isSecure(request)))
     headers.append("set-cookie", challengeHeader("", request))

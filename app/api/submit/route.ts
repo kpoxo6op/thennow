@@ -36,12 +36,19 @@ const knocks = limiter(240, 60 * 60_000)
 // rode along in the file (comments, metadata, trailing data) is kept.
 async function clean(bytes: Uint8Array) {
   try {
-    const image = sharp(bytes, { limitInputPixels: 40_000_000, failOn: "error" })
+    const image = sharp(bytes, {
+      limitInputPixels: 40_000_000,
+      failOn: "error",
+    })
     const meta = await image.metadata()
     if (meta.format !== "jpeg" || !meta.width || !meta.height) return null
     const [photo, small] = await Promise.all([
       image.clone().jpeg({ quality: 90 }).toBuffer(),
-      image.clone().resize({ width: 480, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(),
+      image
+        .clone()
+        .resize({ width: 480, withoutEnlargement: true })
+        .jpeg({ quality: 75 })
+        .toBuffer(),
     ])
     return { photo, small }
   } catch {
@@ -82,7 +89,11 @@ export async function POST(request: Request) {
   const id = personId(cookie)
   const done = () => {
     const response = answer(200)
-    if (!known) response.headers.set("set-cookie", cookieHeader(cookie, isSecure(request)))
+    if (!known)
+      response.headers.set(
+        "set-cookie",
+        cookieHeader(cookie, isSecure(request))
+      )
     return response
   }
   const pathname = `submissions/${slug}/${key}.jpg`
@@ -100,7 +111,10 @@ export async function POST(request: Request) {
       // The note moves first, so a retry after any failure here does both steps again.
       const moved = await followPhoto(slug, key, id)
         .then(() => filePhoto(id, slug, key, small))
-        .then(() => true, () => false)
+        .then(
+          () => true,
+          () => false
+        )
       if (!moved) return answer(502, "store failed")
     }
     return done()

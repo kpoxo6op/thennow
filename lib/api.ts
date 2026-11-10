@@ -1,6 +1,10 @@
 import fs from "fs"
 import path from "path"
-import PostType, { type PendingPost, type PendingSummary, type StorySummary } from "@/interfaces/post"
+import PostType, {
+  type PendingPost,
+  type PendingSummary,
+  type StorySummary,
+} from "@/interfaces/post"
 
 let postsCache: (PostType | PendingPost)[] | null = null
 
@@ -11,7 +15,8 @@ function check(file: string, json: Record<string, unknown>) {
     throw new Error(`Place file ${file}: ${what}`)
   }
   for (const field of ["name", "description", "slug", "b_imageUrl"]) {
-    if (typeof json[field] !== "string" || !json[field]) fail(`"${field}" is missing`)
+    if (typeof json[field] !== "string" || !json[field])
+      fail(`"${field}" is missing`)
   }
   for (const field of ["w", "h"]) {
     const value = json[field]
@@ -23,7 +28,14 @@ function check(file: string, json: Record<string, unknown>) {
     fail(`"location" needs a numeric lat and lng`)
   if (json.status === "pending" || !json.a_imageUrl) {
     const archive = (json.archive ?? {}) as Record<string, unknown>
-    for (const field of ["date", "photographer", "credit", "rights", "sourceUrl", "sourceId"]) {
+    for (const field of [
+      "date",
+      "photographer",
+      "credit",
+      "rights",
+      "sourceUrl",
+      "sourceId",
+    ]) {
       if (typeof archive[field] !== "string" || !archive[field])
         fail(`an upcoming place needs "archive.${field}"`)
     }
@@ -75,11 +87,15 @@ function readAll() {
 
 // Finished stories: both photographs, a working comparison.
 export async function fetchPosts(): Promise<PostType[]> {
-  return readAll().filter((post): post is PostType => post.status === "complete")
+  return readAll().filter(
+    (post): post is PostType => post.status === "complete"
+  )
 }
 
 export async function fetchPending(): Promise<PendingPost[]> {
-  return readAll().filter((post): post is PendingPost => post.status === "pending")
+  return readAll().filter(
+    (post): post is PendingPost => post.status === "pending"
+  )
 }
 
 export function toSummary({
@@ -96,7 +112,20 @@ export function toSummary({
   sample,
   area,
 }: PostType): StorySummary {
-  return { status, name, description, b_imageUrl, a_imageUrl, ba_imageUrl, w, h, slug, location, sample, area }
+  return {
+    status,
+    name,
+    description,
+    b_imageUrl,
+    a_imageUrl,
+    ba_imageUrl,
+    w,
+    h,
+    slug,
+    location,
+    sample,
+    area,
+  }
 }
 
 export function toPendingSummary({

@@ -57,7 +57,8 @@ type Sending =
 const NOT_SENT: Record<string, string> = {
   offline: "Not sent. Check your signal.",
   busy: "Not sent. Please try again in a minute.",
-  limited: "Not sent. Many photos came from this network just now. Please try again later.",
+  limited:
+    "Not sent. Many photos came from this network just now. Please try again later.",
   refused: "This photo can’t be sent. You can keep a copy.",
 }
 
@@ -101,7 +102,10 @@ class NoMatch extends Error {}
 // question is out at a time, so two answers can never bring two different cookies.
 let asking: Promise<string | null> | null = null
 function askMe() {
-  asking ??= fetch("/api/me", { cache: "no-store", signal: AbortSignal.timeout(10_000) })
+  asking ??= fetch("/api/me", {
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  })
     .then((response) => (response.ok ? response.json() : null))
     .then((me) => (typeof me?.name === "string" ? me.name : null))
     .catch(() => null)
@@ -383,8 +387,8 @@ export function RephotoReview({
         <div role="status" className="max-w-md space-y-3">
           <h1 className="font-serif text-4xl leading-tight">Thank you.</h1>
           <p className="text-lg leading-snug text-white/85">
-            Your photo has been sent. We look at every photo before it goes
-            on the site.
+            Your photo has been sent. We look at every photo before it goes on
+            the site.
           </p>
         </div>
         <Link
@@ -550,7 +554,7 @@ export function RephotoReview({
                     ? "Send again"
                     : renderFailed
                       ? "Try again"
-                    : "Send photo"}
+                      : "Send photo"}
             </button>
           )}
           {!failed && phase !== "unmatched" && (
@@ -558,8 +562,8 @@ export function RephotoReview({
               data-testid="rephoto-consent"
               className="max-w-72 text-right text-sm leading-snug text-white/75 landscape:text-center"
             >
-              By sending, you let then|now publish this photo. We don’t
-              collect your location.
+              By sending, you let then|now publish this photo. We don’t collect
+              your location.
             </p>
           )}
           {file && !busy && phase !== "aligning" && (

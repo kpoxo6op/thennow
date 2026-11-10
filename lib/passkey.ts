@@ -31,7 +31,9 @@ export function challengeHeader(challenge: string, request: Request) {
 
 function readChallenge(request: Request) {
   const header = request.headers.get("cookie") ?? ""
-  const found = header.split(";").find((part) => part.trim().startsWith(`${CHALLENGE}=`))
+  const found = header
+    .split(";")
+    .find((part) => part.trim().startsWith(`${CHALLENGE}=`))
   const value = found?.trim().slice(CHALLENGE.length + 1) ?? ""
   return /^[A-Za-z0-9_-]{20,200}$/.test(value) ? value : null
 }
@@ -44,12 +46,16 @@ const askedPath = (challenge: string) =>
 // Every question the site asks is noted in the store until it is answered or five minutes
 // pass, so only a question the site itself asked, and has not yet heard an answer to, counts.
 export async function rememberChallenge(challenge: string) {
-  await put(askedPath(challenge), JSON.stringify({ until: Date.now() + ASKED_MS }), {
-    access: "private",
-    contentType: "application/json",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  })
+  await put(
+    askedPath(challenge),
+    JSON.stringify({ until: Date.now() + ASKED_MS }),
+    {
+      access: "private",
+      contentType: "application/json",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    }
+  )
   // Now and then, questions nobody answered are cleared away.
   if (Math.random() < 0.05) await forgetOldChallenges().catch(() => {})
 }
@@ -72,10 +78,17 @@ async function takeChallenge(request: Request) {
   if (!found || found.statusCode !== 200) return null
   const asked = JSON.parse(await new Response(found.stream).text())
   await del(path)
-  return typeof asked?.until === "number" && Date.now() < asked.until ? challenge : null
+  return typeof asked?.until === "number" && Date.now() < asked.until
+    ? challenge
+    : null
 }
 
-type Stored = { id: string; publicKey: string; counter: number; transports?: string[] }
+type Stored = {
+  id: string
+  publicKey: string
+  counter: number
+  transports?: string[]
+}
 
 const keyPath = (credentialId: string) =>
   `keys/${createHash("sha256").update(credentialId).digest("hex").slice(0, 32)}.json`
@@ -87,12 +100,19 @@ export function signUpOptions(request: Request, cookie: string, name: string) {
     userName: name,
     userID: new TextEncoder().encode(cookie),
     attestationType: "none",
-    authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+    authenticatorSelection: {
+      residentKey: "required",
+      userVerification: "preferred",
+    },
   })
 }
 
 // True once the passkey is stored for this cookie's person.
-export async function finishSignUp(request: Request, cookie: string, response: RegistrationResponseJSON) {
+export async function finishSignUp(
+  request: Request,
+  cookie: string,
+  response: RegistrationResponseJSON
+) {
   const challenge = await takeChallenge(request)
   if (!challenge) return false
   const { rpID, origin } = site(request)
@@ -137,14 +157,20 @@ export function signInOptions(request: Request) {
 }
 
 // The cookie the passkey carries, once the passkey has proved itself; otherwise null.
-export async function finishSignIn(request: Request, response: AuthenticationResponseJSON) {
+export async function finishSignIn(
+  request: Request,
+  response: AuthenticationResponseJSON
+) {
   const challenge = await takeChallenge(request)
   if (!challenge || typeof response?.id !== "string") return null
   const handle = response.response?.userHandle
   if (typeof handle !== "string") return null
   const cookie = Buffer.from(handle, "base64url").toString("utf8")
   if (!VALID.test(cookie)) return null
-  const found = await get(keyPath(response.id), { access: "private", useCache: false })
+  const found = await get(keyPath(response.id), {
+    access: "private",
+    useCache: false,
+  })
   if (!found || found.statusCode !== 200) return null
   const stored: Stored = JSON.parse(await new Response(found.stream).text())
   if (stored.id !== personId(cookie)) return null
@@ -166,12 +192,16 @@ export async function finishSignIn(request: Request, response: AuthenticationRes
   // A passkey that syncs between devices always says zero, and nothing is written for it.
   const { newCounter } = result.authenticationInfo
   if (newCounter > stored.counter) {
-    await put(keyPath(response.id), JSON.stringify({ ...stored, counter: newCounter }), {
-      access: "private",
-      contentType: "application/json",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-    }).catch(() => {})
+    await put(
+      keyPath(response.id),
+      JSON.stringify({ ...stored, counter: newCounter }),
+      {
+        access: "private",
+        contentType: "application/json",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+      }
+    ).catch(() => {})
   }
   return cookie
 }

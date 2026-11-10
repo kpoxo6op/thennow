@@ -2,8 +2,8 @@ import { Metadata } from "next"
 import Link from "next/link"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
-import { InlineCompare } from "@/components/inline-compare"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
+import { InlineCompare } from "@/components/inline-compare"
 import { ResetScroll } from "@/components/reset-scroll"
 
 const FEATURE_SLUG = "historic-post-office"
@@ -15,7 +15,9 @@ export const metadata: Metadata = {
 export default async function AboutPage() {
   const posts = await fetchPosts()
   const feature = posts.find((post) => post.slug === FEATURE_SLUG) ?? posts[0]
-  const years = toSections(feature.description).flatMap((section) => (section.year ? [section.year] : []))
+  const years = toSections(feature.description).flatMap((section) =>
+    section.year ? [section.year] : []
+  )
   const sources = posts.flatMap((post) =>
     post.description
       .split("\n")
@@ -43,9 +45,10 @@ export default async function AboutPage() {
             then|now is a visual archive of places photographed across time.
           </p>
           <p className="text-lg leading-relaxed md:text-xl md:leading-relaxed">
-            Each story pairs an older image with a modern retake so visitors can see what stayed,
-            what disappeared, and what the street looks like now. Some places have only the older image
-            so far: stand where it was taken and take the new one with your phone.
+            Each story pairs an older image with a modern retake so visitors can
+            see what stayed, what disappeared, and what the street looks like
+            now. Some places have only the older image so far: stand where it
+            was taken and take the new one with your phone.
           </p>
         </div>
       </div>
@@ -61,14 +64,22 @@ export default async function AboutPage() {
           priority
         />
         <figcaption className="mt-2 text-sm">
-          <Link href={`/${feature.slug}`} className="underline underline-offset-4">
+          <Link
+            href={`/${feature.slug}`}
+            className="underline underline-offset-4"
+          >
             {feature.name}
           </Link>
         </figcaption>
       </figure>
 
-      <section id="sources" className="mt-14 grid scroll-mt-20 gap-6 border-t pt-6 md:mt-20 lg:grid-cols-2 lg:gap-10">
-        <h2 className="font-serif text-4xl leading-none md:text-5xl">Sources</h2>
+      <section
+        id="sources"
+        className="mt-14 grid scroll-mt-20 gap-6 border-t pt-6 md:mt-20 lg:grid-cols-2 lg:gap-10"
+      >
+        <h2 className="font-serif text-4xl leading-none md:text-5xl">
+          Sources
+        </h2>
         <ul>
           {sources.map(({ source, slug, name }) => {
             const slash = source.indexOf("/")
@@ -76,8 +87,14 @@ export default async function AboutPage() {
             const path = slash === -1 ? "" : source.slice(slash)
 
             return (
-              <li key={source} className="space-y-1 border-b py-4 first:border-t">
-                <Link href={`/${slug}`} className="block text-lg font-medium leading-snug underline-offset-4 hover:underline">
+              <li
+                key={source}
+                className="space-y-1 border-b py-4 first:border-t"
+              >
+                <Link
+                  href={`/${slug}`}
+                  className="block text-lg font-medium leading-snug underline-offset-4 hover:underline"
+                >
                   {name}
                 </Link>
                 <a
@@ -100,19 +117,22 @@ export default async function AboutPage() {
         data-testid="about-photos"
         className="mt-14 grid scroll-mt-20 gap-6 border-t pt-6 md:mt-20 lg:grid-cols-2 lg:gap-10"
       >
-        <h2 className="font-serif text-4xl leading-none md:text-5xl">Your photos</h2>
+        <h2 className="font-serif text-4xl leading-none md:text-5xl">
+          Your photos
+        </h2>
         <p className="max-w-2xl text-lg leading-relaxed">
-          Photos sent from the camera are seen only by then|now until we add them to a place. They
-          carry no location. Your browser keeps a random number so the photos it sends stay together
-          on{" "}
+          Photos sent from the camera are seen only by then|now until we add
+          them to a place. They carry no location. Your browser keeps a random
+          number so the photos it sends stay together on{" "}
           <Link href="/me" className="underline underline-offset-4">
             Your photos
           </Link>
-          , where you can sign up with a name to be credited, change it or remove it. Signing up
-          saves a passkey, which is how you sign in on another device; we never see
-          an email or a password. Photos and names are
-          kept in then|now’s private store, with Vercel in Sydney. The camera also sends anonymous
-          reports of how it worked, never the pictures.
+          , where you can sign up with a name to be credited, change it or
+          remove it. Signing up saves a passkey, which is how you sign in on
+          another device; we never see an email or a password. Photos and names
+          are kept in then|now’s private store, with Vercel in Sydney. The
+          camera also sends anonymous reports of how it worked, never the
+          pictures.
         </p>
       </section>
     </article>

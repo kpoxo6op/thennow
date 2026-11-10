@@ -1,7 +1,9 @@
 import type { Place } from "@/interfaces/post"
 
 // The fountain's negative has a heavy black border and notched corners.
-export const STORY_TRIM: Record<string, number> = { "mission-bay-fountain": 1.16 }
+export const STORY_TRIM: Record<string, number> = {
+  "mission-bay-fountain": 1.16,
+}
 
 // The one line over places that have only their old photograph: it says what they are for.
 export const PENDING_HEADING = "Yours to photograph."

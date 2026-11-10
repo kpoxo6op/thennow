@@ -21,10 +21,13 @@ async function saveName(name: string): Promise<Me | { note: string }> {
       headers: json,
       body: JSON.stringify({ name }),
     })
-    if (response.status === 429) return { note: "Not saved. Please try again later." }
+    if (response.status === 429)
+      return { note: "Not saved. Please try again later." }
     if (!response.ok) return { note: OFFLINE }
     const me = await response.json()
-    return typeof me?.name === "string" ? { name: me.name, passkey: !!me.passkey } : { note: OFFLINE }
+    return typeof me?.name === "string"
+      ? { name: me.name, passkey: !!me.passkey }
+      : { note: OFFLINE }
   } catch {
     return { note: OFFLINE }
   }
@@ -36,12 +39,24 @@ async function savePasskey() {
   try {
     const options = await fetch("/api/me/passkey", { cache: "no-store" })
     if (!options.ok) return
-    const response = await startRegistration({ optionsJSON: await options.json() })
-    await fetch("/api/me/passkey", { method: "POST", headers: json, body: JSON.stringify(response) })
+    const response = await startRegistration({
+      optionsJSON: await options.json(),
+    })
+    await fetch("/api/me/passkey", {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify(response),
+    })
   } catch {}
 }
 
-export function MeName({ name: saved, passkey }: { name: string | null; passkey: boolean }) {
+export function MeName({
+  name: saved,
+  passkey,
+}: {
+  name: string | null
+  passkey: boolean
+}) {
   const router = useRouter()
   const [name, setName] = useState(saved)
   const [editing, setEditing] = useState(!saved)
@@ -80,7 +95,9 @@ export function MeName({ name: saved, passkey }: { name: string | null; passkey:
     try {
       const options = await fetch("/api/me/signin", { cache: "no-store" })
       if (!options.ok) throw new Error(String(options.status))
-      const response = await startAuthentication({ optionsJSON: await options.json() })
+      const response = await startAuthentication({
+        optionsJSON: await options.json(),
+      })
       const done = await fetch("/api/me/signin", {
         method: "POST",
         headers: json,
@@ -91,7 +108,8 @@ export function MeName({ name: saved, passkey }: { name: string | null; passkey:
       window.location.reload()
     } catch (error) {
       // Closing the phone's own passkey sheet is an answer, not a failure.
-      const closed = error instanceof Error && /NotAllowed|Abort/.test(error.name)
+      const closed =
+        error instanceof Error && /NotAllowed|Abort/.test(error.name)
       if (!closed) setNote("Not signed in. Please try again.")
       setBusy(false)
     }
@@ -118,7 +136,11 @@ export function MeName({ name: saved, passkey }: { name: string | null; passkey:
     <div data-testid="me-name" className="space-y-3">
       {name && !editing ? (
         <p className="text-lg">
-          Credited as <span data-testid="me-name-value" className="font-medium">{name}</span>.{" "}
+          Credited as{" "}
+          <span data-testid="me-name-value" className="font-medium">
+            {name}
+          </span>
+          .{" "}
           <button
             type="button"
             data-testid="me-name-change"
@@ -147,8 +169,13 @@ export function MeName({ name: saved, passkey }: { name: string | null; passkey:
         </p>
       ) : (
         <>
-          {!name && <p className="text-lg">Sign up to be credited for your photos.</p>}
-          <form onSubmit={(event) => void save(event)} className="flex max-w-md gap-2">
+          {!name && (
+            <p className="text-lg">Sign up to be credited for your photos.</p>
+          )}
+          <form
+            onSubmit={(event) => void save(event)}
+            className="flex max-w-md gap-2"
+          >
             <input
               ref={field}
               data-testid="me-name-input"
@@ -185,7 +212,11 @@ export function MeName({ name: saved, passkey }: { name: string | null; passkey:
         </>
       )}
       {note && (
-        <p role="status" data-testid="me-name-note" className="text-base text-muted-foreground">
+        <p
+          role="status"
+          data-testid="me-name-note"
+          className="text-base text-muted-foreground"
+        >
           {note}
         </p>
       )}

@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import type PostType from "@/interfaces/post"
-
 import { ArrowRight } from "lucide-react"
 
 import { siteConfig } from "@/config/site"
@@ -10,13 +9,15 @@ import { PENDING_HEADING } from "@/lib/places"
 import { SOURCE_LINE, toSections } from "@/components/Desc"
 import { HomeHero } from "@/components/home-hero"
 import { PendingTile } from "@/components/pending-tile"
-import { StoryTile } from "@/components/story-tile"
 import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
+import { StoryTile } from "@/components/story-tile"
 
 const HERO_SLUG = siteConfig.heroSlug
 
-export const metadata: Metadata = { alternates: { canonical: "/", types: { "application/rss+xml": "/feed.xml" } } }
+export const metadata: Metadata = {
+  alternates: { canonical: "/", types: { "application/rss+xml": "/feed.xml" } },
+}
 
 // Dated, written sections only: several stories are still "Coming soon...".
 function datedSections(story: PostType) {
@@ -54,8 +55,13 @@ export default async function IndexPage() {
                 href={`/${hero.slug}`}
                 className="block py-3 text-[15px] leading-snug md:py-2.5 md:text-base"
               >
-                <span className="underline underline-offset-4">{hero.name}</span>
-                <ArrowRight aria-hidden className="ml-1.5 inline size-4 align-[-0.15em]" />
+                <span className="underline underline-offset-4">
+                  {hero.name}
+                </span>
+                <ArrowRight
+                  aria-hidden
+                  className="ml-1.5 inline size-4 align-[-0.15em]"
+                />
               </Link>
             }
           />
@@ -77,20 +83,41 @@ export default async function IndexPage() {
             {rest.map((story, index) => (
               <li
                 key={story.slug}
-                className={index === 0 ? "sm:col-span-2 lg:col-span-6" : index === 1 ? "lg:col-span-6" : "lg:col-span-4"}
+                className={
+                  index === 0
+                    ? "sm:col-span-2 lg:col-span-6"
+                    : index === 1
+                      ? "lg:col-span-6"
+                      : "lg:col-span-4"
+                }
               >
-                <StoryTile story={story} sizes={index < 2 ? "(min-width: 640px) 50vw, 100vw" : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"} />
+                <StoryTile
+                  story={story}
+                  sizes={
+                    index < 2
+                      ? "(min-width: 640px) 50vw, 100vw"
+                      : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  }
+                />
               </li>
             ))}
           </ul>
 
           {pending.length > 0 ? (
-            <div data-testid="home-pending" className="mt-14 border-t pt-4 md:mt-20 md:pt-5">
-              <h2 className="font-serif text-3xl leading-none md:text-4xl">{PENDING_HEADING}</h2>
+            <div
+              data-testid="home-pending"
+              className="mt-14 border-t pt-4 md:mt-20 md:pt-5"
+            >
+              <h2 className="font-serif text-3xl leading-none md:text-4xl">
+                {PENDING_HEADING}
+              </h2>
               <ul className="mt-5 grid grid-cols-2 gap-x-3 gap-y-6 md:mt-6 md:gap-x-6 lg:grid-cols-4">
                 {pending.map((place) => (
                   <li key={place.slug}>
-                    <PendingTile place={toPendingSummary(place)} sizes="(min-width: 1024px) 25vw, 50vw" />
+                    <PendingTile
+                      place={toPendingSummary(place)}
+                      sizes="(min-width: 1024px) 25vw, 50vw"
+                    />
                   </li>
                 ))}
               </ul>

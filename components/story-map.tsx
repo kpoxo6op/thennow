@@ -81,17 +81,30 @@ export function StoryMap({ name, location }: Props) {
       // One finger belongs to the page, on any touch screen; the map never hears of it.
       const canvasArea = activeMap.getCanvasContainer()
       const leaveToPage = (event: TouchEvent) => {
-        if (event.touches.length === 1 && canvasArea.contains(event.target as Node)) {
+        if (
+          event.touches.length === 1 &&
+          canvasArea.contains(event.target as Node)
+        ) {
           event.stopPropagation()
         }
       }
-      container.addEventListener("touchstart", leaveToPage, { capture: true, passive: true })
-      container.addEventListener("touchmove", leaveToPage, { capture: true, passive: true })
+      container.addEventListener("touchstart", leaveToPage, {
+        capture: true,
+        passive: true,
+      })
+      container.addEventListener("touchmove", leaveToPage, {
+        capture: true,
+        passive: true,
+      })
       activeMap.getCanvas().removeAttribute("tabindex")
-      activeMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right")
+      activeMap.addControl(
+        new maplibregl.NavigationControl({ showCompass: false }),
+        "top-right"
+      )
 
       const pin = document.createElement("div")
-      pin.className = "tn-map-marker tn-map-marker--point is-active tn-story-pin"
+      pin.className =
+        "tn-map-marker tn-map-marker--point is-active tn-story-pin"
       pin.dataset.testid = "story-map-pin"
       pin.append(document.createElement("span"))
       new maplibregl.Marker({ element: pin }).setLngLat(center).addTo(activeMap)
@@ -141,7 +154,8 @@ export function StoryMap({ name, location }: Props) {
             data-testid="story-map-failure"
             className="absolute inset-0 z-10 flex items-center justify-center bg-muted px-4 text-center text-[15px] text-muted-foreground"
           >
-            The map didn&apos;t load. This place is at {Math.abs(location.lat).toFixed(4)}° {ns},{" "}
+            The map didn&apos;t load. This place is at{" "}
+            {Math.abs(location.lat).toFixed(4)}° {ns},{" "}
             {Math.abs(location.lng).toFixed(4)}° {ew}.
           </p>
         ) : null}

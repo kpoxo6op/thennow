@@ -1,9 +1,9 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test"
 
-const PORT = 3100;
-const baseURL = `http://127.0.0.1:${PORT}`;
+const PORT = 3100
+const baseURL = `http://127.0.0.1:${PORT}`
 // In CI the workflow has already built the site, and nothing else may be on the port.
-const CI = !!process.env.CI;
+const CI = !!process.env.CI
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -31,4 +31,4 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-});
+})

@@ -1,6 +1,11 @@
 import { readFileSync } from "fs"
 import path from "path"
-import { expect, test, type Browser, type PlaywrightWorkerArgs } from "@playwright/test"
+import {
+  expect,
+  test,
+  type Browser,
+  type PlaywrightWorkerArgs,
+} from "@playwright/test"
 import sharp from "sharp"
 
 // Names, photos and passkeys from end to end, against the store the test server keeps in memory
@@ -10,21 +15,33 @@ import sharp from "sharp"
 const LOCAL = "http://localhost:3100"
 const PLACE = "mission-house"
 const PHOTO = readFileSync(
-  path.join(process.cwd(), "public", "posts", "0005-mission-house", "mission-house-then-768x512.jpg")
+  path.join(
+    process.cwd(),
+    "public",
+    "posts",
+    "0005-mission-house",
+    "mission-house-then-768x512.jpg"
+  )
 )
 const json = { "content-type": "application/json" }
 const jpeg = { "content-type": "image/jpeg" }
 
 // Every visitor has an address of its own, so the per-network limits never mix tests up, even on
 // a server reused between runs.
-const address = () => `test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+const address = () =>
+  `test-${Date.now()}-${Math.random().toString(36).slice(2)}`
 const newKey = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(12)), (x) => x.toString(36).padStart(2, "0")).join("")
+  Array.from(crypto.getRandomValues(new Uint8Array(12)), (x) =>
+    x.toString(36).padStart(2, "0")
+  ).join("")
 
 type Playwright = PlaywrightWorkerArgs["playwright"]
 
 // Someone without a browser: just requests, keeping their own cookies.
-const visitor = (playwright: Playwright, headers: Record<string, string> = {}) =>
+const visitor = (
+  playwright: Playwright,
+  headers: Record<string, string> = {}
+) =>
   playwright.request.newContext({
     baseURL: LOCAL,
     extraHTTPHeaders: { "x-real-ip": address(), ...headers },
@@ -39,23 +56,29 @@ async function device(browser: Browser) {
   const page = await context.newPage()
   const cdp = await context.newCDPSession(page)
   await cdp.send("WebAuthn.enable")
-  const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
-    options: {
-      protocol: "ctap2",
-      transport: "internal",
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
-  })
+  const { authenticatorId } = await cdp.send(
+    "WebAuthn.addVirtualAuthenticator",
+    {
+      options: {
+        protocol: "ctap2",
+        transport: "internal",
+        hasResidentKey: true,
+        hasUserVerification: true,
+        isUserVerified: true,
+        automaticPresenceSimulation: true,
+      },
+    }
+  )
   return {
     context,
     page,
     cdp,
     authenticatorId,
-    passkeys: async () => (await cdp.send("WebAuthn.getCredentials", { authenticatorId })).credentials,
-    cookie: async () => (await context.cookies(LOCAL)).find((c) => c.name === "tn_me")?.value,
+    passkeys: async () =>
+      (await cdp.send("WebAuthn.getCredentials", { authenticatorId }))
+        .credentials,
+    cookie: async () =>
+      (await context.cookies(LOCAL)).find((c) => c.name === "tn_me")?.value,
   }
 }
 
@@ -66,7 +89,10 @@ async function signUp(phone: Awaited<ReturnType<typeof device>>, name: string) {
   await expect(phone.page.getByTestId("me-name-value")).toHaveText(name)
   // The passkey is saved just after the name.
   await expect
-    .poll(async () => (await (await phone.context.request.get("/api/me")).json()).passkey)
+    .poll(
+      async () =>
+        (await (await phone.context.request.get("/api/me")).json()).passkey
+    )
     .toBe(true)
 }
 
@@ -90,15 +116,28 @@ test("a name is kept with the browser that gave it, and can be changed and remov
     headers: json,
   })
   expect(saved.status()).toBe(200)
-  expect(await saved.json()).toEqual({ name: "Test Contributor", passkey: false })
+  expect(await saved.json()).toEqual({
+    name: "Test Contributor",
+    passkey: false,
+  })
   expect((await (await a.get("/api/me")).json()).name).toBe("Test Contributor")
 
   // Another browser has no name, and giving it one leaves the first alone.
   expect((await (await b.get("/api/me")).json()).name).toBeNull()
-  expect((await b.post("/api/me", { data: JSON.stringify({ name: "Someone Else" }), headers: json })).status()).toBe(200)
+  expect(
+    (
+      await b.post("/api/me", {
+        data: JSON.stringify({ name: "Someone Else" }),
+        headers: json,
+      })
+    ).status()
+  ).toBe(200)
   expect((await (await a.get("/api/me")).json()).name).toBe("Test Contributor")
 
-  const changed = await a.post("/api/me", { data: JSON.stringify({ name: "T Contributor" }), headers: json })
+  const changed = await a.post("/api/me", {
+    data: JSON.stringify({ name: "T Contributor" }),
+    headers: json,
+  })
   expect((await changed.json()).name).toBe("T Contributor")
   expect((await a.delete("/api/me")).status()).toBe(200)
   expect((await (await a.get("/api/me")).json()).name).toBeNull()
@@ -123,19 +162,25 @@ test("a sent photo is filed under its sender, shown to no one else, and a retry 
   expect(own.status()).toBe(200)
   expect(own.headers()["content-type"]).toBe("image/jpeg")
   expect((await own.body()).length).toBeLessThan(150_000)
-  expect((await b.get(`/api/me/photo?place=${PLACE}&key=${key}`)).status()).toBe(404)
+  expect(
+    (await b.get(`/api/me/photo?place=${PLACE}&key=${key}`)).status()
+  ).toBe(404)
 
   expect(await (await a.get("/me")).text()).toContain(`key=${key}`)
   expect(await (await b.get("/me")).text()).toContain("will appear here")
 
   // Sending the same photo again is answered at once.
-  expect((await a.post(send, { data: PHOTO, headers: jpeg })).status()).toBe(200)
+  expect((await a.post(send, { data: PHOTO, headers: jpeg })).status()).toBe(
+    200
+  )
   // A phone that lost its cookie and tries again is given a new one, and its own copy.
   const c = await visitor(playwright)
   const again = await c.post(send, { data: PHOTO, headers: jpeg })
   expect(again.status()).toBe(200)
   expect(again.headers()["set-cookie"]).toContain("tn_me=")
-  expect((await c.get(`/api/me/photo?place=${PLACE}&key=${key}`)).status()).toBe(200)
+  expect(
+    (await c.get(`/api/me/photo?place=${PLACE}&key=${key}`)).status()
+  ).toBe(200)
 })
 
 test("signing up saves a passkey, and signing in with it on a second phone brings that phone's photos along", async ({
@@ -146,7 +191,9 @@ test("signing up saves a passkey, and signing in with it on a second phone bring
   await signUp(a, "Passkey Tester")
   const [passkey] = await a.passkeys()
   expect(passkey.isResidentCredential).toBe(true)
-  expect(Buffer.from(passkey.userHandle!, "base64").toString()).toBe(await a.cookie())
+  expect(Buffer.from(passkey.userHandle!, "base64").toString()).toBe(
+    await a.cookie()
+  )
 
   // A second phone sends a photo on its own, without signing up.
   const b = await device(browser)
@@ -156,17 +203,23 @@ test("signing up saves a passkey, and signing in with it on a second phone bring
   expect(before).toBeTruthy()
   expect(before).not.toBe(await a.cookie())
   const key = newKey()
-  const sent = await b.context.request.post(`/api/submit?place=${PLACE}&key=${key}&checked=0`, {
-    data: PHOTO,
-    headers: jpeg,
-  })
+  const sent = await b.context.request.post(
+    `/api/submit?place=${PLACE}&key=${key}&checked=0`,
+    {
+      data: PHOTO,
+      headers: jpeg,
+    }
+  )
   expect(sent.status()).toBe(200)
   await b.page.goto("/me")
   await expect(b.page.getByTestId("me-photo")).toHaveCount(1)
   await expect(b.page.getByTestId("me-name-save")).toHaveText("Sign up")
 
   // The same person signs in there: their passkey has synced to the second phone.
-  await b.cdp.send("WebAuthn.addCredential", { authenticatorId: b.authenticatorId, credential: passkey })
+  await b.cdp.send("WebAuthn.addCredential", {
+    authenticatorId: b.authenticatorId,
+    credential: passkey,
+  })
   await b.page.getByTestId("me-sign-in").click()
   await expect(b.page.getByTestId("me-name-value")).toHaveText("Passkey Tester")
   expect(await b.cookie()).toBe(await a.cookie())
@@ -183,7 +236,11 @@ test("signing up saves a passkey, and signing in with it on a second phone bring
 
   // Someone with no passkey can't sign in.
   const stranger = await visitor(playwright)
-  expect((await stranger.post("/api/me/signin", { data: "{}", headers: json })).status()).toBe(401)
+  expect(
+    (
+      await stranger.post("/api/me/signin", { data: "{}", headers: json })
+    ).status()
+  ).toBe(401)
 })
 
 test("a passkey stays with the person who saved it, whoever else claims it", async ({
@@ -193,7 +250,8 @@ test("a passkey stays with the person who saved it, whoever else claims it", asy
   const a = await device(browser)
   // Keep what the first phone sends when it saves its passkey.
   const saving = a.page.waitForRequest(
-    (request) => request.url().endsWith("/api/me/passkey") && request.method() === "POST"
+    (request) =>
+      request.url().endsWith("/api/me/passkey") && request.method() === "POST"
   )
   await signUp(a, "First Owner")
   const real = JSON.parse((await saving).postData()!)
@@ -217,7 +275,10 @@ test("a passkey stays with the person who saved it, whoever else claims it", asy
     })
   ).toString("base64url")
   const claim = await other.post("/api/me/passkey", {
-    data: JSON.stringify({ ...real, response: { ...real.response, clientDataJSON } }),
+    data: JSON.stringify({
+      ...real,
+      response: { ...real.response, clientDataJSON },
+    }),
     headers: json,
   })
   expect(claim.status()).toBe(400)
@@ -225,7 +286,10 @@ test("a passkey stays with the person who saved it, whoever else claims it", asy
   // The first owner can still sign in with it on a new phone.
   const c = await device(browser)
   await c.page.goto("/me")
-  await c.cdp.send("WebAuthn.addCredential", { authenticatorId: c.authenticatorId, credential: passkey })
+  await c.cdp.send("WebAuthn.addCredential", {
+    authenticatorId: c.authenticatorId,
+    credential: passkey,
+  })
   await c.page.getByTestId("me-sign-in").click()
   await expect(c.page.getByTestId("me-name-value")).toHaveText("First Owner")
 })
@@ -253,10 +317,16 @@ test("signing in brings along every photo a phone has sent, however many", async
   for (let sent = 0; sent < MANY; sent += 20) {
     const answers = await Promise.all(
       Array.from({ length: Math.min(20, MANY - sent) }, () =>
-        b.context.request.post(`/api/submit?place=${PLACE}&key=${newKey()}&checked=0`, {
-          data: tiny,
-          headers: { ...jpeg, "x-real-ip": `many-${Date.now()}-${Math.random()}` },
-        })
+        b.context.request.post(
+          `/api/submit?place=${PLACE}&key=${newKey()}&checked=0`,
+          {
+            data: tiny,
+            headers: {
+              ...jpeg,
+              "x-real-ip": `many-${Date.now()}-${Math.random()}`,
+            },
+          }
+        )
       )
     )
     for (const answer of answers) expect(answer.status()).toBe(200)
@@ -264,9 +334,14 @@ test("signing in brings along every photo a phone has sent, however many", async
   await b.page.goto("/me")
   await expect(b.page.getByTestId("me-photo")).toHaveCount(MANY)
 
-  await b.cdp.send("WebAuthn.addCredential", { authenticatorId: b.authenticatorId, credential: passkey })
+  await b.cdp.send("WebAuthn.addCredential", {
+    authenticatorId: b.authenticatorId,
+    credential: passkey,
+  })
   await b.page.getByTestId("me-sign-in").click()
-  await expect(b.page.getByTestId("me-name-value")).toHaveText("Many Photos", { timeout: 30_000 })
+  await expect(b.page.getByTestId("me-name-value")).toHaveText("Many Photos", {
+    timeout: 30_000,
+  })
   await expect(b.page.getByTestId("me-photo")).toHaveCount(MANY)
 
   // Nothing is left behind under the cookie the phone had before.
@@ -274,14 +349,21 @@ test("signing in brings along every photo a phone has sent, however many", async
   expect(await (await old.get("/me")).text()).toContain("will appear here")
 })
 
-test("an answer to a question the site never asked is refused", async ({ browser, playwright }) => {
+test("an answer to a question the site never asked is refused", async ({
+  browser,
+  playwright,
+}) => {
   const a = await device(browser)
   await signUp(a, "Asked First")
   // The phone's passkey answers a question made up on the spot.
   const made = await a.page.evaluate(async () => {
     const challenge = crypto.getRandomValues(new Uint8Array(32))
     const credential = (await navigator.credentials.get({
-      publicKey: { challenge, rpId: location.hostname, userVerification: "preferred" },
+      publicKey: {
+        challenge,
+        rpId: location.hostname,
+        userVerification: "preferred",
+      },
     })) as PublicKeyCredential
     const text = btoa(String.fromCharCode(...challenge))
       .replace(/\+/g, "-")
@@ -289,7 +371,9 @@ test("an answer to a question the site never asked is refused", async ({ browser
       .replace(/=+$/, "")
     return { answer: credential.toJSON(), challenge: text }
   })
-  const stranger = await visitor(playwright, { cookie: `tn_ch=${made.challenge}` })
+  const stranger = await visitor(playwright, {
+    cookie: `tn_ch=${made.challenge}`,
+  })
   const response = await stranger.post("/api/me/signin", {
     data: JSON.stringify(made.answer),
     headers: json,
@@ -308,9 +392,13 @@ test("a passkey's answer signs in once, and a copy that has fallen behind is ref
 
   const b = await device(browser)
   await b.page.goto("/me")
-  await b.cdp.send("WebAuthn.addCredential", { authenticatorId: b.authenticatorId, credential: passkey })
+  await b.cdp.send("WebAuthn.addCredential", {
+    authenticatorId: b.authenticatorId,
+    credential: passkey,
+  })
   const answering = b.page.waitForRequest(
-    (request) => request.url().endsWith("/api/me/signin") && request.method() === "POST"
+    (request) =>
+      request.url().endsWith("/api/me/signin") && request.method() === "POST"
   )
   await b.page.getByTestId("me-sign-in").click()
   const answer = (await answering).postData()!
@@ -318,10 +406,16 @@ test("a passkey's answer signs in once, and a copy that has fallen behind is ref
 
   // Someone who overheard that answer, and the question it was for, can't use them again.
   const question = JSON.parse(
-    Buffer.from(JSON.parse(answer).response.clientDataJSON, "base64url").toString()
+    Buffer.from(
+      JSON.parse(answer).response.clientDataJSON,
+      "base64url"
+    ).toString()
   ).challenge
   const listener = await visitor(playwright, { cookie: `tn_ch=${question}` })
-  const replay = await listener.post("/api/me/signin", { data: answer, headers: json })
+  const replay = await listener.post("/api/me/signin", {
+    data: answer,
+    headers: json,
+  })
   expect(replay.status()).toBe(401)
 
   // The same phone can sign in again later: its passkey's count has moved on.
@@ -333,7 +427,12 @@ test("a passkey's answer signs in once, and a copy that has fallen behind is ref
   // A copy made before those two sign-ins has a count that is now behind, and is refused.
   const c = await device(browser)
   await c.page.goto("/me")
-  await c.cdp.send("WebAuthn.addCredential", { authenticatorId: c.authenticatorId, credential: passkey })
+  await c.cdp.send("WebAuthn.addCredential", {
+    authenticatorId: c.authenticatorId,
+    credential: passkey,
+  })
   await c.page.getByTestId("me-sign-in").click()
-  await expect(c.page.getByTestId("me-name-note")).toHaveText("Not signed in. Please try again.")
+  await expect(c.page.getByTestId("me-name-note")).toHaveText(
+    "Not signed in. Please try again."
+  )
 })

@@ -22,12 +22,16 @@ for (const name of readdirSync(folder).sort()) {
     expect(place.slug).toMatch(/^[a-z0-9-]+$/)
     expect(Number.isInteger(place.w) && place.w > 0).toBe(true)
     expect(Number.isInteger(place.h) && place.h > 0).toBe(true)
-    const images = [place.b_imageUrl, place.a_imageUrl, place.ba_imageUrl].filter(
-      (url): url is string => typeof url === "string"
-    )
+    const images = [
+      place.b_imageUrl,
+      place.a_imageUrl,
+      place.ba_imageUrl,
+    ].filter((url): url is string => typeof url === "string")
     expect(images.length).toBeGreaterThan(0)
     for (const url of images) {
-      const meta = await sharp(path.join(process.cwd(), "public", url)).metadata()
+      const meta = await sharp(
+        path.join(process.cwd(), "public", url)
+      ).metadata()
       if (KNOWN_ODD.has(url)) continue
       expect({ url, w: meta.width, h: meta.height }).toEqual({
         url,

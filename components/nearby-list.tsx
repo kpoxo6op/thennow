@@ -19,7 +19,9 @@ export function NearbyList({ items }: { items: Nearby[] }) {
             className="flex items-baseline justify-between gap-4 py-3 text-lg leading-snug transition-colors hover:text-accent"
           >
             <span className="min-w-0">{item.name}</span>
-            <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{distance(item.km)}</span>
+            <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+              {distance(item.km)}
+            </span>
           </Link>
         </li>
       ))}

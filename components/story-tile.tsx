@@ -1,4 +1,5 @@
 import type { StorySummary } from "@/interfaces/post"
+
 import { STORY_TRIM } from "@/lib/places"
 import { SeamTile } from "@/components/seam-tile"
 

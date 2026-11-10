@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto"
+
 import { del, get, hasStore, list, put, rename } from "@/lib/store"
 
 // The people who send photos. A browser gets a random cookie the first time it reaches the
@@ -47,18 +48,29 @@ export const photosPrefix = (id: string) => `people/${id}/`
 export const photoPath = (id: string, place: string, key: string) =>
   `people/${id}/${place}/${key}.jpg`
 
-export type Profile = { name: string; createdAt: string; updatedAt: string; passkey?: true }
+export type Profile = {
+  name: string
+  createdAt: string
+  updatedAt: string
+  passkey?: true
+}
 
 // No profile is null; a store that can't be reached throws, so it isn't mistaken for no name.
 export async function readProfile(id: string): Promise<Profile | null> {
   if (!hasStore()) return null
-  const found = await get(profilePath(id), { access: "private", useCache: false })
+  const found = await get(profilePath(id), {
+    access: "private",
+    useCache: false,
+  })
   if (!found || found.statusCode !== 200) return null
   const profile = JSON.parse(await new Response(found.stream).text())
   return typeof profile?.name === "string" && profile.name ? profile : null
 }
 
-export async function writeProfile(id: string, change: { name?: string; passkey?: true }) {
+export async function writeProfile(
+  id: string,
+  change: { name?: string; passkey?: true }
+) {
   const now = new Date().toISOString()
   const before = await readProfile(id)
   const name = change.name ?? before?.name
@@ -66,7 +78,12 @@ export async function writeProfile(id: string, change: { name?: string; passkey?
   const passkey = change.passkey ?? before?.passkey
   await put(
     profilePath(id),
-    JSON.stringify({ name, createdAt: before?.createdAt ?? now, updatedAt: now, passkey }),
+    JSON.stringify({
+      name,
+      createdAt: before?.createdAt ?? now,
+      updatedAt: now,
+      passkey,
+    }),
     {
       access: "private",
       contentType: "application/json",
@@ -83,11 +100,23 @@ export async function removeProfile(id: string) {
   await del(profilePath(id))
 }
 
-const PRIVATE = { access: "private", addRandomSuffix: false, allowOverwrite: true } as const
+const PRIVATE = {
+  access: "private",
+  addRandomSuffix: false,
+  allowOverwrite: true,
+} as const
 
 // Files a small copy of a stored photo under the person who sent it.
-export function filePhoto(id: string, place: string, key: string, small: Buffer) {
-  return put(photoPath(id, place, key), small, { ...PRIVATE, contentType: "image/jpeg" })
+export function filePhoto(
+  id: string,
+  place: string,
+  key: string,
+  small: Buffer
+) {
+  return put(photoPath(id, place, key), small, {
+    ...PRIVATE,
+    contentType: "image/jpeg",
+  })
 }
 
 // Points a stored photo's note at the person it now belongs to.
@@ -141,7 +170,11 @@ const HIDDEN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu
 // text, at most 60 characters. Empty means no name.
 export function cleanName(raw: unknown): string | null {
   if (typeof raw !== "string") return null
-  const name = raw.normalize("NFC").replace(HIDDEN, "").replace(/\s+/g, " ").trim()
+  const name = raw
+    .normalize("NFC")
+    .replace(HIDDEN, "")
+    .replace(/\s+/g, " ")
+    .trim()
   if (!name || [...name].length > 60) return null
   return name
 }
