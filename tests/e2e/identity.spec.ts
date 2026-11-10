@@ -186,6 +186,50 @@ test("signing up saves a passkey, and signing in with it on a second phone bring
   expect((await stranger.post("/api/me/signin", { data: "{}", headers: json })).status()).toBe(401)
 })
 
+test("a passkey stays with the person who saved it, whoever else claims it", async ({
+  browser,
+  playwright,
+}) => {
+  const a = await device(browser)
+  // Keep what the first phone sends when it saves its passkey.
+  const saving = a.page.waitForRequest(
+    (request) => request.url().endsWith("/api/me/passkey") && request.method() === "POST"
+  )
+  await signUp(a, "First Owner")
+  const real = JSON.parse((await saving).postData()!)
+  const [passkey] = await a.passkeys()
+
+  // Someone else signs up, then claims that same passkey. A sign-up isn't signed by the passkey,
+  // so they only need to swap in the question they themselves were asked.
+  const other = await visitor(playwright)
+  const named = await other.post("/api/me", {
+    data: JSON.stringify({ name: "Someone Else" }),
+    headers: json,
+  })
+  expect(named.status()).toBe(200)
+  const asked = await (await other.get("/api/me/passkey")).json()
+  const clientDataJSON = Buffer.from(
+    JSON.stringify({
+      type: "webauthn.create",
+      challenge: asked.challenge,
+      origin: LOCAL,
+      crossOrigin: false,
+    })
+  ).toString("base64url")
+  const claim = await other.post("/api/me/passkey", {
+    data: JSON.stringify({ ...real, response: { ...real.response, clientDataJSON } }),
+    headers: json,
+  })
+  expect(claim.status()).toBe(400)
+
+  // The first owner can still sign in with it on a new phone.
+  const c = await device(browser)
+  await c.page.goto("/me")
+  await c.cdp.send("WebAuthn.addCredential", { authenticatorId: c.authenticatorId, credential: passkey })
+  await c.page.getByTestId("me-sign-in").click()
+  await expect(c.page.getByTestId("me-name-value")).toHaveText("First Owner")
+})
+
 test("signing in brings along every photo a phone has sent, however many", async ({
   browser,
   playwright,

@@ -72,7 +72,16 @@ export async function finishSignUp(request: Request, cookie: string, response: R
     counter: credential.counter,
     transports: credential.transports,
   }
-  await put(keyPath(credential.id), JSON.stringify(stored), {
+  const path = keyPath(credential.id)
+  // A passkey already stored stays with the person who saved it. A sign-up isn't signed by the
+  // passkey it names, so without this, anyone who learned a passkey's id could take its record
+  // and lock its owner out.
+  const kept = await get(path, { access: "private", useCache: false })
+  if (kept && kept.statusCode === 200) {
+    const owner: Stored = JSON.parse(await new Response(kept.stream).text())
+    if (owner.id !== stored.id) return false
+  }
+  await put(path, JSON.stringify(stored), {
     access: "private",
     contentType: "application/json",
     addRandomSuffix: false,
