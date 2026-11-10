@@ -14,6 +14,8 @@ export default defineConfig({
   webServer: {
     command: `corepack pnpm build && corepack pnpm start --hostname 127.0.0.1 --port ${PORT}`,
     url: baseURL,
+    // The server the tests start keeps its photo store in memory (lib/store.ts).
+    env: { TN_FAKE_STORE: "1" },
     reuseExistingServer: true,
     stdout: "pipe",
     stderr: "pipe",

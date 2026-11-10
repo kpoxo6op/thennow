@@ -1,6 +1,5 @@
-import { get } from "@vercel/blob"
-
 import { personId, photoPath, readCookie } from "@/lib/people"
+import { get, hasStore } from "@/lib/store"
 
 // A small copy of one of this phone's own photos, for its Your photos page. Another phone's
 // photos aren't found, because the folder comes from the asking phone's own cookie.
@@ -18,7 +17,7 @@ export async function GET(request: Request) {
   const key = url.searchParams.get("key") ?? ""
   if (!cookie || !/^[a-z0-9-]{1,80}$/.test(place) || !/^[a-z0-9]{12,40}$/.test(key))
     return missing()
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return missing()
+  if (!hasStore()) return missing()
   try {
     const found = await get(photoPath(personId(cookie), place, key), {
       access: "private",

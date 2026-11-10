@@ -10,6 +10,7 @@ import {
   removeProfile,
   writeProfile,
 } from "@/lib/people"
+import { hasStore, memoryStore } from "@/lib/store"
 
 // The name, if any, that goes with this browser's photos. The camera's review asks first, which
 // is also when a browser gets its cookie, so even a first photo is sent already linked to it.
@@ -31,6 +32,8 @@ function answer(
     headers: {
       "cache-control": "private, no-store",
       "set-cookie": cookieHeader(cookie, isSecure(request)),
+      // Only the test suite's server says this; its tests check it before writing anything.
+      ...(memoryStore ? { "x-tn-store": "memory" } : {}),
     },
   })
 }
@@ -55,7 +58,7 @@ export async function POST(request: Request) {
     name = cleanName(JSON.parse(text)?.name)
   } catch {}
   if (!name) return Response.json({ error: "bad name" }, { status: 400 })
-  if (!process.env.BLOB_READ_WRITE_TOKEN)
+  if (!hasStore())
     return Response.json({ error: "no store" }, { status: 503 })
   if (!allowed(request)) return Response.json({ error: "slow down" }, { status: 429 })
   const id = personId(cookie)
@@ -71,7 +74,7 @@ export async function DELETE(request: Request) {
   if (!sameSite(request)) return Response.json({ error: "forbidden" }, { status: 403 })
   const cookie = readCookie(request)
   if (!cookie) return Response.json({ name: null })
-  if (!process.env.BLOB_READ_WRITE_TOKEN)
+  if (!hasStore())
     return Response.json({ error: "no store" }, { status: 503 })
   try {
     await removeProfile(personId(cookie))

@@ -752,13 +752,17 @@ test.describe("the rephotography camera", () => {
     expect((await post(`place=mission-house&key=${key}`, jpeg)).status()).toBe(
       415
     )
-    // A real photograph passes every check and reaches the store, which tests run without.
+    // A real photograph passes every check and is stored.
     const real = readFileSync(
       path.join(process.cwd(), "public", archive("mission-house").b_imageUrl)
     )
-    expect((await post(`place=mission-house&key=${key}`, real)).status()).toBe(
-      503
-    )
+    expect(
+      (
+        await post(`place=mission-house&key=${key}`, real, {
+          "x-real-ip": `test-${Date.now()}-${Math.random()}`,
+        })
+      ).status()
+    ).toBe(200)
   })
 
   test("one network can only knock on the photo store so often, whatever it sends", async ({

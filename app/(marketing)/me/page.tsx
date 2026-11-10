@@ -1,10 +1,10 @@
 import { Metadata } from "next"
 import { cookies } from "next/headers"
 import Link from "next/link"
-import { list } from "@vercel/blob"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
 import { COOKIE, personId, photosPrefix, readProfile } from "@/lib/people"
+import { hasStore, list } from "@/lib/store"
 import { MeName } from "@/components/me-name"
 import { MeRenew } from "@/components/me-renew"
 
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 type Photo = { place: string; key: string; name: string; sentAt: Date }
 
 async function photosOf(id: string, names: Map<string, string>) {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return []
+  if (!hasStore()) return []
   const photos: Photo[] = []
   let cursor: string | undefined
   do {

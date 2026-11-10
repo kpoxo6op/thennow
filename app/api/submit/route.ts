@@ -1,4 +1,3 @@
-import { head, put } from "@vercel/blob"
 import sharp from "sharp"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
@@ -13,6 +12,7 @@ import {
   photoPath,
   readCookie,
 } from "@/lib/people"
+import { hasStore, head, put } from "@/lib/store"
 
 // Receives a photograph taken with the site's camera at one of its places and keeps it in the
 // site's private photo store, where only the site's owner can see it. Nothing is published from
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
   if (!cleaned) return answer(415, "not a jpeg")
   const { photo, small } = cleaned
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return answer(503, "no store")
+  if (!hasStore()) return answer(503, "no store")
   // The review gives the phone its cookie before the send; one is made here only if that failed.
   const known = readCookie(request)
   const cookie = known ?? newCookie()

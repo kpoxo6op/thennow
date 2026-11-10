@@ -1,5 +1,4 @@
 import { createHash } from "crypto"
-import { get, put } from "@vercel/blob"
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -10,6 +9,7 @@ import {
 } from "@simplewebauthn/server"
 
 import { personId, VALID } from "@/lib/people"
+import { get, put } from "@/lib/store"
 
 // Signing up saves a passkey on the person's phone, which their phone keeps with its screen lock
 // and carries to their other devices. The passkey holds the browser's cookie itself, so signing in

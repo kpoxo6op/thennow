@@ -1,8 +1,7 @@
 import { expect, test } from "@playwright/test"
 
-// Your photos: sign up with a name at any time, sign in elsewhere with the passkey. Tests run
-// without the photo store, so they cover what a new visitor sees and what the site refuses; the
-// whole flow is checked against a deployment with scripts/claim-check.mjs.
+// Your photos: what a new visitor sees and what the site refuses. The whole flow, with the
+// store, is in identity.spec.ts; scripts/claim-check.mjs checks it against a real deployment.
 
 const COOKIE = "abcdefghijklmnopqrstuvwxyz012345"
 
@@ -110,23 +109,27 @@ test("asking for the name gives a cookie once and keeps it, and replaces a broke
 test("a name is taken only from the site, and only a real name", async ({
   request,
 }) => {
+  // Its own address, so the sign-up limit is never shared with another test or an earlier run.
+  const address = `test-${Date.now()}-${Math.random()}`
   const post = (data: unknown, headers: Record<string, string> = {}) =>
     request.post("/api/me", {
       data: JSON.stringify(data),
-      headers: { "content-type": "application/json", ...headers },
+      headers: { "content-type": "application/json", "x-real-ip": address, ...headers },
     })
   const withCookie = { cookie: `tn_me=${COOKIE}` }
   expect(
     (await post({ name: "Margaret" }, { ...withCookie, "sec-fetch-site": "cross-site" })).status()
   ).toBe(403)
-  // No photo and no cookie are needed to sign up: the name reaches the store, which tests lack.
-  expect((await post({ name: "Margaret" })).status()).toBe(503)
+  // No photo and no cookie are needed to sign up.
+  expect((await post({ name: "Margaret" })).status()).toBe(200)
   expect((await post({ name: "   " }, withCookie)).status()).toBe(400)
   expect((await post({ name: "‮​" }, withCookie)).status()).toBe(400)
   expect((await post({ name: "x".repeat(61) }, withCookie)).status()).toBe(400)
   expect((await post({ name: 42 }, withCookie)).status()).toBe(400)
-  // A good name passes every check and reaches the store, which tests run without.
-  expect((await post({ name: "Margaret" }, withCookie)).status()).toBe(503)
+  // A good name passes every check and is saved.
+  const saved = await post({ name: "Margaret" }, withCookie)
+  expect(saved.status()).toBe(200)
+  expect(await saved.json()).toEqual({ name: "Margaret", passkey: false })
 })
 
 test("a photo is never shown without a cookie, or for a made-up place", async ({ request }) => {
@@ -158,6 +161,6 @@ test("a passkey is only for someone signed up, and signing in needs a real passk
   expect(
     (await request.post("/api/me/signin", { data: "{}", headers: { "sec-fetch-site": "cross-site" } })).status()
   ).toBe(403)
-  // Anything else reaches the store, which tests run without.
-  expect((await request.post("/api/me/signin", { data: "{}" })).status()).toBe(503)
+  // Anything that isn't a passkey's answer is refused.
+  expect((await request.post("/api/me/signin", { data: "{}" })).status()).toBe(401)
 })
