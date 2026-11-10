@@ -1,6 +1,7 @@
 import { readFileSync } from "fs"
 import path from "path"
 import { expect, test, type Browser, type PlaywrightWorkerArgs } from "@playwright/test"
+import sharp from "sharp"
 
 // Names, photos and passkeys from end to end, against the store the test server keeps in memory
 // (lib/store). A passkey needs a site with a name, so these tests use localhost, not the
@@ -227,4 +228,48 @@ test("a passkey stays with the person who saved it, whoever else claims it", asy
   await c.cdp.send("WebAuthn.addCredential", { authenticatorId: c.authenticatorId, credential: passkey })
   await c.page.getByTestId("me-sign-in").click()
   await expect(c.page.getByTestId("me-name-value")).toHaveText("First Owner")
+})
+
+test("signing in brings along every photo a phone has sent, however many", async ({
+  browser,
+  playwright,
+}) => {
+  test.setTimeout(120_000)
+  const MANY = 205
+  const a = await device(browser)
+  await signUp(a, "Many Photos")
+  const [passkey] = await a.passkeys()
+
+  const b = await device(browser)
+  await b.page.goto("/me")
+  await b.context.request.get("/api/me")
+  const before = await b.cookie()
+  const tiny = await sharp({
+    create: { width: 64, height: 48, channels: 3, background: "#7a8f6a" },
+  })
+    .jpeg()
+    .toBuffer()
+  // Twenty at a time, each from an address of its own: the photo limit is per network.
+  for (let sent = 0; sent < MANY; sent += 20) {
+    const answers = await Promise.all(
+      Array.from({ length: Math.min(20, MANY - sent) }, () =>
+        b.context.request.post(`/api/submit?place=${PLACE}&key=${newKey()}&checked=0`, {
+          data: tiny,
+          headers: { ...jpeg, "x-real-ip": `many-${Date.now()}-${Math.random()}` },
+        })
+      )
+    )
+    for (const answer of answers) expect(answer.status()).toBe(200)
+  }
+  await b.page.goto("/me")
+  await expect(b.page.getByTestId("me-photo")).toHaveCount(MANY)
+
+  await b.cdp.send("WebAuthn.addCredential", { authenticatorId: b.authenticatorId, credential: passkey })
+  await b.page.getByTestId("me-sign-in").click()
+  await expect(b.page.getByTestId("me-name-value")).toHaveText("Many Photos", { timeout: 30_000 })
+  await expect(b.page.getByTestId("me-photo")).toHaveCount(MANY)
+
+  // Nothing is left behind under the cookie the phone had before.
+  const old = await visitor(playwright, { cookie: `tn_me=${before}` })
+  expect(await (await old.get("/me")).text()).toContain("will appear here")
 })
