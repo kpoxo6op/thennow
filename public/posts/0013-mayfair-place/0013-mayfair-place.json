@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Mayfair Place, Glen Innes",
+  "slug": "mayfair-place",
+  "description": "Matt Elliott photographed the square in 2018. Stand on the paving by the benches and face the row of shops across the square. Use the flying birds high on the left and the roofline below them to match the frame.",
+  "b_imageUrl": "/posts/0013-mayfair-place/then-mayfair-place.jpg",
+  "w": 2000,
+  "h": 1333,
+  "location": {
+    "lat": -36.87828,
+    "lng": 174.85536
+  },
+  "archive": {
+    "date": "8 August 2018",
+    "photographer": "Matt Elliott",
+    "credit": "Auckland Libraries Heritage Collections 1385-1219",
+    "rights": "Creative Commons Licence: Attribution CC BY",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/284851",
+    "sourceId": "1385-1219"
+  },
+  "area": "Auckland"
+}

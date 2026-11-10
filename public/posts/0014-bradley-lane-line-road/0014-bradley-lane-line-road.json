@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Bradley Lane at Line Road, Glen Innes",
+  "slug": "bradley-lane-line-road",
+  "description": "In 2018 the mural marked the mouth of Bradley Lane. From the Line Road footpath just south of the lane, look north along the shops. Keep the corner wall on the left and follow the awning towards the right edge of the frame.",
+  "b_imageUrl": "/posts/0014-bradley-lane-line-road/then-bradley-lane-line-road.jpg",
+  "w": 2000,
+  "h": 1333,
+  "location": {
+    "lat": -36.87872,
+    "lng": 174.85657
+  },
+  "archive": {
+    "date": "8 August 2018",
+    "photographer": "Matt Elliott",
+    "credit": "Auckland Libraries Heritage Collections 1385-1229",
+    "rights": "Creative Commons Licence: Attribution CC BY",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/284870",
+    "sourceId": "1385-1229"
+  },
+  "area": "Auckland"
+}
