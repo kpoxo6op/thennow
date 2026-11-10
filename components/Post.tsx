@@ -19,6 +19,9 @@ const DEFAULT_POSITION = 50
 const ALL_THEN = 100
 const ALL_NOW = 0
 const GLIDE_MS = 520
+// The address follows the line once it has rested this long. Safari refuses more than 100
+// changes to the address in 30 seconds, and a drag would make hundreds.
+const ADDRESS_REST_MS = 120
 // Past this a title wraps at desktop size, and the photograph gives it room in the first screen.
 const LONG_TITLE = 56
 
@@ -179,21 +182,30 @@ export default function Post({ post, nearby }: PostProps) {
       return
     }
 
-    const url = new URL(window.location.href)
-    const roundedPosition = Math.round(position)
+    const resting = window.setTimeout(() => {
+      const url = new URL(window.location.href)
+      const roundedPosition = Math.round(position)
 
-    if (roundedPosition === DEFAULT_POSITION) {
-      url.searchParams.delete("p")
-    } else {
-      url.searchParams.set("p", String(roundedPosition))
-    }
+      if (roundedPosition === DEFAULT_POSITION) {
+        url.searchParams.delete("p")
+      } else {
+        url.searchParams.set("p", String(roundedPosition))
+      }
 
-    const nextUrl = `${url.pathname}${url.search}${url.hash}`
-    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+      const nextUrl = `${url.pathname}${url.search}${url.hash}`
+      const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
 
-    if (nextUrl !== currentUrl) {
-      window.history.replaceState(null, "", nextUrl)
-    }
+      if (nextUrl !== currentUrl) {
+        try {
+          window.history.replaceState(null, "", nextUrl)
+        } catch {
+          // The address is a convenience: a browser that refuses to change it must not stop the comparison.
+        }
+      }
+    }, ADDRESS_REST_MS)
+
+    // The line moved again, or the page is being left: that position is never written.
+    return () => window.clearTimeout(resting)
   }, [position])
 
   const sections = toSections(post.description)

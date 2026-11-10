@@ -217,7 +217,7 @@ test("the photograph itself drags, and a click sets the line", async ({ page }) 
   await page.mouse.up()
   const dragged = Number(await page.getByTestId("compare-slider-input").inputValue())
   expect(dragged).toBeGreaterThan(60)
-  expect(page.url()).toContain(`p=${dragged}`)
+  await expect(page).toHaveURL(new RegExp(`p=${dragged}$`))
 
   await page.mouse.click(box.x + box.width * 0.5, y)
   await expect(page.getByTestId("compare-slider-input")).toHaveValue("50")
