@@ -14,7 +14,7 @@
           }
       }
   },
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:0-20",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "forwardPorts": [
       3000
   ],
