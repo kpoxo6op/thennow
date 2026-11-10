@@ -103,23 +103,36 @@ export async function followPhoto(place: string, key: string, id: string) {
   })
 }
 
-// Signing in on a browser that has already sent photos: they join the person's others. The note
-// moves first, so a move that stops half-way is finished by signing in again.
+// Signing in on a browser that has already sent photos: they all join the person's others, a few
+// at a time. The whole list is read before anything moves, so moving can't unsettle the listing.
+// Each note moves before its photo, so a move that stops half-way is finished by signing in again.
+const MOVED_AT_ONCE = 10
+
 export async function movePhotos(from: string, to: string) {
   if (from === to) return
-  const { blobs } = await list({ prefix: photosPrefix(from), limit: 200 })
-  await Promise.all(
-    blobs.map(async (blob) => {
-      const [place, file] = blob.pathname.slice(photosPrefix(from).length).split("/")
-      const key = file?.replace(/\.jpg$/, "")
-      if (!place || !key) return
-      await followPhoto(place, key, to)
-      await rename(blob.pathname, photoPath(to, place, key), {
-        ...PRIVATE,
-        contentType: "image/jpeg",
+  const prefix = photosPrefix(from)
+  const found: string[] = []
+  let cursor: string | undefined
+  do {
+    const page = await list({ prefix, cursor, limit: 1000 })
+    found.push(...page.blobs.map((blob) => blob.pathname))
+    cursor = page.hasMore ? page.cursor : undefined
+  } while (cursor)
+
+  for (let start = 0; start < found.length; start += MOVED_AT_ONCE) {
+    await Promise.all(
+      found.slice(start, start + MOVED_AT_ONCE).map(async (pathname) => {
+        const [place, file] = pathname.slice(prefix.length).split("/")
+        const key = file?.replace(/\.jpg$/, "")
+        if (!place || !key) return
+        await followPhoto(place, key, to)
+        await rename(pathname, photoPath(to, place, key), {
+          ...PRIVATE,
+          contentType: "image/jpeg",
+        })
       })
-    })
-  )
+    )
+  }
 }
 
 const HIDDEN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu
