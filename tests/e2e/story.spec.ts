@@ -3,6 +3,16 @@ import path from "path"
 
 import { expect, test, type CDPSession, type Page } from "@playwright/test"
 
+// The map library's own file can't be fetched: a weak signal, or a page kept open across a release.
+async function withoutMapCode(page: Page) {
+  await page.route("**/_next/static/**/*.js", async (route) => {
+    const response = await route.fetch()
+    const body = await response.text()
+    if (body.includes("maplibregl-ctrl-geolocate")) await route.abort()
+    else await route.fulfill({ response, body })
+  })
+}
+
 test.describe("a story page", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } })
 
@@ -323,6 +333,15 @@ test.describe("a story's own map", () => {
       [failure.x + failure.width / 2, failure.y + failure.height / 2]
     )
     expect(top).toBe("story-map-failure")
+    await expect(page.getByRole("heading", { level: 1 })).toBeAttached()
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("50")
+  })
+
+  test("when the map's own code can't be fetched, the story says so and stays whole", async ({ page }) => {
+    await withoutMapCode(page)
+    await page.goto("/mill-house")
+    await page.getByTestId("story-map").scrollIntoViewIfNeeded()
+    await expect(page.getByTestId("story-map-failure")).toBeVisible()
     await expect(page.getByRole("heading", { level: 1 })).toBeAttached()
     await expect(page.getByTestId("compare-slider-input")).toHaveValue("50")
   })
