@@ -443,7 +443,8 @@ export function RephotoCamera({
   }, [shot, start, stop])
 
   // A picture that stops without the camera saying so (Firefox on Android when another app took
-  // the camera) is noticed by its frames and the camera opened again.
+  // the camera) is noticed by its frames and the camera opened again. Only the live view is watched:
+  // once a shot is taken the camera is meant to be closed.
   useEffect(() => {
     const video = videoRef.current as
       | (HTMLVideoElement & {
@@ -451,7 +452,7 @@ export function RephotoCamera({
           cancelVideoFrameCallback?: (handle: number) => void
         })
       | null
-    if (status !== "live" || !video?.requestVideoFrameCallback) return
+    if (shot || status !== "live" || !video?.requestVideoFrameCallback) return
     let last = performance.now()
     let handle = 0
     const onFrame = () => {
@@ -472,7 +473,7 @@ export function RephotoCamera({
       clearInterval(watch)
       video.cancelVideoFrameCallback?.(handle)
     }
-  }, [status])
+  }, [shot, status])
 
   useEffect(() => {
     const element = stageRef.current
