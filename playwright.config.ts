@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3100;
 const baseURL = `http://127.0.0.1:${PORT}`;
+// In CI the workflow has already built the site, and nothing else may be on the port.
+const CI = !!process.env.CI;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -9,14 +11,16 @@ export default defineConfig({
   retries: 0,
   use: {
     baseURL,
-    trace: "on-first-retry",
+    trace: CI ? "retain-on-failure" : "off",
   },
   webServer: {
-    command: `corepack pnpm build && corepack pnpm start --hostname 127.0.0.1 --port ${PORT}`,
+    command: CI
+      ? `corepack pnpm start --hostname 127.0.0.1 --port ${PORT}`
+      : `corepack pnpm build && corepack pnpm start --hostname 127.0.0.1 --port ${PORT}`,
     url: baseURL,
     // The server the tests start keeps its photo store in memory (lib/store.ts).
     env: { TN_FAKE_STORE: "1" },
-    reuseExistingServer: true,
+    reuseExistingServer: !CI,
     stdout: "pipe",
     stderr: "pipe",
     timeout: 180000,
