@@ -426,6 +426,19 @@ test.describe("the rephotography camera", () => {
     expect((await send({}, '{"event":"open"}')).status()).toBe(204)
   })
 
+  test("one network's camera can only report so often", async ({ request }) => {
+    // Its own address, so no other test (or an earlier run on a reused server) shares the count.
+    const headers = { "x-real-ip": `log-${Date.now()}-${Math.random()}` }
+    const report = (from: Record<string, string>) =>
+      request.post("/api/camera-log", { data: '{"event":"open"}', headers: from })
+    for (let i = 0; i < 300; i++) expect((await report(headers)).status()).toBe(204)
+    expect((await report(headers)).status()).toBe(429)
+    // Somebody else's address is not held up by it.
+    expect(
+      (await report({ "x-real-ip": `other-${Date.now()}-${Math.random()}` })).status()
+    ).toBe(204)
+  })
+
   test("holding the result shows the old photograph over it", async ({
     page,
   }) => {
