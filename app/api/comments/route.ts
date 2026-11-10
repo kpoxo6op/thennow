@@ -30,7 +30,8 @@ import { hasStore, memoryStore } from "@/lib/store"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-// Posting: five an hour from one network.
+// Posting: five an hour from one network. The count is kept per server instance (see
+// lib/limit.ts), so on the site it is a rough limit.
 const posts = limiter(5, 60 * 60_000)
 // Everything that reaches the store on someone's say-so counts here first.
 const knocks = limiter(60, 60 * 60_000)
@@ -96,6 +97,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!sameSite(request)) return refuse(403, "forbidden")
+  // A form on another site can only send plain text, and browsers too old to say where a request
+  // came from would let it through.
+  if (
+    !request.headers
+      .get("content-type")
+      ?.toLowerCase()
+      .startsWith("application/json")
+  )
+    return refuse(415, "json")
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY)
     return refuse(413, "too big")
   let body: Record<string, unknown> | null = null
@@ -123,12 +133,9 @@ export async function POST(request: Request) {
   const id = personId(cookie)
   try {
     const profile = await readProfile(id)
-    let name = profile?.name ?? null
-    if (!name) {
-      name = cleanName(body.name)
-      if (!name) return refuse(400, "name")
-      if (hasLink(name)) return refuse(400, "links")
-    }
+    const name = profile?.name ?? cleanName(body.name)
+    if (!name) return refuse(400, "name")
+    if (hasLink(name)) return refuse(400, "links")
     if (!posts(request)) return refuse(429, "slow down")
     if (!profile?.name) await writeProfile(id, { name })
     const comment = await addComment(place, { text, name, by: id })
@@ -159,7 +166,7 @@ export async function DELETE(request: Request) {
     const me = personId(cookie)
     if (comment.by !== me && !adminIds().has(me))
       return refuse(403, "forbidden")
-    await removeComment(place, key)
+    await removeComment(place, comment)
     return answer({ ok: true })
   } catch (error) {
     console.error(`remove comment failed ${String(error).slice(0, 300)}`)

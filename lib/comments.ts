@@ -6,7 +6,8 @@ import { del, get, list, put } from "@/lib/store"
 // posted with, when, and the id of the person who wrote it, kept as one small file at
 // comments/<place>/<key>.json in the private store. A key starts with the time, so the files sort
 // oldest first. No address is kept, and the person's id never leaves the server: the browser is
-// only told whether it may remove a comment.
+// only told whether it may remove a comment. A stored comment changes only when its writer signs
+// in on another phone, and the comment then moves to the person's own id.
 
 export const MAX_TEXT = 1000
 
@@ -60,17 +61,11 @@ export function adminIds(): Set<string> {
   )
 }
 
-// A place's list is remembered for a few seconds, so a busy page doesn't list the store each time.
-// A stored comment never changes, so it is read from the store once per server.
-const FRESH_MS = 20_000
+// A list is never kept here: each server instance would keep its own, and a comment posted
+// through one would be missing from another's for a while. A comment that has been read is kept,
+// and read again only when the store says its file has been written since.
 const READ_AT_ONCE = 10
-const lists = new Map<string, { at: number; comments: Comment[] }>()
-const bodies = new Map<string, Comment>()
-// How many times a place's comments have changed here: a list read while one changed may be out
-// of date, so it is not kept.
-const changed = new Map<string, number>()
-const changedCount = (place: string) => changed.get(place) ?? 0
-const changes = (place: string) => changed.set(place, changedCount(place) + 1)
+const bodies = new Map<string, { stamp: number; comment: Comment }>()
 
 function parse(key: string, raw: string): Comment | null {
   try {
@@ -94,54 +89,80 @@ function parse(key: string, raw: string): Comment | null {
   }
 }
 
-async function readPath(
+async function everything(prefix: string) {
+  const found: { pathname: string; uploadedAt: Date }[] = []
+  let cursor: string | undefined
+  do {
+    const page = await list({ prefix, cursor, limit: 1000 })
+    found.push(...page.blobs)
+    cursor = page.hasMore ? page.cursor : undefined
+  } while (cursor)
+  return found
+}
+
+async function readFromStore(
+  place: string,
+  key: string
+): Promise<Comment | null> {
+  const found = await get(commentPath(place, key), {
+    access: "private",
+    useCache: false,
+  })
+  if (!found || found.statusCode !== 200) return null
+  return parse(key, await new Response(found.stream).text())
+}
+
+async function readListed(
   place: string,
   key: string,
-  cached: boolean
+  stamp: number
 ): Promise<Comment | null> {
   const pathname = commentPath(place, key)
-  if (cached) {
-    const kept = bodies.get(pathname)
-    if (kept) return kept
-  }
-  const found = await get(pathname, { access: "private", useCache: false })
-  if (!found || found.statusCode !== 200) return null
-  const comment = parse(key, await new Response(found.stream).text())
-  if (comment && cached) {
+  const kept = bodies.get(pathname)
+  if (kept && kept.stamp === stamp) return kept.comment
+  const comment = await readFromStore(place, key)
+  if (comment) {
     if (bodies.size > 5000) bodies.clear()
-    bodies.set(pathname, comment)
+    bodies.set(pathname, { stamp, comment })
   }
   return comment
 }
 
 export async function listComments(place: string): Promise<Comment[]> {
-  const fresh = lists.get(place)
-  if (fresh && Date.now() - fresh.at < FRESH_MS) return fresh.comments
-
-  const before = changedCount(place)
-  const page = await list({ prefix: `comments/${place}/`, limit: 1000 })
-  const keys = page.blobs
-    .map(
-      (blob) =>
+  const files = (await everything(`comments/${place}/`))
+    .map((blob) => ({
+      key:
         blob.pathname
           .split("/")
           .pop()
-          ?.replace(/\.json$/, "") ?? ""
-    )
-    .filter((key) => KEY.test(key))
+          ?.replace(/\.json$/, "") ?? "",
+      stamp: blob.uploadedAt.getTime(),
+    }))
+    .filter((file) => KEY.test(file.key))
   const comments: Comment[] = []
-  for (let start = 0; start < keys.length; start += READ_AT_ONCE) {
+  for (let start = 0; start < files.length; start += READ_AT_ONCE) {
     const read = await Promise.all(
-      keys
+      files
         .slice(start, start + READ_AT_ONCE)
-        .map((key) => readPath(place, key, true))
+        .map((file) => readListed(place, file.key, file.stamp))
     )
     for (const comment of read) if (comment) comments.push(comment)
   }
-  if (changedCount(place) !== before) return listComments(place)
-  lists.set(place, { at: Date.now(), comments })
-  return comments
+  return comments.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 }
+
+// A tiny note that this person wrote that comment, so signing in can find a person's comments
+// without reading everyone's.
+export const markPath = (by: string, place: string, key: string) =>
+  `commented/${by}/${place}/${key}`
+
+const mark = (by: string, place: string, key: string, at: string) =>
+  put(markPath(by, place, key), at, {
+    access: "private",
+    contentType: "text/plain",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  })
 
 export async function addComment(
   place: string,
@@ -150,27 +171,60 @@ export async function addComment(
   const key =
     String(Date.now()).padStart(13, "0") + "-" + randomBytes(4).toString("hex")
   const at = new Date().toISOString()
+  // The note comes first: a note with no comment is harmless, but a comment with no note could
+  // not follow its writer.
+  await mark(by, place, key, at)
   await put(commentPath(place, key), JSON.stringify({ text, name, by, at }), {
     access: "private",
     contentType: "application/json",
     addRandomSuffix: false,
   })
-  const comment = { key, text, name, by, at }
-  if (bodies.size > 5000) bodies.clear()
-  bodies.set(commentPath(place, key), comment)
-  lists.get(place)?.comments.push(comment)
-  changes(place)
-  return comment
+  return { key, text, name, by, at }
 }
 
 // Always from the store: whether someone may remove a comment is decided on what is kept.
-export const readComment = (place: string, key: string) =>
-  readPath(place, key, false)
+export const readComment = readFromStore
 
-export async function removeComment(place: string, key: string) {
-  await del(commentPath(place, key))
-  bodies.delete(commentPath(place, key))
-  const kept = lists.get(place)
-  if (kept) kept.comments = kept.comments.filter((c) => c.key !== key)
-  changes(place)
+export async function removeComment(place: string, comment: Comment) {
+  await del([
+    commentPath(place, comment.key),
+    markPath(comment.by, place, comment.key),
+  ])
+  bodies.delete(commentPath(place, comment.key))
+}
+
+// When someone signs in on a phone that had already written comments, those comments join theirs.
+// Each comment is rewritten under the new id before the old note goes, and its new note is put
+// before the old one is deleted, so a move that stops half-way is finished by signing in again.
+export async function moveComments(from: string, to: string) {
+  if (from === to) return
+  const prefix = `commented/${from}/`
+  const found = await everything(prefix)
+
+  for (let start = 0; start < found.length; start += READ_AT_ONCE) {
+    await Promise.all(
+      found.slice(start, start + READ_AT_ONCE).map(async ({ pathname }) => {
+        const [place, key] = pathname.slice(prefix.length).split("/")
+        if (!place || !key || !KEY.test(key)) return
+        const comment = await readComment(place, key)
+        if (comment && comment.by === from) {
+          const { text, name, at } = comment
+          await put(
+            commentPath(place, key),
+            JSON.stringify({ text, name, by: to, at }),
+            {
+              access: "private",
+              contentType: "application/json",
+              addRandomSuffix: false,
+              allowOverwrite: true,
+            }
+          )
+          await mark(to, place, key, at)
+        } else if (comment && comment.by === to) {
+          await mark(to, place, key, comment.at)
+        }
+        await del(pathname)
+      })
+    )
+  }
 }

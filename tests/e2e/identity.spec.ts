@@ -243,6 +243,67 @@ test("signing up saves a passkey, and signing in with it on a second phone bring
   ).toBe(401)
 })
 
+test("signing in brings along what that phone wrote", async ({
+  browser,
+  playwright,
+}) => {
+  const a = await device(browser)
+  await signUp(a, "Comment Passkey Tester")
+  const [passkey] = await a.passkeys()
+
+  // A second phone writes a comment on its own, without signing up.
+  const b = await device(browser)
+  const text = `Remembered by a second phone ${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const posted = await b.context.request.post("/api/comments", {
+    data: { place: PLACE, text, name: "Second Phone" },
+  })
+  expect(posted.status()).toBe(200)
+  const id = (await posted.json()).comment.id as string
+  const before = await b.cookie()
+  expect(before).toBeTruthy()
+  // Posting saved that name; the sign-in button is only offered to a phone with no name.
+  expect((await b.context.request.delete("/api/me")).status()).toBe(200)
+
+  await b.cdp.send("WebAuthn.addCredential", {
+    authenticatorId: b.authenticatorId,
+    credential: passkey,
+  })
+  await b.page.goto("/me")
+  await b.page.getByTestId("me-sign-in").click()
+  await expect(b.page.getByTestId("me-name-value")).toHaveText(
+    "Comment Passkey Tester"
+  )
+
+  const shown = async (phone: typeof a) =>
+    (
+      (await (
+        await phone.context.request.get(`/api/comments?place=${PLACE}`)
+      ).json()) as {
+        comments: { id: string; name: string; canRemove: boolean }[]
+      }
+    ).comments.find((c) => c.id === id)
+  expect(await shown(b)).toMatchObject({
+    name: "Second Phone",
+    canRemove: true,
+  })
+  expect(await shown(a)).toMatchObject({
+    name: "Second Phone",
+    canRemove: true,
+  })
+
+  // The second phone's old cookie no longer owns it.
+  const old = await visitor(playwright, { cookie: `tn_me=${before}` })
+  const url = `/api/comments?place=${PLACE}&id=${id}`
+  const asOld = (
+    await (await old.get(`/api/comments?place=${PLACE}`)).json()
+  ).comments.find((c: { id: string }) => c.id === id)
+  expect(asOld.canRemove).toBe(false)
+  expect((await old.delete(url)).status()).toBe(403)
+
+  expect((await b.context.request.delete(url)).status()).toBe(200)
+  expect(await shown(b)).toBeUndefined()
+})
+
 test("a passkey stays with the person who saved it, whoever else claims it", async ({
   browser,
   playwright,

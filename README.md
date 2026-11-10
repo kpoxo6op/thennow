@@ -51,7 +51,7 @@ To finish a story, add the modern photograph and the pair to the upcoming place'
 
 ## Sent photos
 
-Photos from the camera go to the private Blob store and are published only by hand. The store holds `submissions/<place>/<key>.jpg` and `.json` (a sent photo and its note), `people/<id>.json` (a name), `people/<id>/<place>/<key>.jpg` (the sender's small copy), `keys/<hash>.json` (a passkey), `challenges/<hash>.json` (a passkey question waiting for its answer) and `comments/<place>/<key>.json` (a visitor's comment: text, name, who wrote it, when).
+Photos from the camera go to the private Blob store and are published only by hand. The store holds `submissions/<place>/<key>.jpg` and `.json` (a sent photo and its note), `people/<id>.json` (a name), `people/<id>/<place>/<key>.jpg` (the sender's small copy), `keys/<hash>.json` (a passkey), `challenges/<hash>.json` (a passkey question waiting for its answer), `comments/<place>/<key>.json` (a visitor's comment: text, name, who wrote it, when) and `commented/<id>/<place>/<key>` (which comments a person wrote, so they follow that person when they sign in).
 
 Operator scripts:
 

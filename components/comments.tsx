@@ -21,11 +21,14 @@ const day = new Intl.DateTimeFormat("en-NZ", {
   timeZone: "Pacific/Auckland",
 })
 
-const NOT_REMOVED = "Not removed. Check your signal and try again."
+const NOT_REMOVED_SIGNAL = "Not removed. Check your signal and try again."
+const NOT_REMOVED_LATER = "Not removed. Please try again later."
+const TOO_LONG = "Please write up to 1000 characters."
 
 export function Comments({ place }: { place: string }) {
   const wrapper = useRef<HTMLDivElement>(null)
   const trap = useRef<HTMLInputElement>(null)
+  const nameField = useRef<HTMLInputElement>(null)
   const [comments, setComments] = useState<Shown[]>([])
   const [known, setKnown] = useState<string | null | undefined>(undefined)
   const [askName, setAskName] = useState(false)
@@ -34,7 +37,10 @@ export function Comments({ place }: { place: string }) {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState("")
   const [removing, setRemoving] = useState<string | null>(null)
-  const [failedRemoval, setFailedRemoval] = useState<string | null>(null)
+  const [failedRemoval, setFailedRemoval] = useState<{
+    id: string
+    note: string
+  } | null>(null)
 
   const showName = askName || known === null
 
@@ -42,30 +48,50 @@ export function Comments({ place }: { place: string }) {
     const container = wrapper.current
     if (!container) return
     let isMounted = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    // A list that cannot be read is tried again, quietly, a couple of times. What the reader has
+    // written in the meantime stays.
+    function load(retries: number) {
+      const again = () => {
+        if (isMounted && retries > 0)
+          timer = setTimeout(() => load(retries - 1), 4000)
+      }
+      fetch(`/api/comments?place=${encodeURIComponent(place)}`, {
+        cache: "no-store",
+      })
+        .then(async (response) => {
+          if (!response.ok) return again()
+          const json = await response.json()
+          if (!isMounted) return
+          setComments((now) => [
+            ...json.comments,
+            ...now.filter(
+              (mine) => !json.comments.some((c: Shown) => c.id === mine.id)
+            ),
+          ])
+          setKnown((now) => now ?? json.name)
+        })
+        .catch(again)
+    }
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return
         observer.disconnect()
-        fetch(`/api/comments?place=${encodeURIComponent(place)}`, {
-          cache: "no-store",
-        })
-          .then(async (response) => {
-            if (!response.ok) return
-            const json = await response.json()
-            if (!isMounted) return
-            setComments(json.comments)
-            setKnown(json.name)
-          })
-          .catch(() => {})
+        load(2)
       },
       { rootMargin: "600px 0px" }
     )
     observer.observe(container)
     return () => {
       isMounted = false
+      clearTimeout(timer)
       observer.disconnect()
     }
   }, [place])
+
+  useEffect(() => {
+    if (askName) nameField.current?.focus()
+  }, [askName])
 
   const ready = !!text.trim() && (!showName || !!name.trim())
 
@@ -104,8 +130,14 @@ export function Comments({ place }: { place: string }) {
         else if (response.status === 400 && error === "name") {
           setAskName(true)
           setNote("Please add your name.")
-        } else if (response.status === 400 && error === "text")
-          setNote("Please write up to 1000 characters.")
+        } else if (response.status === 400 && error === "refused") {
+          if (trap.current) trap.current.value = ""
+          setNote("Not posted. Please try again.")
+        } else if (
+          response.status === 413 ||
+          (response.status === 400 && error === "text")
+        )
+          setNote(TOO_LONG)
         else setNote("Not posted. Check your signal and try again.")
       }
     } catch {
@@ -124,10 +156,11 @@ export function Comments({ place }: { place: string }) {
         `/api/comments?place=${encodeURIComponent(place)}&id=${encodeURIComponent(id)}`,
         { method: "DELETE" }
       )
-      if (response.ok) setComments((now) => now.filter((c) => c.id !== id))
-      else setFailedRemoval(id)
+      if (response.ok || response.status === 404)
+        setComments((now) => now.filter((c) => c.id !== id))
+      else setFailedRemoval({ id, note: NOT_REMOVED_LATER })
     } catch {
-      setFailedRemoval(id)
+      setFailedRemoval({ id, note: NOT_REMOVED_SIGNAL })
     } finally {
       setRemoving(null)
     }
@@ -144,7 +177,7 @@ export function Comments({ place }: { place: string }) {
               className="border-b py-4 first:border-t"
             >
               <div className="flex items-baseline justify-between gap-4 text-sm text-muted-foreground">
-                <p className="min-w-0">
+                <p className="min-w-0 break-words">
                   <span data-testid="comment-name" className="text-foreground">
                     {comment.name}
                   </span>
@@ -171,13 +204,13 @@ export function Comments({ place }: { place: string }) {
               >
                 {comment.text}
               </p>
-              {failedRemoval === comment.id && (
+              {failedRemoval?.id === comment.id && (
                 <p
                   role="status"
                   data-testid="comment-remove-note"
                   className="mt-2 text-sm text-muted-foreground"
                 >
-                  {NOT_REMOVED}
+                  {failedRemoval.note}
                 </p>
               )}
             </li>
@@ -192,6 +225,7 @@ export function Comments({ place }: { place: string }) {
       >
         {showName && (
           <input
+            ref={nameField}
             data-testid="comment-name-input"
             aria-label="Your name"
             placeholder="Your name"
@@ -212,7 +246,6 @@ export function Comments({ place }: { place: string }) {
           aria-label="Do you remember this place?"
           placeholder="Do you remember this place?"
           rows={5}
-          maxLength={1000}
           readOnly={busy}
           value={text}
           onChange={(event) => {

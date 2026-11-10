@@ -1,3 +1,4 @@
+import { moveComments } from "@/lib/comments"
 import { limiter, sameSite } from "@/lib/limit"
 import {
   challengeHeader,
@@ -15,7 +16,7 @@ import {
 import { hasStore } from "@/lib/store"
 
 // Signing in with the passkey saved at sign-up: this browser gets the person's cookie, and any
-// photos it had already sent on its own join theirs.
+// photos it had already sent and comments it had already written on its own join theirs.
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -56,8 +57,10 @@ export async function POST(request: Request) {
     const cookie = await finishSignIn(request, JSON.parse(text))
     if (!cookie) return no(401, "not signed up")
     const before = readCookie(request)
-    if (before && before !== cookie)
+    if (before && before !== cookie) {
       await movePhotos(personId(before), personId(cookie))
+      await moveComments(personId(before), personId(cookie))
+    }
     const headers = new Headers({ "cache-control": "private, no-store" })
     headers.append("set-cookie", cookieHeader(cookie, isSecure(request)))
     headers.append("set-cookie", challengeHeader("", request))
