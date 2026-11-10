@@ -14,7 +14,10 @@
     "preview": "next build && next start",
     "typecheck": "tsc --noEmit",
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
-    "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache"
+    "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
+    "static:build": "node static-site/build.mjs",
+    "static:serve": "node static-site/serve.mjs",
+    "test:e2e:static": "playwright test --config playwright.static.config.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",

@@ -10,6 +10,10 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
+    // Optional override for environments with a preinstalled Chromium build.
+    launchOptions: process.env.PW_CHROMIUM_PATH
+      ? { executablePath: process.env.PW_CHROMIUM_PATH }
+      : {},
   },
   webServer: {
     command: `corepack pnpm build && corepack pnpm start --hostname 127.0.0.1 --port ${PORT}`,
