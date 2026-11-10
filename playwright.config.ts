@@ -14,8 +14,12 @@ export default defineConfig({
   webServer: {
     command: `corepack pnpm build && corepack pnpm start --hostname 127.0.0.1 --port ${PORT}`,
     url: baseURL,
-    // The server the tests start keeps its photo store in memory (lib/store.ts).
-    env: { TN_FAKE_STORE: "1" },
+    // The server the tests start keeps its photo store in memory (lib/store.ts), and knows one
+    // admin: the id of the cookie comments.spec.ts signs in with.
+    env: {
+      TN_FAKE_STORE: "1",
+      TN_ADMIN_IDS: "aad678f1b278cf5e00e24f7de5747e05",
+    },
     reuseExistingServer: true,
     stdout: "pipe",
     stderr: "pipe",

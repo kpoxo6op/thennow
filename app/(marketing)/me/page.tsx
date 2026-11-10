@@ -146,7 +146,8 @@ export default async function MePage() {
 
       <p className="mt-14 max-w-2xl border-t pt-6 text-[15px] leading-relaxed text-muted-foreground lg:ml-[calc(50%+1.25rem)]">
         Signing up saves a passkey, so you can sign in on another device. No
-        email, no password. Your name is kept only to credit your photos.{" "}
+        email, no password. Your name is kept to credit your photos and to sign
+        what you write.{" "}
         <Link
           href="/about#your-photos"
           className="underline underline-offset-4"

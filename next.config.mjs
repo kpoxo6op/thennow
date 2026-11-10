@@ -24,6 +24,7 @@ const nextConfig = {
     ],
     // The upcoming places a sent photo may be for.
     '/api/submit': ['./public/posts/*/*.json'],
+    '/api/comments': ['./public/posts/*/*.json'],
     '/me': ['./public/posts/*/*.json'],
   },
   outputFileTracingExcludes: {
