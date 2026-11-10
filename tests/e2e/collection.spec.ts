@@ -21,6 +21,11 @@ async function withoutMapCode(page: Page) {
   })
 }
 
+// A script still being fetched for withoutMapCode when a test ends must not fail that test.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "ignoreErrors" })
+})
+
 const cards = (page: Page) => page.getByTestId("story-card")
 const markers = (page: Page) => page.getByTestId("home-map-marker")
 
