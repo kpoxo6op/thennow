@@ -5,7 +5,9 @@ import { expect, test } from "@playwright/test"
 
 const STORY = "/historic-post-office"
 
-test("a story opens at the position its address names, and at the middle without one", async ({ page }) => {
+test("a story opens at the position its address names, and at the middle without one", async ({
+  page,
+}) => {
   await page.goto(`${STORY}?p=30`)
   await expect(page.getByTestId("compare-slider-input")).toHaveValue("30")
   await expect(page).toHaveURL(/\?p=30$/)
@@ -15,7 +17,9 @@ test("a story opens at the position its address names, and at the middle without
   await expect(page).toHaveURL(new RegExp(`${STORY}$`))
 })
 
-test("a long drag never breaks the page, and the address ends on where the line rests", async ({ page }) => {
+test("a long drag never breaks the page, and the address ends on where the line rests", async ({
+  page,
+}) => {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(String(error)))
   await page.goto(STORY)

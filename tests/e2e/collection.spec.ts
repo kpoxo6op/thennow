@@ -635,14 +635,23 @@ test("changing the filter frames what was found, not the old camera", async ({
   await page.getByRole("button", { name: "Map" }).click()
 
   // expect.poll fails at once on a thrown error, so a map not drawn yet must read as "not yet".
-  await expect.poll(() =>
-    page.evaluate(() => {
-      const stage = document.querySelector('[data-testid="home-map"]')
-      if (!stage) return false
-      const map = stage.getBoundingClientRect()
-      return Array.from(document.querySelectorAll('[data-testid="home-map-marker"]')).some((marker) => {
-        const box = marker.getBoundingClientRect()
-        return box.left >= map.left && box.right <= map.right && box.top >= map.top && box.bottom <= map.bottom
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const stage = document.querySelector('[data-testid="home-map"]')
+        if (!stage) return false
+        const map = stage.getBoundingClientRect()
+        return Array.from(
+          document.querySelectorAll('[data-testid="home-map-marker"]')
+        ).some((marker) => {
+          const box = marker.getBoundingClientRect()
+          return (
+            box.left >= map.left &&
+            box.right <= map.right &&
+            box.top >= map.top &&
+            box.bottom <= map.bottom
+          )
+        })
       })
     )
     .toBe(true)

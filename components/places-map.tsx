@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, type RefObject } from "react"
 import type { Place } from "@/interfaces/post"
+
 import "@/styles/map.css"
 
 export type MapViewport = {
