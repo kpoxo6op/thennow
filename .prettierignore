@@ -10,3 +10,6 @@ node_modules
 .next
 build
 .contentlayer
+next-env.d.ts
+playwright-report
+test-results
