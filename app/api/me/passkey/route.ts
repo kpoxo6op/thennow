@@ -1,5 +1,10 @@
 import { limiter, sameSite } from "@/lib/limit"
-import { challengeHeader, finishSignUp, rememberChallenge, signUpOptions } from "@/lib/passkey"
+import {
+  challengeHeader,
+  finishSignUp,
+  rememberChallenge,
+  signUpOptions,
+} from "@/lib/passkey"
 import { personId, readCookie, readProfile, writeProfile } from "@/lib/people"
 import { hasStore } from "@/lib/store"
 
@@ -11,7 +16,8 @@ export const dynamic = "force-dynamic"
 
 const allowed = limiter(30, 60 * 60_000)
 const asked = limiter(60, 60 * 60_000)
-const no = (status: number, error: string) => Response.json({ error }, { status })
+const no = (status: number, error: string) =>
+  Response.json({ error }, { status })
 
 export async function GET(request: Request) {
   const cookie = readCookie(request)
@@ -45,8 +51,10 @@ export async function POST(request: Request) {
     const text = await request.text()
     if (text.length > 20_000) return no(413, "too big")
     const id = personId(cookie)
-    if (!(await finishSignUp(request, cookie, JSON.parse(text)))) return no(400, "bad passkey")
-    if (!(await writeProfile(id, { passkey: true }))) return no(401, "not signed up")
+    if (!(await finishSignUp(request, cookie, JSON.parse(text))))
+      return no(400, "bad passkey")
+    if (!(await writeProfile(id, { passkey: true })))
+      return no(401, "not signed up")
     return Response.json(
       { ok: true },
       { headers: { "set-cookie": challengeHeader("", request) } }

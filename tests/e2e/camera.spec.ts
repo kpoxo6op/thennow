@@ -430,12 +430,18 @@ test.describe("the rephotography camera", () => {
     // Its own address, so no other test (or an earlier run on a reused server) shares the count.
     const headers = { "x-real-ip": `log-${Date.now()}-${Math.random()}` }
     const report = (from: Record<string, string>) =>
-      request.post("/api/camera-log", { data: '{"event":"open"}', headers: from })
-    for (let i = 0; i < 300; i++) expect((await report(headers)).status()).toBe(204)
+      request.post("/api/camera-log", {
+        data: '{"event":"open"}',
+        headers: from,
+      })
+    for (let i = 0; i < 300; i++)
+      expect((await report(headers)).status()).toBe(204)
     expect((await report(headers)).status()).toBe(429)
     // Somebody else's address is not held up by it.
     expect(
-      (await report({ "x-real-ip": `other-${Date.now()}-${Math.random()}` })).status()
+      (
+        await report({ "x-real-ip": `other-${Date.now()}-${Math.random()}` })
+      ).status()
     ).toBe(204)
   })
 
@@ -794,10 +800,13 @@ test.describe("the rephotography camera", () => {
     // Somebody else's address is not held up by it.
     expect(
       (
-        await request.post("/api/submit?place=mission-house&key=abcdefghijkl0123", {
-          data: junk,
-          headers: { "x-real-ip": `other-${Date.now()}-${Math.random()}` },
-        })
+        await request.post(
+          "/api/submit?place=mission-house&key=abcdefghijkl0123",
+          {
+            data: junk,
+            headers: { "x-real-ip": `other-${Date.now()}-${Math.random()}` },
+          }
+        )
       ).status()
     ).toBe(415)
   })

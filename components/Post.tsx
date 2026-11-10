@@ -2,12 +2,12 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
-
 import PostType from "@/interfaces/post"
+
 import { CompareStage } from "@/components/compare-stage"
 import { PLACEHOLDER, SOURCE_LINE, toSections } from "@/components/Desc"
-import { ResetScroll } from "@/components/reset-scroll"
 import { NearbyList, type Nearby } from "@/components/nearby-list"
+import { ResetScroll } from "@/components/reset-scroll"
 import { StoryMap } from "@/components/story-map"
 
 interface PostProps {
@@ -56,7 +56,12 @@ function SourceLink({ source }: { source: string }) {
 
   return (
     <p className="text-sm leading-snug text-muted-foreground">
-      <a href={`https://${source}`} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+      <a
+        href={`https://${source}`}
+        target="_blank"
+        rel="noreferrer"
+        className="underline underline-offset-4"
+      >
         {host}
         <span className="text-[0px]">{path}</span>
       </a>
@@ -72,7 +77,9 @@ function Chapter({ year, lines }: { year?: string; lines: string[] }) {
 
   return (
     <section className="min-w-0 space-y-3">
-      {year ? <h2 className="text-sm tabular-nums text-muted-foreground">{year}</h2> : null}
+      {year ? (
+        <h2 className="text-sm tabular-nums text-muted-foreground">{year}</h2>
+      ) : null}
       {words.map((line) => (
         <p key={line} className="text-lg leading-relaxed">
           {line}
@@ -235,7 +242,11 @@ export default function Post({ post, nearby }: PostProps) {
 
   const photos = [
     { label: "then", year: thenYear, section: dated[0] },
-    { label: "now", year: nowYear, section: dated.length > 1 ? dated[dated.length - 1] : undefined },
+    {
+      label: "now",
+      year: nowYear,
+      section: dated.length > 1 ? dated[dated.length - 1] : undefined,
+    },
   ]
 
   return (
@@ -300,17 +311,18 @@ export default function Post({ post, nearby }: PostProps) {
 
         <article className="tn-story-edge pb-14 pt-3">
           <h1
-              className={
-                "text-pretty font-serif text-[2.125rem] leading-[1.06] md:text-balance md:text-[clamp(2.25rem,5.8svh,3.25rem)]"
-              }
-            >
-              {post.name}
-            </h1>
+            className={
+              "text-pretty font-serif text-[2.125rem] leading-[1.06] md:text-balance md:text-[clamp(2.25rem,5.8svh,3.25rem)]"
+            }
+          >
+            {post.name}
+          </h1>
 
           {post.sample ? (
             <div className="mt-2 max-w-3xl space-y-1">
               <p className="text-[17px] leading-snug">
-                Sample place. The photographs are repeated placeholders and do not show this location.
+                Sample place. The photographs are repeated placeholders and do
+                not show this location.
               </p>
               <p className="leading-snug text-muted-foreground">
                 {undated.flatMap((section) => section.lines).join(" ")}

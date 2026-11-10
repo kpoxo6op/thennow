@@ -43,12 +43,31 @@ export type PendingPost = PostFields & {
 
 export type StorySummary = Pick<
   PostType,
-  "status" | "name" | "description" | "b_imageUrl" | "a_imageUrl" | "ba_imageUrl" | "w" | "h" | "slug" | "location" | "sample" | "area"
+  | "status"
+  | "name"
+  | "description"
+  | "b_imageUrl"
+  | "a_imageUrl"
+  | "ba_imageUrl"
+  | "w"
+  | "h"
+  | "slug"
+  | "location"
+  | "sample"
+  | "area"
 >
 
 export type PendingSummary = Pick<
   PendingPost,
-  "status" | "name" | "description" | "b_imageUrl" | "w" | "h" | "slug" | "location" | "area"
+  | "status"
+  | "name"
+  | "description"
+  | "b_imageUrl"
+  | "w"
+  | "h"
+  | "slug"
+  | "location"
+  | "area"
 >
 
 export type Place = StorySummary | PendingSummary

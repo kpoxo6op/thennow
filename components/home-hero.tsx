@@ -30,13 +30,24 @@ function ease(t: number) {
 }
 
 // One slow pass of the line says what this site is before anything is read.
-export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, caption }: Props) {
+export function HomeHero({
+  name,
+  thenSrc,
+  nowSrc,
+  ratio,
+  thenYear,
+  nowYear,
+  caption,
+}: Props) {
   const [position, setPosition] = useState(50)
   const [touched, setTouched] = useState(false)
   const cancelRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    if (hasSwept || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      hasSwept ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
       return
     }
 
@@ -94,8 +105,15 @@ export function HomeHero({ name, thenSrc, nowSrc, ratio, thenYear, nowYear, capt
           priority
           className="h-[42svh] min-h-56 md:h-[min(calc(100svh-var(--header-h)-var(--hero-caption-h)-var(--hero-band-h)-var(--hero-peek)),66vw)] md:min-h-72"
         />
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          <CompareYears position={position} thenYear={thenYear} nowYear={nowYear} />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <CompareYears
+            position={position}
+            thenYear={thenYear}
+            nowYear={nowYear}
+          />
           {touched ? null : (
             <span
               data-testid="hero-drag-hint"

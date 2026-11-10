@@ -1,7 +1,7 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test"
 
-const PORT = 3100;
-const baseURL = `http://127.0.0.1:${PORT}`;
+const PORT = 3100
+const baseURL = `http://127.0.0.1:${PORT}`
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -39,4 +39,4 @@ export default defineConfig({
         ]
       : []),
   ],
-});
+})

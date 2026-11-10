@@ -5,13 +5,21 @@ const SAFE_LINE_PX = 56
 
 async function read(page: Page) {
   return page.evaluate(() => {
-    const q = (id: string) => document.querySelector<HTMLElement>(`[data-testid="${id}"]`)!
+    const q = (id: string) =>
+      document.querySelector<HTMLElement>(`[data-testid="${id}"]`)!
     const knob = q("compare-slider-knob").getBoundingClientRect()
     const stage = q("compare-stage").getBoundingClientRect()
-    const insets = ((q("compare-overlay").getAttribute("style") ?? "").match(/inset\(([^)]*)\)/)?.[1] ?? "").split(/\s+/)
+    const insets = (
+      (q("compare-overlay").getAttribute("style") ?? "").match(
+        /inset\(([^)]*)\)/
+      )?.[1] ?? ""
+    ).split(/\s+/)
 
     return {
-      value: Number(q("compare-slider-input").getAttribute("value") ?? (q("compare-slider-input") as HTMLInputElement).value),
+      value: Number(
+        q("compare-slider-input").getAttribute("value") ??
+          (q("compare-slider-input") as HTMLInputElement).value
+      ),
       divider: stage.right - parseFloat(insets[1] ?? insets[0]),
       grip: knob.left + knob.width / 2,
       gripY: knob.top + knob.height / 2,
@@ -22,13 +30,21 @@ async function read(page: Page) {
 
 async function open(page: Page, position: number) {
   await page.goto(`${STORY}?p=${position}`)
-  await expect(page.getByTestId("compare-slider-input")).toHaveValue(String(position))
-  await expect.poll(async () => Math.abs((await read(page)).divider - (await read(page)).grip)).toBeLessThanOrEqual(1)
+  await expect(page.getByTestId("compare-slider-input")).toHaveValue(
+    String(position)
+  )
+  await expect
+    .poll(async () =>
+      Math.abs((await read(page)).divider - (await read(page)).grip)
+    )
+    .toBeLessThanOrEqual(1)
   return read(page)
 }
 
 async function expectUnderPointer(page: Page, x: number) {
-  await expect.poll(async () => Math.abs((await read(page)).divider - x)).toBeLessThanOrEqual(1)
+  await expect
+    .poll(async () => Math.abs((await read(page)).divider - x))
+    .toBeLessThanOrEqual(1)
   const state = await read(page)
   expect(Math.abs(state.grip - x)).toBeLessThanOrEqual(1)
 }
@@ -38,14 +54,18 @@ for (const width of [390, 320]) {
     test.use({ viewport: { width, height: 844 } })
 
     for (const position of [30, 3, 97]) {
-      test(`pressing the grip at ${position} does not jump, and dragging it follows the pointer`, async ({ page }) => {
+      test(`pressing the grip at ${position} does not jump, and dragging it follows the pointer`, async ({
+        page,
+      }) => {
         const start = await open(page, position)
 
         await page.mouse.move(start.grip, start.gripY)
         await page.mouse.down()
         const pressed = await read(page)
         expect(pressed.value).toBe(position)
-        expect(Math.abs(pressed.divider - start.divider)).toBeLessThanOrEqual(0.5)
+        expect(Math.abs(pressed.divider - start.divider)).toBeLessThanOrEqual(
+          0.5
+        )
 
         const direction = position > 50 ? -1 : 1
         for (const distance of [3, 8, 20, 45]) {
@@ -54,30 +74,42 @@ for (const width of [390, 320]) {
           await expectUnderPointer(page, x)
         }
         await page.mouse.up()
-        await expect(page).toHaveURL(new RegExp(`p=${(await read(page)).value}$`))
+        await expect(page).toHaveURL(
+          new RegExp(`p=${(await read(page)).value}$`)
+        )
       })
     }
 
     // The photograph now sits half a knob inside the screen, so the whole knob stays visible
     // at either end; the line still has to land exactly on the photograph's own edges.
-    test("dragging the grip reaches each edge of the photograph", async ({ page }) => {
+    test("dragging the grip reaches each edge of the photograph", async ({
+      page,
+    }) => {
       const start = await open(page, 30)
-      const photo = (await page.getByTestId("compare-overlay-image").boundingBox())!
+      const photo = (await page
+        .getByTestId("compare-overlay-image")
+        .boundingBox())!
 
       await page.mouse.move(start.grip, start.gripY)
       await page.mouse.down()
       await page.mouse.move(0, start.gripY, { steps: 8 })
       await expect(page.getByTestId("compare-slider-input")).toHaveValue("0")
-      expect(Math.abs((await read(page)).divider - photo.x)).toBeLessThanOrEqual(1)
+      expect(
+        Math.abs((await read(page)).divider - photo.x)
+      ).toBeLessThanOrEqual(1)
 
       await page.mouse.move(width, start.gripY, { steps: 12 })
       await expect(page.getByTestId("compare-slider-input")).toHaveValue("100")
-      expect(Math.abs((await read(page)).divider - (photo.x + photo.width))).toBeLessThanOrEqual(1)
+      expect(
+        Math.abs((await read(page)).divider - (photo.x + photo.width))
+      ).toBeLessThanOrEqual(1)
       await page.mouse.up()
       await expect(page).toHaveURL(/p=100$/)
     })
 
-    test("an off-centre grab keeps its distance and can still reach the edge", async ({ page }) => {
+    test("an off-centre grab keeps its distance and can still reach the edge", async ({
+      page,
+    }) => {
       const start = await open(page, 50)
       const grabX = start.grip - 12
 
@@ -93,7 +125,9 @@ for (const width of [390, 320]) {
       await page.mouse.up()
     })
 
-    test("pressing the photograph away from the grip still sets the line there", async ({ page }) => {
+    test("pressing the photograph away from the grip still sets the line there", async ({
+      page,
+    }) => {
       const start = await open(page, 30)
       const x = width * 0.7
 
@@ -106,11 +140,20 @@ for (const width of [390, 320]) {
     test.use({ hasTouch: true, viewport: { width, height: 844 } })
 
     const begin = (cdp: CDPSession, x: number, y: number) =>
-      cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
+      cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x, y }],
+      })
     const moveFinger = async (cdp: CDPSession, x: number, y: number) =>
-      cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] })
+      cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x, y }],
+      })
     const end = (cdp: CDPSession) =>
-      cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      })
 
     test("a tap on the grip does not jump", async ({ page, context }) => {
       const start = await open(page, 30)
@@ -124,7 +167,10 @@ for (const width of [390, 320]) {
 
     // This used to require the line to reach 0 and 100 under a finger, which is what parked it
     // inside Android's back-gesture zone. Whole photographs are now asked for by button.
-    test("the finger carries the grip, and the line waits short of both screen edges", async ({ page, context }) => {
+    test("the finger carries the grip, and the line waits short of both screen edges", async ({
+      page,
+      context,
+    }) => {
       const start = await open(page, 30)
       const cdp = await context.newCDPSession(page)
 
@@ -137,13 +183,17 @@ for (const width of [390, 320]) {
       for (const x of [width - 70, width - 30, width - 10, width - 1]) {
         await moveFinger(cdp, x, start.gripY)
       }
-      await expect.poll(async () => (await read(page)).divider).toBeCloseTo(width - SAFE_LINE_PX, 0)
+      await expect
+        .poll(async () => (await read(page)).divider)
+        .toBeCloseTo(width - SAFE_LINE_PX, 0)
       expect((await read(page)).grip).toBeCloseTo(width - SAFE_LINE_PX, 0)
 
       for (const x of [width / 2, 70, 30, 10, 1]) {
         await moveFinger(cdp, x, start.gripY)
       }
-      await expect.poll(async () => (await read(page)).divider).toBeCloseTo(SAFE_LINE_PX, 0)
+      await expect
+        .poll(async () => (await read(page)).divider)
+        .toBeCloseTo(SAFE_LINE_PX, 0)
       await end(cdp)
       expect((await read(page)).grip).toBeCloseTo(SAFE_LINE_PX, 0)
       await expect(page).not.toHaveURL(/p=0$/)
@@ -156,7 +206,10 @@ for (const width of [390, 320]) {
       await end(cdp)
     })
 
-    test("near the end, a grab inside the safe area follows the finger", async ({ page, context }) => {
+    test("near the end, a grab inside the safe area follows the finger", async ({
+      page,
+      context,
+    }) => {
       const position = 90
       const start = await open(page, position)
       const cdp = await context.newCDPSession(page)
@@ -170,7 +223,10 @@ for (const width of [390, 320]) {
       await end(cdp)
     })
 
-    test("touches starting in the edge margins do nothing, even on the grip", async ({ page, context }) => {
+    test("touches starting in the edge margins do nothing, even on the grip", async ({
+      page,
+      context,
+    }) => {
       const start = await open(page, 3)
       const cdp = await context.newCDPSession(page)
 
@@ -182,7 +238,10 @@ for (const width of [390, 320]) {
       expect((await read(page)).value).toBe(3)
     })
 
-    test("a vertical swipe on the photograph scrolls the page", async ({ page, context }) => {
+    test("a vertical swipe on the photograph scrolls the page", async ({
+      page,
+      context,
+    }) => {
       const start = await open(page, 30)
       const cdp = await context.newCDPSession(page)
 
@@ -191,7 +250,9 @@ for (const width of [390, 320]) {
         await moveFinger(cdp, width / 2, start.stageY + 60 - i * 15)
       }
       await end(cdp)
-      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(20)
+      await expect
+        .poll(() => page.evaluate(() => window.scrollY))
+        .toBeGreaterThan(20)
       expect((await read(page)).value).toBe(30)
     })
   })
@@ -200,7 +261,9 @@ for (const width of [390, 320]) {
 test.describe("with space beside the photograph", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("the grip follows the pointer and stops at the photograph's edges", async ({ page }) => {
+  test("the grip follows the pointer and stops at the photograph's edges", async ({
+    page,
+  }) => {
     const start = await open(page, 30)
 
     await page.mouse.move(start.grip, start.gripY)

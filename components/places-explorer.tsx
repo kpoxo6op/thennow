@@ -13,17 +13,23 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ArrowRight, ChevronDown, Grid2x2, Map as MapIcon, Search } from "lucide-react"
 import type { Place } from "@/interfaces/post"
+import {
+  ArrowRight,
+  ChevronDown,
+  Grid2x2,
+  Map as MapIcon,
+  Search,
+} from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import { groupByArea, PENDING_HEADING, storyArea } from "@/lib/places"
+import { cn } from "@/lib/utils"
+import { PendingTile } from "@/components/pending-tile"
 import {
   PlacesMap,
   type MapHighlight,
   type MapViewport,
 } from "@/components/places-map"
-import { PendingTile } from "@/components/pending-tile"
 import { StoryTile } from "@/components/story-tile"
 
 type Props = {
@@ -39,14 +45,10 @@ const VIEWPORT_LIMITS = {
   maxZoom: 16,
 }
 
-const TILE_SIZES =
-  "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+const TILE_SIZES = "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
 
 function normalize(text: string) {
-  return text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
 }
 
 function matches(story: Place, tokens: string[]) {
@@ -58,7 +60,8 @@ function matches(story: Place, tokens: string[]) {
   return tokens.every((token) => haystack.includes(` ${token}`))
 }
 
-const GRID_CLASS = "grid grid-cols-1 gap-x-3 gap-y-6 px-4 sm:grid-cols-2 md:gap-x-6 md:gap-y-10 lg:grid-cols-3"
+const GRID_CLASS =
+  "grid grid-cols-1 gap-x-3 gap-y-6 px-4 sm:grid-cols-2 md:gap-x-6 md:gap-y-10 lg:grid-cols-3"
 
 const PhotoGrid = memo(function PhotoGrid({
   stories,
@@ -87,12 +90,20 @@ const PhotoGrid = memo(function PhotoGrid({
         </ul>
       ) : null}
       {pending.length > 0 ? (
-        <section data-testid="places-pending" className={finished.length > 0 ? "mt-12 md:mt-16" : undefined}>
-          <h2 className="mx-4 mb-5 border-t pt-4 font-serif text-3xl leading-none md:text-4xl">{PENDING_HEADING}</h2>
+        <section
+          data-testid="places-pending"
+          className={finished.length > 0 ? "mt-12 md:mt-16" : undefined}
+        >
+          <h2 className="mx-4 mb-5 border-t pt-4 font-serif text-3xl leading-none md:text-4xl">
+            {PENDING_HEADING}
+          </h2>
           <ul className={`${GRID_CLASS} lg:grid-cols-4`}>
             {pending.map((place) => (
               <li key={place.slug}>
-                <PendingTile place={place} sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" />
+                <PendingTile
+                  place={place}
+                  sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                />
               </li>
             ))}
           </ul>
@@ -102,7 +113,8 @@ const PhotoGrid = memo(function PhotoGrid({
   )
 })
 
-const ROW_CLASS = "flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors"
+const ROW_CLASS =
+  "flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors"
 
 // A place in the list. Choosing it finds it on the map; once chosen, it is the way into its story.
 function StoryRow({
@@ -141,7 +153,10 @@ function StoryRow({
         >
           {picture}
           <span className="min-w-0 flex-1">
-            <span data-testid="map-selection-name" className="block text-[15px] font-medium leading-snug">
+            <span
+              data-testid="map-selection-name"
+              className="block text-[15px] font-medium leading-snug"
+            >
               {story.name}
             </span>
             <span className="mt-0.5 inline-flex items-center gap-1 text-[15px] text-muted-foreground underline-offset-4 group-hover:underline">
@@ -159,7 +174,9 @@ function StoryRow({
           onBlur={() => onHighlight?.(null)}
         >
           {picture}
-          <span className="line-clamp-2 min-w-0 text-[15px] font-medium leading-snug">{story.name}</span>
+          <span className="line-clamp-2 min-w-0 text-[15px] font-medium leading-snug">
+            {story.name}
+          </span>
         </button>
       )}
     </div>
@@ -208,7 +225,9 @@ export function PlacesExplorer({ stories }: Props) {
   const deferredQuery = useDeferredValue(query)
   // An address can name a chosen place, so coming back from its story finds it still chosen.
   const [selected, setSelected] = useState<Place[] | null>(() => {
-    const arrived = stories.find((story) => story.slug === searchParams.get("story"))
+    const arrived = stories.find(
+      (story) => story.slug === searchParams.get("story")
+    )
     return arrived ? [arrived] : null
   })
   const [mapFailed, setMapFailed] = useState(false)
@@ -226,9 +245,7 @@ export function PlacesExplorer({ stories }: Props) {
     const tokens = normalize(deferredQuery).split(/\s+/).filter(Boolean)
 
     return stories.filter(
-      (story) =>
-        (!area || storyArea(story) === area) &&
-        matches(story, tokens)
+      (story) => (!area || storyArea(story) === area) && matches(story, tokens)
     )
   }, [area, deferredQuery, stories])
 
@@ -349,7 +366,9 @@ export function PlacesExplorer({ stories }: Props) {
     }
 
     const previousFocus = document.activeElement
-    const row = listRef.current?.querySelector<HTMLElement>('[data-testid="map-selection"]')
+    const row = listRef.current?.querySelector<HTMLElement>(
+      '[data-testid="map-selection"]'
+    )
     row?.focus({ preventScroll: true })
 
     // Beside the map the list scrolls by itself: the chosen row has to come into its view,
@@ -418,13 +437,20 @@ export function PlacesExplorer({ stories }: Props) {
   }, [selected])
 
   const listed = useMemo(
-    () => (lead ? [...filtered].sort((a, b) => Number(b.slug === lead) - Number(a.slug === lead)) : filtered),
+    () =>
+      lead
+        ? [...filtered].sort(
+            (a, b) => Number(b.slug === lead) - Number(a.slug === lead)
+          )
+        : filtered,
     [filtered, lead]
   )
 
   const hasFilter = Boolean(deferredQuery.trim() || area)
   const isEmpty = filtered.length === 0
-  const finishedCount = filtered.filter((story) => story.status === "complete").length
+  const finishedCount = filtered.filter(
+    (story) => story.status === "complete"
+  ).length
   const pendingCount = filtered.length - finishedCount
   const resultLabel = `${filtered.length} ${filtered.length === 1 ? "place" : "places"}`
 
@@ -434,7 +460,9 @@ export function PlacesExplorer({ stories }: Props) {
         data-testid="places-toolbar"
         className="tn-toolbar flex flex-col justify-center gap-2 bg-background px-4 pb-3 pt-2 md:flex-row md:items-center md:gap-3 md:py-0"
       >
-        <h1 className="font-serif text-[2.5rem] leading-none md:mr-3 md:text-5xl">Places</h1>
+        <h1 className="font-serif text-[2.5rem] leading-none md:mr-3 md:text-5xl">
+          Places
+        </h1>
         {/* The grid shows what was found; the count is spoken, not printed. */}
         <span role="status" data-testid="places-count" className="sr-only">
           {resultLabel}
@@ -463,23 +491,23 @@ export function PlacesExplorer({ stories }: Props) {
         </div>
         <div className="flex min-w-0 items-center gap-2 md:contents">
           <div className="relative min-w-0 flex-1 md:flex-none">
-          <select
-            value={area}
-            aria-label="Area"
-            className={cn(controlClass, "w-full appearance-none pl-4 pr-9")}
-            onChange={(event) => {
-              setSelected(null)
-              setParam("area", event.target.value, "replace")
-              window.scrollTo(0, 0)
-            }}
-          >
-            <option value="">All areas</option>
-            {areas.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.title}
-              </option>
-            ))}
-          </select>
+            <select
+              value={area}
+              aria-label="Area"
+              className={cn(controlClass, "w-full appearance-none pl-4 pr-9")}
+              onChange={(event) => {
+                setSelected(null)
+                setParam("area", event.target.value, "replace")
+                window.scrollTo(0, 0)
+              }}
+            >
+              <option value="">All areas</option>
+              {areas.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.title}
+                </option>
+              ))}
+            </select>
             <ChevronDown
               aria-hidden
               className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
@@ -522,12 +550,20 @@ export function PlacesExplorer({ stories }: Props) {
 
       {view === "photos" ? (
         isEmpty ? (
-          <EmptyState query={deferredQuery} area={area} hasFilter={hasFilter} onClear={clearFilters} />
+          <EmptyState
+            query={deferredQuery}
+            area={area}
+            hasFilter={hasFilter}
+            onClear={clearFilters}
+          />
         ) : (
           <PhotoGrid stories={filtered} onPrefetch={handlePrefetch} />
         )
       ) : (
-        <div className="tn-map-view flex flex-col lg:flex-row-reverse" data-testid="map-view">
+        <div
+          className="tn-map-view flex flex-col lg:flex-row-reverse"
+          data-testid="map-view"
+        >
           <div className="tn-map relative h-[50svh] min-h-[20rem] min-w-0 shrink-0 lg:h-auto lg:flex-1 lg:shrink">
             <PlacesMap
               stories={filtered}
@@ -548,17 +584,25 @@ export function PlacesExplorer({ stories }: Props) {
                 className="pointer-events-none absolute bottom-2 left-2 z-[2] flex gap-3 rounded-full bg-black/75 px-3 py-1.5 text-[13px] text-white"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <span aria-hidden className="size-2.5 rounded-full bg-white" />
+                  <span
+                    aria-hidden
+                    className="size-2.5 rounded-full bg-white"
+                  />
                   Then and now
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span aria-hidden className="size-2.5 rounded-full border-2 border-white" />
+                  <span
+                    aria-hidden
+                    className="size-2.5 rounded-full border-2 border-white"
+                  />
                   Then only
                 </span>
               </p>
             ) : null}
 
-            {!isEmpty && visibleCount !== null && visibleCount < filtered.length ? (
+            {!isEmpty &&
+            visibleCount !== null &&
+            visibleCount < filtered.length ? (
               <button
                 type="button"
                 data-testid="map-show-all"
@@ -592,9 +636,7 @@ export function PlacesExplorer({ stories }: Props) {
 
             {isEmpty ? (
               <div className="absolute inset-x-3 bottom-10 z-[2] mx-auto max-w-sm rounded-lg bg-popover px-4 py-3 text-center shadow-[0_6px_28px_rgb(0_0_0/0.5)]">
-                <p className="text-[17px]">
-                  {noMatchText(query, area)}
-                </p>
+                <p className="text-[17px]">{noMatchText(query, area)}</p>
                 <button
                   type="button"
                   className="py-1 text-sm underline underline-offset-2"
@@ -604,7 +646,6 @@ export function PlacesExplorer({ stories }: Props) {
                 </button>
               </div>
             ) : null}
-
           </div>
           <aside className="shrink-0 border-t lg:w-[23rem] lg:overflow-y-auto lg:border-r lg:border-t-0">
             {filtered.length > 0 ? (
@@ -613,7 +654,9 @@ export function PlacesExplorer({ stories }: Props) {
                   <li key={story.slug}>
                     <StoryRow
                       story={story}
-                      chosen={Boolean(selected?.some((other) => other.slug === story.slug))}
+                      chosen={Boolean(
+                        selected?.some((other) => other.slug === story.slug)
+                      )}
                       onChoose={handleChoose}
                       onHighlight={handleHighlight}
                     />
@@ -630,7 +673,9 @@ export function PlacesExplorer({ stories }: Props) {
 
 function noMatchText(query: string, area: string) {
   const within = area ? ` in ${area}` : ""
-  return query.trim() ? `Nothing matches “${query.trim()}”${within}.` : `Nothing here${within}.`
+  return query.trim()
+    ? `Nothing matches “${query.trim()}”${within}.`
+    : `Nothing here${within}.`
 }
 
 function EmptyState({

@@ -1,5 +1,7 @@
-import { Analytics } from '@vercel/analytics/react';
+import { Analytics } from "@vercel/analytics/react"
+
 import "@/styles/globals.css"
+
 import { Metadata, Viewport } from "next"
 
 import { siteConfig } from "@/config/site"
@@ -8,7 +10,6 @@ import { fontSans, fontSerif } from "@/lib/fonts"
 import { linkPreview } from "@/lib/preview"
 import { cn } from "@/lib/utils"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
-
 
 const HERO_SLUG = siteConfig.heroSlug
 
@@ -20,7 +21,12 @@ export async function generateMetadata(): Promise<Metadata> {
     path: "/",
     title: siteConfig.name,
     description: siteConfig.description,
-    picture: { src: hero.ba_imageUrl, w: hero.w, h: hero.h, alt: `${hero.name}, then and now` },
+    picture: {
+      src: hero.ba_imageUrl,
+      w: hero.w,
+      h: hero.h,
+      alt: `${hero.name}, then and now`,
+    },
   })
 
   return {

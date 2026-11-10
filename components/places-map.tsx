@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, type RefObject } from "react"
 import type { Place } from "@/interfaces/post"
+
 import "@/styles/map.css"
 
 export type MapViewport = {
@@ -112,13 +113,23 @@ export function PlacesMap({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const storiesRef = useRef(stories)
   const viewportRef = useRef(viewport)
-  const callbacksRef = useRef({ onVisibleSlugsChange, onViewportChange, onSelect, onFail })
+  const callbacksRef = useRef({
+    onVisibleSlugsChange,
+    onViewportChange,
+    onSelect,
+    onFail,
+  })
   const refreshRef = useRef<((fit: boolean) => void) | null>(null)
   const selectedSlugsRef = useRef<string[]>([])
   const applyActiveRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    callbacksRef.current = { onVisibleSlugsChange, onViewportChange, onSelect, onFail }
+    callbacksRef.current = {
+      onVisibleSlugsChange,
+      onViewportChange,
+      onSelect,
+      onFail,
+    }
   }, [onVisibleSlugsChange, onViewportChange, onSelect, onFail])
 
   const storiesKey = useMemo(
@@ -165,12 +176,19 @@ export function PlacesMap({
           style: "https://tiles.openfreemap.org/styles/liberty",
           ...(initialViewport
             ? {
-                center: [initialViewport.lng, initialViewport.lat] as [number, number],
+                center: [initialViewport.lng, initialViewport.lat] as [
+                  number,
+                  number,
+                ],
                 // A story chosen on arrival is shown as itself, not inside a cluster.
                 zoom: selectedSlugsRef.current[0]
                   ? Math.max(
                       initialViewport.z,
-                      zoomShowingAlone(selectedSlugsRef.current[0], initialStories, initialViewport.z)
+                      zoomShowingAlone(
+                        selectedSlugsRef.current[0],
+                        initialStories,
+                        initialViewport.z
+                      )
                     )
                   : initialViewport.z,
               }
@@ -216,13 +234,18 @@ export function PlacesMap({
       })
 
       const expandCluster = (cluster: StoryCluster) => {
-        const camera = activeMap.cameraForBounds(boundsOf(cluster.stories), { padding: 64 })
+        const camera = activeMap.cameraForBounds(boundsOf(cluster.stories), {
+          padding: 64,
+        })
         // Sprawling clusters on a small map still have to get closer per tap.
         const nextLevel = Math.floor(activeMap.getZoom()) + 2
         const fitsBounds = (camera?.zoom ?? 0) >= nextLevel
 
         activeMap.easeTo({
-          center: fitsBounds && camera?.center ? camera.center : [cluster.lng, cluster.lat],
+          center:
+            fitsBounds && camera?.center
+              ? camera.center
+              : [cluster.lng, cluster.lat],
           zoom: Math.min(MAX_ZOOM, Math.max(camera?.zoom ?? 0, nextLevel)),
           duration: 450,
         })
@@ -239,9 +262,13 @@ export function PlacesMap({
         liveMarkers.forEach(({ element }, key) => {
           element.classList.toggle(
             "is-active",
-            key.split(",").some(
-              (slug) => slug === highlighted || selectedSlugsRef.current.includes(slug)
-            )
+            key
+              .split(",")
+              .some(
+                (slug) =>
+                  slug === highlighted ||
+                  selectedSlugsRef.current.includes(slug)
+              )
           )
         })
       }
@@ -275,7 +302,9 @@ export function PlacesMap({
       const createMarker = (cluster: StoryCluster) => {
         const isSingle = cluster.stories.length === 1
         const element = document.createElement("a")
-        const allPending = cluster.stories.every((story) => story.status === "pending")
+        const allPending = cluster.stories.every(
+          (story) => story.status === "pending"
+        )
         element.className = `tn-map-marker tn-map-marker--${isSingle ? "point" : "cluster"}${allPending ? " tn-map-marker--pending" : ""}`
         element.href = `/${cluster.stories[0].slug}`
         element.ariaLabel = isSingle

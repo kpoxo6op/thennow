@@ -8,14 +8,21 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const missing = () =>
-  new Response(null, { status: 404, headers: { "cache-control": "private, no-store" } })
+  new Response(null, {
+    status: 404,
+    headers: { "cache-control": "private, no-store" },
+  })
 
 export async function GET(request: Request) {
   const cookie = readCookie(request)
   const url = new URL(request.url)
   const place = url.searchParams.get("place") ?? ""
   const key = url.searchParams.get("key") ?? ""
-  if (!cookie || !/^[a-z0-9-]{1,80}$/.test(place) || !/^[a-z0-9]{12,40}$/.test(key))
+  if (
+    !cookie ||
+    !/^[a-z0-9-]{1,80}$/.test(place) ||
+    !/^[a-z0-9]{12,40}$/.test(key)
+  )
     return missing()
   if (!hasStore()) return missing()
   try {

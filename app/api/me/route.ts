@@ -42,25 +42,30 @@ export async function GET(request: Request) {
   const cookie = readCookie(request) ?? newCookie()
   // Without the store the cookie is still given and renewed; the name just isn't known.
   const profile = await readProfile(personId(cookie)).catch(() => null)
-  return answer(request, cookie, { name: profile?.name ?? null, passkey: !!profile?.passkey })
+  return answer(request, cookie, {
+    name: profile?.name ?? null,
+    passkey: !!profile?.passkey,
+  })
 }
 
 // Signs up, or changes the name.
 export async function POST(request: Request) {
-  if (!sameSite(request)) return Response.json({ error: "forbidden" }, { status: 403 })
+  if (!sameSite(request))
+    return Response.json({ error: "forbidden" }, { status: 403 })
   const cookie = readCookie(request) ?? newCookie()
   if (Number(request.headers.get("content-length") ?? 0) > 2_000)
     return Response.json({ error: "too big" }, { status: 413 })
   let name: string | null = null
   try {
     const text = await request.text()
-    if (text.length > 2_000) return Response.json({ error: "too big" }, { status: 413 })
+    if (text.length > 2_000)
+      return Response.json({ error: "too big" }, { status: 413 })
     name = cleanName(JSON.parse(text)?.name)
   } catch {}
   if (!name) return Response.json({ error: "bad name" }, { status: 400 })
-  if (!hasStore())
-    return Response.json({ error: "no store" }, { status: 503 })
-  if (!allowed(request)) return Response.json({ error: "slow down" }, { status: 429 })
+  if (!hasStore()) return Response.json({ error: "no store" }, { status: 503 })
+  if (!allowed(request))
+    return Response.json({ error: "slow down" }, { status: 429 })
   const id = personId(cookie)
   try {
     return answer(request, cookie, { ...(await writeProfile(id, { name })) })
@@ -71,11 +76,11 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!sameSite(request)) return Response.json({ error: "forbidden" }, { status: 403 })
+  if (!sameSite(request))
+    return Response.json({ error: "forbidden" }, { status: 403 })
   const cookie = readCookie(request)
   if (!cookie) return Response.json({ name: null })
-  if (!hasStore())
-    return Response.json({ error: "no store" }, { status: 503 })
+  if (!hasStore()) return Response.json({ error: "no store" }, { status: 503 })
   try {
     await removeProfile(personId(cookie))
   } catch (error) {

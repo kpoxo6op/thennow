@@ -9,7 +9,9 @@ test("every page's footer leads to Your photos", async ({ page }) => {
   await page.goto("/about")
   await page.getByTestId("footer-your-photos").click()
   await expect(page).toHaveURL(/\/me$/)
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your photos")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Your photos"
+  )
 })
 
 test("anyone can sign up before sending a photo: one field, Sign up, and Sign in below", async ({
@@ -53,7 +55,9 @@ test("signing up saves the name, then offers the phone a passkey, and shows the 
   expect(asked).toEqual(["GET"])
 })
 
-test("a sign-up that can't be saved says so and can be tried again", async ({ page }) => {
+test("a sign-up that can't be saved says so and can be tried again", async ({
+  page,
+}) => {
   let tries = 0
   await page.route("**/api/me", (route) => {
     if (route.request().method() !== "POST")
@@ -114,11 +118,20 @@ test("a name is taken only from the site, and only a real name", async ({
   const post = (data: unknown, headers: Record<string, string> = {}) =>
     request.post("/api/me", {
       data: JSON.stringify(data),
-      headers: { "content-type": "application/json", "x-real-ip": address, ...headers },
+      headers: {
+        "content-type": "application/json",
+        "x-real-ip": address,
+        ...headers,
+      },
     })
   const withCookie = { cookie: `tn_me=${COOKIE}` }
   expect(
-    (await post({ name: "Margaret" }, { ...withCookie, "sec-fetch-site": "cross-site" })).status()
+    (
+      await post(
+        { name: "Margaret" },
+        { ...withCookie, "sec-fetch-site": "cross-site" }
+      )
+    ).status()
   ).toBe(403)
   // No photo and no cookie are needed to sign up.
   expect((await post({ name: "Margaret" })).status()).toBe(200)
@@ -132,7 +145,9 @@ test("a name is taken only from the site, and only a real name", async ({
   expect(await saved.json()).toEqual({ name: "Margaret", passkey: false })
 })
 
-test("a photo is never shown without a cookie, or for a made-up place", async ({ request }) => {
+test("a photo is never shown without a cookie, or for a made-up place", async ({
+  request,
+}) => {
   const query = "place=mission-house&key=abcdefghijkl0123"
   expect((await request.get(`/api/me/photo?${query}`)).status()).toBe(404)
   expect(
@@ -149,7 +164,12 @@ test("a passkey is only for someone signed up, and signing in needs a real passk
 }) => {
   expect((await request.get("/api/me/passkey")).status()).toBe(401)
   expect(
-    (await request.post("/api/me/passkey", { data: "{}", headers: { "sec-fetch-site": "cross-site" } })).status()
+    (
+      await request.post("/api/me/passkey", {
+        data: "{}",
+        headers: { "sec-fetch-site": "cross-site" },
+      })
+    ).status()
   ).toBe(403)
   const options = await request.get("/api/me/signin")
   expect(options.status()).toBe(200)
@@ -159,8 +179,15 @@ test("a passkey is only for someone signed up, and signing in needs a real passk
   expect(set).toContain("HttpOnly")
   expect(set).toContain("SameSite=Strict")
   expect(
-    (await request.post("/api/me/signin", { data: "{}", headers: { "sec-fetch-site": "cross-site" } })).status()
+    (
+      await request.post("/api/me/signin", {
+        data: "{}",
+        headers: { "sec-fetch-site": "cross-site" },
+      })
+    ).status()
   ).toBe(403)
   // Anything that isn't a passkey's answer is refused.
-  expect((await request.post("/api/me/signin", { data: "{}" })).status()).toBe(401)
+  expect((await request.post("/api/me/signin", { data: "{}" })).status()).toBe(
+    401
+  )
 })

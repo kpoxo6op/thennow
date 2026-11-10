@@ -4,7 +4,15 @@ import { ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // The site's one way of saying "go on from here".
-export function CtaLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
+export function CtaLink({
+  href,
+  className,
+  children,
+}: {
+  href: string
+  className?: string
+  children: React.ReactNode
+}) {
   return (
     <Link
       href={href}

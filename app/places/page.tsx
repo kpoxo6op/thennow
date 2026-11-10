@@ -1,11 +1,13 @@
 import { Suspense } from "react"
 import { Metadata } from "next"
 
-import { fetchPending, fetchPosts, toPendingSummary, toSummary } from "@/lib/api"
 import {
-  PlacesExplorer,
-  PlacesFallback,
-} from "@/components/places-explorer"
+  fetchPending,
+  fetchPosts,
+  toPendingSummary,
+  toSummary,
+} from "@/lib/api"
+import { PlacesExplorer, PlacesFallback } from "@/components/places-explorer"
 import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 

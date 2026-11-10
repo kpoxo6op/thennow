@@ -1,8 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ChevronsLeftRight } from "lucide-react"
 import Image from "next/image"
+import { ChevronsLeftRight } from "lucide-react"
 
 import { COMPARE_LINE_SAFE_PX, COMPARE_SIDE_GUTTER_PX } from "@/lib/compare"
 import { cn } from "@/lib/utils"
@@ -39,7 +39,12 @@ const OFFSET_EASE_PX = 48
 const END_SNAP_PX = 3
 
 // Where the photograph actually sits inside the stage.
-function getImageBounds(width: number, height: number, ratio: number, fit: Props["fit"]) {
+function getImageBounds(
+  width: number,
+  height: number,
+  ratio: number,
+  fit: Props["fit"]
+) {
   const fitted = Math.min(width, height * ratio)
   // Under a pixel of difference is rounding, not space beside the photograph.
   const imageWidth = fit === "cover" || width - fitted < 1 ? width : fitted
@@ -54,7 +59,11 @@ function getGutter(imageLeft: number) {
 
 // A line a drag parked at the limit must still count as safe once its position has been rounded
 // to a whole percent for the address, so half a percent of the photograph is forgiven.
-function isSafeForFinger(viewportX: number, viewportWidth: number, imageWidth: number) {
+function isSafeForFinger(
+  viewportX: number,
+  viewportWidth: number,
+  imageWidth: number
+) {
   const forgiven = Math.max(1, imageWidth * 0.005)
 
   return (
@@ -73,7 +82,8 @@ function pointerDividerX(
   }
 
   // An off-centre grab eases back onto the pointer so the far edge stays reachable.
-  const room = grip.offset > 0 ? clientX - image.left : image.left + image.width - clientX
+  const room =
+    grip.offset > 0 ? clientX - image.left : image.left + image.width - clientX
   const limit = Math.min(OFFSET_EASE_PX, grip.edgeRoom)
   const ease = room >= limit ? 1 : Math.max(0, room) / limit
 
@@ -96,7 +106,12 @@ export function CompareStage({
 }: Props) {
   const stageRef = useRef<HTMLDivElement>(null)
   const gestureRef = useRef<Gesture | null>(null)
-  const [size, setSize] = useState({ width: 0, height: 0, left: 0, viewport: 0 })
+  const [size, setSize] = useState({
+    width: 0,
+    height: 0,
+    left: 0,
+    viewport: 0,
+  })
   const [coarsePointer, setCoarsePointer] = useState(false)
 
   useEffect(() => {
@@ -108,7 +123,12 @@ export function CompareStage({
 
     const measure = () => {
       const { width, height, left } = stage.getBoundingClientRect()
-      setSize({ width, height, left, viewport: document.documentElement.clientWidth })
+      setSize({
+        width,
+        height,
+        left,
+        viewport: document.documentElement.clientWidth,
+      })
     }
 
     const pointer = window.matchMedia("(pointer: coarse)")
@@ -140,7 +160,10 @@ export function CompareStage({
       const dragged = pointerDividerX(clientX, grip, image)
       // A finger can run on past this; the line waits here, clear of the system's edge gesture.
       const x = touch
-        ? Math.min(viewport - COMPARE_LINE_SAFE_PX, Math.max(COMPARE_LINE_SAFE_PX, dragged))
+        ? Math.min(
+            viewport - COMPARE_LINE_SAFE_PX,
+            Math.max(COMPARE_LINE_SAFE_PX, dragged)
+          )
         : dragged
       const right = image.left + image.width
 
@@ -165,7 +188,9 @@ export function CompareStage({
   // A whole photograph can still be asked for by button, address or keyboard. On a touch screen
   // the line then has nothing to offer at the edge but a target inside the system's gesture zone.
   const lineStepsAside =
-    measured && coarsePointer && !isSafeForFinger(size.left + revealX, size.viewport, image.width)
+    measured &&
+    coarsePointer &&
+    !isSafeForFinger(size.left + revealX, size.viewport, image.width)
   const lastWidthRef = useRef(0)
 
   useEffect(() => {
@@ -174,16 +199,30 @@ export function CompareStage({
 
   // A rotation can strand a compared line in the edge zone. A whole photograph stays as asked.
   useEffect(() => {
-    const widthChanged = lastWidthRef.current !== 0 && lastWidthRef.current !== size.width
+    const widthChanged =
+      lastWidthRef.current !== 0 && lastWidthRef.current !== size.width
 
     lastWidthRef.current = size.width
 
     if (widthChanged && lineStepsAside && bounded !== 0 && bounded !== 100) {
-      const safe = Math.min(size.viewport - COMPARE_LINE_SAFE_PX, Math.max(COMPARE_LINE_SAFE_PX, size.left + revealX))
+      const safe = Math.min(
+        size.viewport - COMPARE_LINE_SAFE_PX,
+        Math.max(COMPARE_LINE_SAFE_PX, size.left + revealX)
+      )
 
       onPositionChange(((safe - size.left - image.left) / image.width) * 100)
     }
-  }, [bounded, image.left, image.width, lineStepsAside, onPositionChange, revealX, size.left, size.viewport, size.width])
+  }, [
+    bounded,
+    image.left,
+    image.width,
+    lineStepsAside,
+    onPositionChange,
+    revealX,
+    size.left,
+    size.viewport,
+    size.width,
+  ])
   const imageClass = fit === "cover" ? "absolute inset-0" : "tn-compare-image"
   const sizes = "100vw"
 
@@ -204,15 +243,23 @@ export function CompareStage({
         const rect = event.currentTarget.getBoundingClientRect()
         const bounds = getImageBounds(rect.width, rect.height, ratio, fit)
         const edge = getGutter(bounds.left)
-        const dividerX = rect.left + bounds.left + (bounded / 100) * bounds.width
+        const dividerX =
+          rect.left + bounds.left + (bounded / 100) * bounds.width
         const offset = dividerX - event.clientX
-        const lineIsSafe = isSafeForFinger(dividerX, document.documentElement.clientWidth, bounds.width)
+        const lineIsSafe = isSafeForFinger(
+          dividerX,
+          document.documentElement.clientWidth,
+          bounds.width
+        )
         const onGrip =
           !(touch && !lineIsSafe) &&
-          Math.hypot(offset, rect.top + rect.height / 2 - event.clientY) <= GRIP_RADIUS_PX
+          Math.hypot(offset, rect.top + rect.height / 2 - event.clientY) <=
+            GRIP_RADIUS_PX
         const inScreenMargin =
-          event.clientX < rect.left + COMPARE_SIDE_GUTTER_PX || event.clientX > rect.right - COMPARE_SIDE_GUTTER_PX
-        const besidePhotograph = event.clientX < rect.left + edge || event.clientX > rect.right - edge
+          event.clientX < rect.left + COMPARE_SIDE_GUTTER_PX ||
+          event.clientX > rect.right - COMPARE_SIDE_GUTTER_PX
+        const besidePhotograph =
+          event.clientX < rect.left + edge || event.clientX > rect.right - edge
 
         // Touches in the screen margins are left to the OS edge gestures. Space beside the
         // photograph is ignored too, except for the part of the grip that overhangs it.
@@ -229,7 +276,12 @@ export function CompareStage({
             : rect.left + bounds.left + bounds.width - event.clientX
         const grip = onGrip ? { offset, edgeRoom } : null
 
-        gestureRef.current = { startX: event.clientX, moved: false, touch, grip }
+        gestureRef.current = {
+          startX: event.clientX,
+          moved: false,
+          touch,
+          grip,
+        }
 
         // A touch may become a page scroll, so it only moves the line once it is clearly not one.
         if (!touch && !grip) {
@@ -243,7 +295,11 @@ export function CompareStage({
           return
         }
 
-        if (gesture.touch && !gesture.moved && Math.abs(event.clientX - gesture.startX) < TOUCH_SLOP_PX) {
+        if (
+          gesture.touch &&
+          !gesture.moved &&
+          Math.abs(event.clientX - gesture.startX) < TOUCH_SLOP_PX
+        ) {
           return
         }
 
@@ -317,7 +373,10 @@ export function CompareStage({
           onPositionChange(Number(event.target.value))
         }}
         className="tn-compare-input peer absolute inset-y-0"
-        style={{ left: `${gutter}px`, width: measured ? `${size.width - gutter * 2}px` : undefined }}
+        style={{
+          left: `${gutter}px`,
+          width: measured ? `${size.width - gutter * 2}px` : undefined,
+        }}
       />
       <div
         aria-hidden

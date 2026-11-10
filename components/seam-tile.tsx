@@ -63,18 +63,42 @@ export function SeamTile({
         }
 
         const box = frame.getBoundingClientRect()
-        setSeam(`${Math.min(100, Math.max(0, ((event.clientX - box.left) / box.width) * 100))}%`)
+        setSeam(
+          `${Math.min(100, Math.max(0, ((event.clientX - box.left) / box.width) * 100))}%`
+        )
       }}
       onPointerLeave={() => setSeam("50%")}
     >
       <span
         ref={frameRef}
-        className={cn("tn-seam-tile relative block w-full overflow-hidden bg-muted", wide && "tn-seam-wide")}
-        style={{ aspectRatio: ratio, "--trim": trim ?? 1.03 } as React.CSSProperties}
+        className={cn(
+          "tn-seam-tile relative block w-full overflow-hidden bg-muted",
+          wide && "tn-seam-wide"
+        )}
+        style={
+          { aspectRatio: ratio, "--trim": trim ?? 1.03 } as React.CSSProperties
+        }
       >
-        <Image src={nowSrc} alt="" fill sizes={sizes} priority={priority} className="object-cover" />
-        <Image src={thenSrc} alt="" fill sizes={sizes} priority={priority} className="tn-seam-then object-cover" />
-        <span aria-hidden className="tn-seam-line absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white/90" />
+        <Image
+          src={nowSrc}
+          alt=""
+          fill
+          sizes={sizes}
+          priority={priority}
+          className="object-cover"
+        />
+        <Image
+          src={thenSrc}
+          alt=""
+          fill
+          sizes={sizes}
+          priority={priority}
+          className="tn-seam-then object-cover"
+        />
+        <span
+          aria-hidden
+          className="tn-seam-line absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white/90"
+        />
       </span>
       {caption}
     </Link>

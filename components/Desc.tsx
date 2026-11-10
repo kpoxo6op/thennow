@@ -72,7 +72,10 @@ const Desc: React.FC<DescProps> = ({ description, className }) => {
                 {line}
               </a>
             ) : (
-              <p key={lineIndex} className="font-serif text-lg leading-relaxed sm:text-xl">
+              <p
+                key={lineIndex}
+                className="font-serif text-lg leading-relaxed sm:text-xl"
+              >
                 {line}
               </p>
             )
