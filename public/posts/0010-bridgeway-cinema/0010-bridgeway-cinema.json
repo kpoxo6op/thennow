@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Bridgeway Cinema, Northcote Point",
+  "slug": "bridgeway-cinema",
+  "description": "The shops beside King’s Theatre in the 1920s. Stand on the Queen Street footpath opposite the Bridgeway, near Bartley Street. Hold your phone sideways and line up the shop verandah, with the gabled end on the right.",
+  "b_imageUrl": "/posts/0010-bridgeway-cinema/then-bridgeway-cinema.jpg",
+  "w": 2000,
+  "h": 1186,
+  "location": {
+    "lat": -36.81791,
+    "lng": 174.7454
+  },
+  "archive": {
+    "date": "1920s",
+    "photographer": "Unknown",
+    "credit": "Auckland Libraries Heritage Collections N0113040",
+    "rights": "No known copyright restrictions",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/29147",
+    "sourceId": "N0113040"
+  },
+  "area": "Auckland"
+}

@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Northcote Tavern, Northcote Point",
+  "slug": "northcote-tavern",
+  "description": "The Northcote Hotel in the 1890s, before its extension. From the opposite Queen Street footpath near King Street, line up the two upstairs gables and keep the King Street side of the building on the right.",
+  "b_imageUrl": "/posts/0012-northcote-tavern/then-northcote-tavern.jpg",
+  "w": 2000,
+  "h": 1133,
+  "location": {
+    "lat": -36.823,
+    "lng": 174.74818
+  },
+  "archive": {
+    "date": "1890s",
+    "photographer": "Unknown",
+    "credit": "Auckland Libraries Heritage Collections 4-RIC061",
+    "rights": "No known copyright restrictions",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/413806",
+    "sourceId": "4-RIC061"
+  },
+  "area": "Auckland"
+}

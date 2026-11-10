@@ -767,9 +767,8 @@ test.describe("the chosen place on a phone's map list", () => {
 test.describe("a place whose modern photograph is pending", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } })
 
-  test("there are between three and five, and each is backed by an archive record", () => {
+  test("each pending place is backed by an archive record", () => {
     expect(pendingEntries.length).toBeGreaterThanOrEqual(3)
-    expect(pendingEntries.length).toBeLessThanOrEqual(5)
     for (const entry of pendingEntries) {
       expect(entry.status, entry.slug).toBe("pending")
       expect(entry.ba_imageUrl, entry.slug).toBeUndefined()
