@@ -78,11 +78,13 @@ test("zen covers the whole screen without the browser's full screen, and Back cl
   expect(block.width).toBe(viewport.width)
   expect(block.height).toBe(viewport.height)
 
-  // The page doesn't scroll underneath.
-  await page.mouse.wheel(0, 600)
-  await page.waitForTimeout(200)
-  expect(await page.evaluate(() => window.scrollY)).toBe(0)
-  expect((await zen.boundingBox())!.y).toBe(0)
+  // The page is held still underneath. (Mobile WebKit here takes no wheel and no swipe, so the
+  // hold itself is what's checked.)
+  expect(
+    await page.evaluate(
+      () => getComputedStyle(document.documentElement).overflow
+    )
+  ).toBe("hidden")
 
   await page.goBack()
   await expect(zen).toHaveCount(0)
