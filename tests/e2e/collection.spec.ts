@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "fs"
 import path from "path"
 
-import { expect, test, type CDPSession, type Page } from "@playwright/test"
+import { expect, test, type CDPSession, type Page } from "./fixtures"
 
 const postsDir = path.join(process.cwd(), "public", "posts")
 const entries = readdirSync(postsDir).map((folder) => ({
