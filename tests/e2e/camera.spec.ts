@@ -333,6 +333,23 @@ test.describe("the rephotography camera", () => {
     expect(serverCalls).toBe(1)
   })
 
+  test("a server that takes over ten seconds to match still lines the shot up", async ({
+    page,
+  }) => {
+    // The site's server took 9-11 s a match, and the camera gave up at 10 (Glen Innes, Nov 2026).
+    await page.route("**/api/align", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 12_000))
+      await route.continue()
+    })
+    await openCamera(page, "mission-house")
+    await shoot(page)
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligned",
+      { timeout: 45_000 }
+    )
+  })
+
   test("a shot that can't be matched keeps the levelled framing", async ({
     page,
   }) => {
