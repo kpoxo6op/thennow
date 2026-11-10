@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "fs"
 import path from "path"
 
-import { expect, test, type CDPSession, type Page } from "@playwright/test"
+import { expect, test, type CDPSession, type Page } from "./fixtures"
 
 // The map library's own file can't be fetched: a weak signal, or a page kept open across a release.
 async function withoutMapCode(page: Page) {
