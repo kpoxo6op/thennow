@@ -62,6 +62,10 @@ async function realPlace(slug: string) {
   return places.some((place) => place.slug === slug && !place.sample)
 }
 
+// A saved name with a web address cannot sign a comment, so it is treated as if there were none.
+const usable = (name: string | undefined | null) =>
+  name && !hasLink(name) ? name : null
+
 function shown(comment: Comment, id: string | null, admins: Set<string>) {
   return {
     id: comment.key,
@@ -83,7 +87,7 @@ export async function GET(request: Request) {
   const id = cookie ? personId(cookie) : null
   try {
     const comments = await listComments(place)
-    const name = id ? ((await readProfile(id))?.name ?? null) : null
+    const name = id ? usable((await readProfile(id))?.name) : null
     const admins = adminIds()
     return answer({
       comments: comments.map((comment) => shown(comment, id, admins)),
@@ -133,14 +137,18 @@ export async function POST(request: Request) {
   const id = personId(cookie)
   try {
     const profile = await readProfile(id)
-    const name = profile?.name ?? cleanName(body.name)
+    const saved = usable(profile?.name)
+    const name = saved ?? cleanName(body.name)
     if (!name) return refuse(400, "name")
     if (hasLink(name)) return refuse(400, "links")
     if (!posts(request)) return refuse(429, "slow down")
     if (!profile?.name) await writeProfile(id, { name })
     const comment = await addComment(place, { text, name, by: id })
     return answer(
-      { comment: shown(comment, id, adminIds()), name },
+      {
+        comment: shown(comment, id, adminIds()),
+        name: profile?.name ? saved : name,
+      },
       { "set-cookie": cookieHeader(cookie, isSecure(request)) }
     )
   } catch (error) {

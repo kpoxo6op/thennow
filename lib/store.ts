@@ -30,8 +30,17 @@ type Kept = {
 }
 
 // One shelf for the whole server, however its code is split into bundles.
-const holder = globalThis as { __tnMemoryStore?: Map<string, Kept> }
+const holder = globalThis as {
+  __tnMemoryStore?: Map<string, Kept>
+  __tnMemoryStoreBorn?: string
+}
 const shelf = (holder.__tnMemoryStore ??= new Map<string, Kept>())
+
+// The memory store starts empty with each server, but Next's data cache is kept on disk. Anything
+// cached about the store carries this, so nothing from an earlier run is ever read back.
+export const storeBorn = memoryStore
+  ? (holder.__tnMemoryStoreBorn ??= String(Date.now()))
+  : ""
 
 type Options = { contentType?: string; allowOverwrite?: boolean }
 

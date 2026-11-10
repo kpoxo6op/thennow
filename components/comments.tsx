@@ -23,7 +23,14 @@ const day = new Intl.DateTimeFormat("en-NZ", {
 
 const NOT_REMOVED_SIGNAL = "Not removed. Check your signal and try again."
 const NOT_REMOVED_LATER = "Not removed. Please try again later."
-const TOO_LONG = "Please write up to 1000 characters."
+const MAX = 1000
+
+// Counted before the server tidies the text, so it is never too few.
+function tooLong(text: string) {
+  const over = [...text.trim()].length - MAX
+  if (over <= 0) return "Please write up to 1000 characters."
+  return `Please shorten it by ${over} character${over === 1 ? "" : "s"}.`
+}
 
 export function Comments({ place }: { place: string }) {
   const wrapper = useRef<HTMLDivElement>(null)
@@ -36,6 +43,9 @@ export function Comments({ place }: { place: string }) {
   const [name, setName] = useState("")
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState("")
+  const gone = useRef(new Set<string>())
+  const freshRow = useRef<HTMLLIElement>(null)
+  const [fresh, setFresh] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [failedRemoval, setFailedRemoval] = useState<{
     id: string
@@ -50,7 +60,8 @@ export function Comments({ place }: { place: string }) {
     let isMounted = true
     let timer: ReturnType<typeof setTimeout> | undefined
     // A list that cannot be read is tried again, quietly, a couple of times. What the reader has
-    // written in the meantime stays.
+    // written in the meantime stays, and so does what was removed: the list may have been asked for
+    // before that.
     function load(retries: number) {
       const again = () => {
         if (isMounted && retries > 0)
@@ -60,11 +71,16 @@ export function Comments({ place }: { place: string }) {
         cache: "no-store",
       })
         .then(async (response) => {
-          if (!response.ok) return again()
+          if (!response.ok) {
+            if (response.status >= 500) again()
+            return
+          }
           const json = await response.json()
           if (!isMounted) return
           setComments((now) => [
-            ...json.comments,
+            ...json.comments
+              .filter((c: Shown) => !gone.current.has(c.id))
+              .map((c: Shown) => now.find((mine) => mine.id === c.id) ?? c),
             ...now.filter(
               (mine) => !json.comments.some((c: Shown) => c.id === mine.id)
             ),
@@ -88,6 +104,10 @@ export function Comments({ place }: { place: string }) {
       observer.disconnect()
     }
   }, [place])
+
+  useEffect(() => {
+    if (fresh) freshRow.current?.focus()
+  }, [fresh])
 
   useEffect(() => {
     if (askName) nameField.current?.focus()
@@ -114,6 +134,7 @@ export function Comments({ place }: { place: string }) {
       if (response.ok) {
         const json = await response.json()
         setComments((now) => [...now, json.comment])
+        setFresh(json.comment.id)
         setKnown(json.name)
         setText("")
         setName("")
@@ -137,7 +158,7 @@ export function Comments({ place }: { place: string }) {
           response.status === 413 ||
           (response.status === 400 && error === "text")
         )
-          setNote(TOO_LONG)
+          setNote(tooLong(text))
         else setNote("Not posted. Check your signal and try again.")
       }
     } catch {
@@ -156,9 +177,10 @@ export function Comments({ place }: { place: string }) {
         `/api/comments?place=${encodeURIComponent(place)}&id=${encodeURIComponent(id)}`,
         { method: "DELETE" }
       )
-      if (response.ok || response.status === 404)
+      if (response.ok || response.status === 404) {
+        gone.current.add(id)
         setComments((now) => now.filter((c) => c.id !== id))
-      else setFailedRemoval({ id, note: NOT_REMOVED_LATER })
+      } else setFailedRemoval({ id, note: NOT_REMOVED_LATER })
     } catch {
       setFailedRemoval({ id, note: NOT_REMOVED_SIGNAL })
     } finally {
@@ -173,8 +195,10 @@ export function Comments({ place }: { place: string }) {
           {comments.map((comment) => (
             <li
               key={comment.id}
+              ref={comment.id === fresh ? freshRow : undefined}
+              tabIndex={comment.id === fresh ? -1 : undefined}
               data-testid="comment"
-              className="border-b py-4 first:border-t"
+              className="border-b py-4 outline-none first:border-t"
             >
               <div className="flex items-baseline justify-between gap-4 text-sm text-muted-foreground">
                 <p className="min-w-0 break-words">

@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto"
+import { revalidateTag, unstable_cache } from "next/cache"
 
-import { del, get, list, put } from "@/lib/store"
+import { del, get, list, put, storeBorn } from "@/lib/store"
 
 // What visitors write at the end of a place's page. A comment is its words, the name it was
 // posted with, when, and the id of the person who wrote it, kept as one small file at
@@ -61,9 +62,10 @@ export function adminIds(): Set<string> {
   )
 }
 
-// A list is never kept here: each server instance would keep its own, and a comment posted
-// through one would be missing from another's for a while. A comment that has been read is kept,
-// and read again only when the store says its file has been written since.
+// A list is not kept in this module: each server instance would keep its own, and a comment posted
+// through one would be missing from another's for a while. The shared cache below keeps it. A
+// comment's body that has been read is kept here, and read again only when the store says its
+// file has been written since.
 const READ_AT_ONCE = 10
 const bodies = new Map<string, { stamp: number; comment: Comment }>()
 
@@ -128,7 +130,7 @@ async function readListed(
   return comment
 }
 
-export async function listComments(place: string): Promise<Comment[]> {
+async function readList(place: string): Promise<Comment[]> {
   const files = (await everything(`comments/${place}/`))
     .map((blob) => ({
       key:
@@ -150,6 +152,23 @@ export async function listComments(place: string): Promise<Comment[]> {
   }
   return comments.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 }
+
+const A_DAY = 24 * 60 * 60
+const tagOf = (place: string) => `comments:${place}`
+
+// The list for a place is kept in Next's data cache, which every server instance shares, and is
+// read from the store again only after it changed here (see changed) or after a day. Listing the
+// store is the costly call: the store's plan allows about two thousand a month, and going over
+// blocks the whole store, photos included. What is kept says who wrote each comment, so it never
+// leaves the server as it is.
+export const listComments = (place: string): Promise<Comment[]> =>
+  unstable_cache(() => readList(place), ["comments", storeBorn, place], {
+    tags: [tagOf(place)],
+    revalidate: A_DAY,
+  })()
+
+// Stale lists are never served: the next read after this goes to the store.
+const changed = (place: string) => revalidateTag(tagOf(place), { expire: 0 })
 
 // A tiny note that this person wrote that comment, so signing in can find a person's comments
 // without reading everyone's.
@@ -179,6 +198,7 @@ export async function addComment(
     contentType: "application/json",
     addRandomSuffix: false,
   })
+  changed(place)
   return { key, text, name, by, at }
 }
 
@@ -191,40 +211,56 @@ export async function removeComment(place: string, comment: Comment) {
     markPath(comment.by, place, comment.key),
   ])
   bodies.delete(commentPath(place, comment.key))
+  changed(place)
 }
 
 // When someone signs in on a phone that had already written comments, those comments join theirs.
 // Each comment is rewritten under the new id before the old note goes, and its new note is put
-// before the old one is deleted, so a move that stops half-way is finished by signing in again.
+// before the old one is deleted, so a move that stops half-way is finished by signing in again. A
+// moved comment keeps the name it was signed with.
 export async function moveComments(from: string, to: string) {
   if (from === to) return
   const prefix = `commented/${from}/`
   const found = await everything(prefix)
+  const places = new Set<string>()
 
-  for (let start = 0; start < found.length; start += READ_AT_ONCE) {
-    await Promise.all(
-      found.slice(start, start + READ_AT_ONCE).map(async ({ pathname }) => {
-        const [place, key] = pathname.slice(prefix.length).split("/")
-        if (!place || !key || !KEY.test(key)) return
-        const comment = await readComment(place, key)
-        if (comment && comment.by === from) {
-          const { text, name, at } = comment
-          await put(
-            commentPath(place, key),
-            JSON.stringify({ text, name, by: to, at }),
-            {
+  try {
+    for (let start = 0; start < found.length; start += READ_AT_ONCE) {
+      await Promise.all(
+        found.slice(start, start + READ_AT_ONCE).map(async ({ pathname }) => {
+          const [place, key] = pathname.slice(prefix.length).split("/")
+          if (!place || !key || !KEY.test(key)) return
+          places.add(place)
+          const comment = await readComment(place, key)
+          if (comment && comment.by === from) {
+            const { text, name, at } = comment
+            await put(
+              commentPath(place, key),
+              JSON.stringify({ text, name, by: to, at }),
+              {
+                access: "private",
+                contentType: "application/json",
+                addRandomSuffix: false,
+                allowOverwrite: true,
+              }
+            )
+            // Removing a comment deletes its note too, so a missing note means it was removed while
+            // being rewritten: take it out again rather than bring it back.
+            const note = await get(pathname, {
               access: "private",
-              contentType: "application/json",
-              addRandomSuffix: false,
-              allowOverwrite: true,
-            }
-          )
-          await mark(to, place, key, at)
-        } else if (comment && comment.by === to) {
-          await mark(to, place, key, comment.at)
-        }
-        await del(pathname)
-      })
-    )
+              useCache: false,
+            })
+            if (!note || note.statusCode !== 200)
+              await del(commentPath(place, key))
+            else await mark(to, place, key, at)
+          } else if (comment && comment.by === to) {
+            await mark(to, place, key, comment.at)
+          }
+          await del(pathname)
+        })
+      )
+    }
+  } finally {
+    for (const place of places) changed(place)
   }
 }

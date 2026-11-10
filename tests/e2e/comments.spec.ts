@@ -140,6 +140,7 @@ test("a new visitor posts with a name and sees it listed", async ({
   )
   await expect(row.getByTestId("comment-text")).toHaveText(text)
   await expect(row.getByTestId("comment-remove")).toBeVisible()
+  await expect(row).toBeFocused()
   await expect(page.getByTestId("comment-text-input")).toHaveValue("")
   await expect(nameField).toHaveCount(0)
 
@@ -470,10 +471,10 @@ test("when posting fails the words are kept", async ({ browser }) => {
   await expect(page.getByTestId("comment-text-input")).toHaveValue(link)
   await expect(rowWith(page, link)).toHaveCount(0)
 
-  const long = "a".repeat(1001)
+  const long = "a".repeat(1003)
   await page.getByTestId("comment-text-input").fill(long)
   await page.getByTestId("comment-post").click()
-  await expect(note).toHaveText("Please write up to 1000 characters.")
+  await expect(note).toHaveText("Please shorten it by 3 characters.")
   await expect(page.getByTestId("comment-text-input")).toHaveValue(long)
   await context.close()
 })
@@ -566,7 +567,13 @@ test("no heading, label or count is added", async ({ browser }) => {
   expect((await page.getByTestId("comment-form").innerText()).trim()).toBe(
     "Post"
   )
-  await expect(block).not.toContainText(/comment|leave/i)
+  const row = rowWith(page, text)
+  expect(
+    (await row.innerText())
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+  ).toEqual([`Alice · ${day.format(new Date())}`, "Remove", text])
   await context.close()
 })
 
@@ -642,20 +649,32 @@ test("a removal answered with an error says so, and one already done just goes",
   await context.close()
 })
 
-test("a saved name with a web address cannot sign a comment", async ({
-  playwright,
+test("a saved name with a web address is not used, and the name is asked for", async ({
+  browser,
 }) => {
-  const who = await visitor(playwright)
+  const { context, page } = await person(browser)
   const text = words()
-  const saved = await who.post("/api/me", {
+  const saved = await context.request.post("/api/me", {
     data: { name: "www.spam.example.com" },
   })
   expect(saved.status()).toBe(200)
-  const sent = await send(who, { text })
+  await open(page)
+  const nameField = page.getByTestId("comment-name-input")
+  await expect(nameField).toBeVisible()
+
+  const sent = await send(context.request, { text })
   expect(sent.status()).toBe(400)
-  expect((await sent.json()).error).toBe("links")
-  expect((await listed(who)).comments.map((c) => c.text)).not.toContain(text)
-  await who.dispose()
+  expect((await sent.json()).error).toBe("name")
+
+  await write(page, text, "Margaret")
+  await expect(rowWith(page, text).getByTestId("comment-name")).toHaveText(
+    "Margaret"
+  )
+  await expect(nameField).toBeVisible()
+  expect((await (await context.request.get("/api/me")).json()).name).toBe(
+    "www.spam.example.com"
+  )
+  await context.close()
 })
 
 test("a list that arrives late keeps what was just written", async ({
@@ -692,6 +711,78 @@ test("a list that arrives late keeps what was just written", async ({
   await expect(rowWith(page, earlier)).toBeVisible()
   await expect(rowWith(page, text)).toHaveCount(1)
   await expect(page.getByTestId("comment-name-input")).toHaveCount(0)
+  await context.close()
+})
+
+test("a list that arrives late does not undo what was done since", async ({
+  browser,
+  playwright,
+}) => {
+  const other = await visitor(playwright)
+  const earlier = words("earlier")
+  expect((await send(other, { text: earlier, name: "Bob" })).status()).toBe(200)
+  await other.dispose()
+
+  const { context, page } = await person(browser)
+  let release: (body: unknown) => void = () => {}
+  const held = new Promise<unknown>((resolve) => (release = resolve))
+  await page.route(/\/api\/comments\?place=/, async (route) => {
+    if (route.request().method() !== "GET") return route.fallback()
+    await route.fulfill({ json: await held })
+  })
+  const kept = words("kept")
+  const removed = words("removed")
+  await open(page)
+  await page.getByTestId("comment-text-input").fill(kept)
+  await page.getByTestId("comment-post").click()
+  await expect(page.getByTestId("comment-note")).toHaveText(
+    "Please add your name."
+  )
+  await page.getByTestId("comment-name-input").fill("Alice")
+  await page.getByTestId("comment-post").click()
+  await expect(rowWith(page, kept)).toBeVisible()
+  await write(page, removed)
+  await expect(rowWith(page, removed)).toBeVisible()
+
+  const mine = await listed(context.request)
+  const removedId = mine.comments.find((c) => c.text === removed)!.id
+  page.once("dialog", (dialog) => void dialog.accept())
+  await rowWith(page, removed).getByTestId("comment-remove").click()
+  await expect(rowWith(page, removed)).toHaveCount(0)
+
+  const now = await listed(context.request)
+  release({
+    comments: [
+      ...now.comments.map((c) => ({ ...c, canRemove: false })),
+      {
+        id: removedId,
+        name: "Alice",
+        text: removed,
+        at: new Date().toISOString(),
+        canRemove: false,
+      },
+    ],
+    name: null,
+  })
+  await expect(rowWith(page, earlier)).toBeVisible()
+  await expect(rowWith(page, kept).getByTestId("comment-remove")).toBeVisible()
+  await expect(rowWith(page, removed)).toHaveCount(0)
+  await expect(page.getByTestId("comment-name-input")).toHaveCount(0)
+  await context.close()
+})
+
+test("a list that is refused is not asked for again", async ({ browser }) => {
+  const { context, page } = await person(browser)
+  let calls = 0
+  await page.route(/\/api\/comments\?place=/, (route) => {
+    if (route.request().method() !== "GET") return route.fallback()
+    calls += 1
+    return route.fulfill({ status: 404, json: { error: "no such place" } })
+  })
+  await open(page)
+  await expect.poll(() => calls).toBe(1)
+  await page.waitForTimeout(5000)
+  expect(calls).toBe(1)
   await context.close()
 })
 
