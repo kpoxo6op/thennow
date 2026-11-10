@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "fs"
 import path from "path"
-import { expect, test, type CDPSession, type Page } from "@playwright/test"
+
+import { expect, test, type CDPSession, type Page } from "./fixtures"
 
 const postsDir = path.join(process.cwd(), "public", "posts")
 const entries = readdirSync(postsDir).map((folder) => ({
@@ -21,6 +22,11 @@ async function withoutMapCode(page: Page) {
     else await route.fulfill({ response, body })
   })
 }
+
+// A script still being fetched for withoutMapCode when a test ends must not fail that test.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "ignoreErrors" })
+})
 
 const cards = (page: Page) => page.getByTestId("story-card")
 const markers = (page: Page) => page.getByTestId("home-map-marker")
@@ -332,7 +338,19 @@ test.describe("touch", () => {
       .poll(async () => Number(await input.inputValue()))
       .toBeGreaterThan(70)
 
-    const before = await input.inputValue()
+    // The line can still be settling from the sideways swipe; take its value once it rests.
+    let before = await input.inputValue()
+    await expect
+      .poll(
+        async () => {
+          const now = await input.inputValue()
+          const resting = now === before
+          before = now
+          return resting
+        },
+        { intervals: [250] }
+      )
+      .toBe(true)
     await swipe(cdp, 300, y + 40, 300, y - 120)
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
@@ -616,23 +634,15 @@ test("changing the filter frames what was found, not the old camera", async ({
   await expect(page).not.toHaveURL(/lat=/)
   await page.getByRole("button", { name: "Map" }).click()
 
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const map = document
-          .querySelector('[data-testid="home-map"]')!
-          .getBoundingClientRect()
-        return Array.from(
-          document.querySelectorAll('[data-testid="home-map-marker"]')
-        ).some((marker) => {
-          const box = marker.getBoundingClientRect()
-          return (
-            box.left >= map.left &&
-            box.right <= map.right &&
-            box.top >= map.top &&
-            box.bottom <= map.bottom
-          )
-        })
+  // expect.poll fails at once on a thrown error, so a map not drawn yet must read as "not yet".
+  await expect.poll(() =>
+    page.evaluate(() => {
+      const stage = document.querySelector('[data-testid="home-map"]')
+      if (!stage) return false
+      const map = stage.getBoundingClientRect()
+      return Array.from(document.querySelectorAll('[data-testid="home-map-marker"]')).some((marker) => {
+        const box = marker.getBoundingClientRect()
+        return box.left >= map.left && box.right <= map.right && box.top >= map.top && box.bottom <= map.bottom
       })
     )
     .toBe(true)

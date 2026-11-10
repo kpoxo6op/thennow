@@ -29,6 +29,18 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: /safari\.spec\.ts/,
     },
+    // An iPhone's browser engine, for what must hold there. It isn't installed on every machine,
+    // so it runs only when asked for: in CI, or with TN_WEBKIT=1.
+    ...(process.env.CI || process.env.TN_WEBKIT
+      ? [
+          {
+            name: "webkit",
+            use: { ...devices["iPhone 14"] },
+            testMatch: /safari\.spec\.ts/,
+          },
+        ]
+      : []),
   ],
 })

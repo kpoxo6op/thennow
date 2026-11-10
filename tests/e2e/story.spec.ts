@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "fs"
 import path from "path"
-import { expect, test, type CDPSession, type Page } from "@playwright/test"
+
+import { expect, test, type CDPSession, type Page } from "./fixtures"
 
 // The map library's own file can't be fetched: a weak signal, or a page kept open across a release.
 async function withoutMapCode(page: Page) {
@@ -11,6 +12,11 @@ async function withoutMapCode(page: Page) {
     else await route.fulfill({ response, body })
   })
 }
+
+// A script still being fetched for withoutMapCode when a test ends must not fail that test.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "ignoreErrors" })
+})
 
 test.describe("a story page", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } })

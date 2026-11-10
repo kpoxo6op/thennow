@@ -10,7 +10,6 @@ import { fontSans, fontSerif } from "@/lib/fonts"
 import { linkPreview } from "@/lib/preview"
 import { cn } from "@/lib/utils"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
-import { ThemeProvider } from "@/components/theme-provider"
 
 const HERO_SLUG = siteConfig.heroSlug
 
@@ -57,7 +56,7 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark">
       <body
         className={cn(
           "flex min-h-screen flex-col bg-background font-sans antialiased",
@@ -65,10 +64,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
           fontSerif.variable
         )}
       >
-        <ThemeProvider attribute="class" forcedTheme="dark">
-          {children}
-          <TailwindIndicator />
-        </ThemeProvider>
+        {children}
+        <TailwindIndicator />
         <Analytics />
       </body>
     </html>

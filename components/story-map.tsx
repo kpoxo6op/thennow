@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { PostLocation } from "@/interfaces/post"
+import "@/styles/map.css"
 
 // A narrow frame steps back a level, so the town still gets named around the pin.
 const STORY_ZOOM = 13
