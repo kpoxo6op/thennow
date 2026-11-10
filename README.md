@@ -28,6 +28,8 @@ The repo is pnpm-only: pnpm 10.33.0 is pinned by `packageManager` in `package.js
 
 The site reads one variable of its own, `BLOB_READ_WRITE_TOKEN`, the Vercel Blob read-write token. Without it the site runs normally, except that sending a photo or saving a name answers `503 no store`. Production and previews get it from the Vercel project. To set it locally, copy `.env.example` to `.env`; git ignores that file and Vercel never receives it. The operator's `.env` also holds `VERCEL_TOKEN` for the Vercel CLI.
 
+`TN_ADMIN_IDS` lists, comma separated, the people ids who may remove anyone's comment. To find yours, sign up on `/me`, copy the `tn_me` cookie's value from the browser, and run `node scripts/person-id.mjs`. The test server's value is set in `playwright.config.ts`.
+
 `TN_FAKE_STORE=1` is set only by `playwright.config.ts`. It gives the test server a photo store kept in memory, and the build refuses it on any deployment. Never set it yourself.
 
 ## Checks
@@ -49,12 +51,13 @@ To finish a story, add the modern photograph and the pair to the upcoming place'
 
 ## Sent photos
 
-Photos from the camera go to the private Blob store and are published only by hand. The store holds `submissions/<place>/<key>.jpg` and `.json` (a sent photo and its note), `people/<id>.json` (a name), `people/<id>/<place>/<key>.jpg` (the sender's small copy), `keys/<hash>.json` (a passkey) and `challenges/<hash>.json` (a passkey question waiting for its answer).
+Photos from the camera go to the private Blob store and are published only by hand. The store holds `submissions/<place>/<key>.jpg` and `.json` (a sent photo and its note), `people/<id>.json` (a name), `people/<id>/<place>/<key>.jpg` (the sender's small copy), `keys/<hash>.json` (a passkey), `challenges/<hash>.json` (a passkey question waiting for its answer), `comments/<place>/<key>.json` (a visitor's comment: text, name, who wrote it, when) and `commented/<id>/<place>/<key>` (which comments a person wrote, so they follow that person when they sign in).
 
 Operator scripts:
 
 - `scripts/submissions.mjs [place]` lists sent photos (needs the token).
 - `scripts/claim-check.mjs <base-url> <jpeg>` and `scripts/passkey-check.mjs <base-url>` run the whole name, photo and passkey flow against a real deployment. They write to the real store and leave one test photo in it.
+- `scripts/person-id.mjs` turns a `tn_me` cookie value into the id that `TN_ADMIN_IDS` lists.
 - `scripts/rephoto/export_coarse.py` exports the matcher's model.
 
 ## Deploying

@@ -5,6 +5,7 @@ import Image from "next/image"
 import PostType from "@/interfaces/post"
 import { Maximize, X } from "lucide-react"
 
+import { Comments } from "@/components/comments"
 import { CompareStage } from "@/components/compare-stage"
 import { PLACEHOLDER, SOURCE_LINE, toSections } from "@/components/Desc"
 import { NearbyList, type Nearby } from "@/components/nearby-list"
@@ -536,6 +537,7 @@ export default function Post({ post, nearby }: PostProps) {
                 <Words lines={undated.flatMap((section) => section.lines)} />
               )}
               <StoryMap name={post.name} location={post.location} />
+              <Comments place={post.slug} />
             </>
           )}
         </article>

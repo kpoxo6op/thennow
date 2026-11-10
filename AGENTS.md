@@ -60,6 +60,7 @@ Current e2e coverage includes:
 - `me.spec.ts` — Your photos: what a new visitor sees and what the routes refuse
 - `preview.spec.ts` — what a shared link looks like, and the sitemap
 - `identity.spec.ts` — names, sent photos and passkeys end to end, against the in-memory store
+- `comments.spec.ts` — comments on a place's page: posting, what is refused, removing your own, the admin, and the page staying static
 - `posts.spec.ts` — every place file is well formed
 
 Playwright reuses a server that is already listening on port 3100. After changing

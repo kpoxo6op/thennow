@@ -2,6 +2,7 @@ import Image from "next/image"
 import type { PendingPost as PendingPostType } from "@/interfaces/post"
 import { Camera } from "lucide-react"
 
+import { Comments } from "@/components/comments"
 import { NearbyList, type Nearby } from "@/components/nearby-list"
 import { CameraLink } from "@/components/rephoto/camera-link"
 import { ResetScroll } from "@/components/reset-scroll"
@@ -72,6 +73,7 @@ export function PendingPost({ post, nearby }: Props) {
           </p>
         </div>
         <StoryMap name={post.name} location={post.location} />
+        <Comments place={post.slug} />
       </article>
 
       <section className="tn-story-edge pb-12 md:pb-16">
