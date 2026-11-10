@@ -11,6 +11,16 @@ const entries = readdirSync(postsDir).map((folder) => ({
 const posts = entries.filter((entry) => entry.a_imageUrl)
 const pendingEntries = entries.filter((entry) => !entry.a_imageUrl)
 
+// The map library's own file can't be fetched: a weak signal, or a page kept open across a release.
+async function withoutMapCode(page: Page) {
+  await page.route("**/_next/static/**/*.js", async (route) => {
+    const response = await route.fetch()
+    const body = await response.text()
+    if (body.includes("maplibregl-ctrl-geolocate")) await route.abort()
+    else await route.fulfill({ response, body })
+  })
+}
+
 const cards = (page: Page) => page.getByTestId("story-card")
 const markers = (page: Page) => page.getByTestId("home-map-marker")
 
@@ -134,6 +144,15 @@ test("the map says so when its base map fails, and places stay reachable", async
 
   await expect(page.getByTestId("map-failure")).toBeVisible()
   await expect(markers(page).first()).toBeVisible()
+  await page.getByTestId("map-failure").getByRole("button", { name: "browse the photos" }).click()
+  await expect(cards(page)).toHaveCount(posts.length)
+})
+
+test("the map says so when its own code can't be fetched, and places stay reachable", async ({ page }) => {
+  await withoutMapCode(page)
+  await page.goto("/places?view=map")
+
+  await expect(page.getByTestId("map-failure")).toBeVisible()
   await page.getByTestId("map-failure").getByRole("button", { name: "browse the photos" }).click()
   await expect(cards(page)).toHaveCount(posts.length)
 })

@@ -399,7 +399,10 @@ export function PlacesMap({
       activeMap.on("moveend", reportViewport)
     }
 
-    setupMap()
+    // The map's own code may not arrive; the photo view and search still reach every place.
+    setupMap().catch(() => {
+      if (isMounted) callbacksRef.current.onFail?.(true)
+    })
 
     return () => {
       isMounted = false

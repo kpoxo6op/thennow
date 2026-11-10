@@ -105,7 +105,10 @@ export function StoryMap({ name, location }: Props) {
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
           observer.disconnect()
-          setup()
+          // The map's own code may not arrive (a weak signal, a page older than the last release).
+          setup().catch(() => {
+            if (isMounted) setFailed(true)
+          })
         }
       },
       { rootMargin: "400px 0px" }
