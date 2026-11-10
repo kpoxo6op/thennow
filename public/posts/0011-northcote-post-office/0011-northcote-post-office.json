@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Former Post Office, Northcote Point",
+  "slug": "northcote-post-office",
+  "description": "A crowd gathered for the post office opening in 1929. From the cinema side of Queen Street, face the former post office at the corner of Bartley Street. Frame the parapet against the sky and leave room for the street below.",
+  "b_imageUrl": "/posts/0011-northcote-post-office/then-northcote-post-office.jpg",
+  "w": 2000,
+  "h": 1278,
+  "location": {
+    "lat": -36.81799,
+    "lng": 174.74518
+  },
+  "archive": {
+    "date": "1929",
+    "photographer": "Unknown",
+    "credit": "Auckland Libraries Heritage Collections N0111015",
+    "rights": "No known copyright restrictions",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/31551",
+    "sourceId": "N0111015"
+  },
+  "area": "Auckland"
+}
