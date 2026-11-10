@@ -273,3 +273,67 @@ test("signing in brings along every photo a phone has sent, however many", async
   const old = await visitor(playwright, { cookie: `tn_me=${before}` })
   expect(await (await old.get("/me")).text()).toContain("will appear here")
 })
+
+test("an answer to a question the site never asked is refused", async ({ browser, playwright }) => {
+  const a = await device(browser)
+  await signUp(a, "Asked First")
+  // The phone's passkey answers a question made up on the spot.
+  const made = await a.page.evaluate(async () => {
+    const challenge = crypto.getRandomValues(new Uint8Array(32))
+    const credential = (await navigator.credentials.get({
+      publicKey: { challenge, rpId: location.hostname, userVerification: "preferred" },
+    })) as PublicKeyCredential
+    const text = btoa(String.fromCharCode(...challenge))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "")
+    return { answer: credential.toJSON(), challenge: text }
+  })
+  const stranger = await visitor(playwright, { cookie: `tn_ch=${made.challenge}` })
+  const response = await stranger.post("/api/me/signin", {
+    data: JSON.stringify(made.answer),
+    headers: json,
+  })
+  expect(response.status()).toBe(401)
+  expect(response.headers()["set-cookie"] ?? "").not.toContain("tn_me=")
+})
+
+test("a passkey's answer signs in once, and a copy that has fallen behind is refused", async ({
+  browser,
+  playwright,
+}) => {
+  const a = await device(browser)
+  await signUp(a, "Answer Once")
+  const [passkey] = await a.passkeys()
+
+  const b = await device(browser)
+  await b.page.goto("/me")
+  await b.cdp.send("WebAuthn.addCredential", { authenticatorId: b.authenticatorId, credential: passkey })
+  const answering = b.page.waitForRequest(
+    (request) => request.url().endsWith("/api/me/signin") && request.method() === "POST"
+  )
+  await b.page.getByTestId("me-sign-in").click()
+  const answer = (await answering).postData()!
+  await expect(b.page.getByTestId("me-name-value")).toHaveText("Answer Once")
+
+  // Someone who overheard that answer, and the question it was for, can't use them again.
+  const question = JSON.parse(
+    Buffer.from(JSON.parse(answer).response.clientDataJSON, "base64url").toString()
+  ).challenge
+  const listener = await visitor(playwright, { cookie: `tn_ch=${question}` })
+  const replay = await listener.post("/api/me/signin", { data: answer, headers: json })
+  expect(replay.status()).toBe(401)
+
+  // The same phone can sign in again later: its passkey's count has moved on.
+  await b.context.clearCookies()
+  await b.page.goto("/me")
+  await b.page.getByTestId("me-sign-in").click()
+  await expect(b.page.getByTestId("me-name-value")).toHaveText("Answer Once")
+
+  // A copy made before those two sign-ins has a count that is now behind, and is refused.
+  const c = await device(browser)
+  await c.page.goto("/me")
+  await c.cdp.send("WebAuthn.addCredential", { authenticatorId: c.authenticatorId, credential: passkey })
+  await c.page.getByTestId("me-sign-in").click()
+  await expect(c.page.getByTestId("me-name-note")).toHaveText("Not signed in. Please try again.")
+})

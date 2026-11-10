@@ -9,7 +9,7 @@ import {
 } from "@simplewebauthn/server"
 
 import { personId, VALID } from "@/lib/people"
-import { get, put } from "@/lib/store"
+import { del, get, list, put } from "@/lib/store"
 
 // Signing up saves a passkey on the person's phone, which their phone keeps with its screen lock
 // and carries to their other devices. The passkey holds the browser's cookie itself, so signing in
@@ -22,7 +22,7 @@ const site = (request: Request) => {
   return { rpID: url.hostname, origin: url.origin }
 }
 
-// The question a passkey must answer is kept in a short-lived cookie between the two requests.
+// The cookie only says which question a browser is answering; the store says whether the site asked it.
 export function challengeHeader(challenge: string, request: Request) {
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : ""
   const age = challenge ? 300 : 0
@@ -34,6 +34,45 @@ function readChallenge(request: Request) {
   const found = header.split(";").find((part) => part.trim().startsWith(`${CHALLENGE}=`))
   const value = found?.trim().slice(CHALLENGE.length + 1) ?? ""
   return /^[A-Za-z0-9_-]{20,200}$/.test(value) ? value : null
+}
+
+const ASKED_MS = 5 * 60_000
+
+const askedPath = (challenge: string) =>
+  `challenges/${createHash("sha256").update(challenge).digest("hex").slice(0, 32)}.json`
+
+// Every question the site asks is noted in the store until it is answered or five minutes
+// pass, so only a question the site itself asked, and has not yet heard an answer to, counts.
+export async function rememberChallenge(challenge: string) {
+  await put(askedPath(challenge), JSON.stringify({ until: Date.now() + ASKED_MS }), {
+    access: "private",
+    contentType: "application/json",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  })
+  // Now and then, questions nobody answered are cleared away.
+  if (Math.random() < 0.05) await forgetOldChallenges().catch(() => {})
+}
+
+async function forgetOldChallenges() {
+  const { blobs } = await list({ prefix: "challenges/", limit: 200 })
+  const old = blobs
+    .filter((blob) => Date.now() - blob.uploadedAt.getTime() > 2 * ASKED_MS)
+    .map((blob) => blob.pathname)
+  if (old.length) await del(old)
+}
+
+// The question this request answers, if the site asked it within five minutes and it has not
+// been answered before. Looking uses it up, whatever the answer turns out to be.
+async function takeChallenge(request: Request) {
+  const challenge = readChallenge(request)
+  if (!challenge) return null
+  const path = askedPath(challenge)
+  const found = await get(path, { access: "private", useCache: false })
+  if (!found || found.statusCode !== 200) return null
+  const asked = JSON.parse(await new Response(found.stream).text())
+  await del(path)
+  return typeof asked?.until === "number" && Date.now() < asked.until ? challenge : null
 }
 
 type Stored = { id: string; publicKey: string; counter: number; transports?: string[] }
@@ -54,7 +93,7 @@ export function signUpOptions(request: Request, cookie: string, name: string) {
 
 // True once the passkey is stored for this cookie's person.
 export async function finishSignUp(request: Request, cookie: string, response: RegistrationResponseJSON) {
-  const challenge = readChallenge(request)
+  const challenge = await takeChallenge(request)
   if (!challenge) return false
   const { rpID, origin } = site(request)
   const result = await verifyRegistrationResponse({
@@ -99,7 +138,7 @@ export function signInOptions(request: Request) {
 
 // The cookie the passkey carries, once the passkey has proved itself; otherwise null.
 export async function finishSignIn(request: Request, response: AuthenticationResponseJSON) {
-  const challenge = readChallenge(request)
+  const challenge = await takeChallenge(request)
   if (!challenge || typeof response?.id !== "string") return null
   const handle = response.response?.userHandle
   if (typeof handle !== "string") return null
@@ -122,5 +161,17 @@ export async function finishSignIn(request: Request, response: AuthenticationRes
       counter: stored.counter,
     },
   }).catch(() => null)
-  return result?.verified ? cookie : null
+  if (!result?.verified) return null
+  // How many times the passkey says it has been used is kept, so an older copy of it is refused.
+  // A passkey that syncs between devices always says zero, and nothing is written for it.
+  const { newCounter } = result.authenticationInfo
+  if (newCounter > stored.counter) {
+    await put(keyPath(response.id), JSON.stringify({ ...stored, counter: newCounter }), {
+      access: "private",
+      contentType: "application/json",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    }).catch(() => {})
+  }
+  return cookie
 }

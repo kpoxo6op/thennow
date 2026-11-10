@@ -13,6 +13,11 @@ async function withoutMapCode(page: Page) {
   })
 }
 
+// A script still being fetched for withoutMapCode when a test ends must not fail that test.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "ignoreErrors" })
+})
+
 test.describe("a story page", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } })
 
