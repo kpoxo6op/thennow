@@ -899,6 +899,34 @@ test.describe("the rephotography camera", () => {
       .toBe(2)
   })
 
+  test("the camera stays closed while a taken photo is looked at, and opens again for a retake", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const real = navigator.mediaDevices.getUserMedia.bind(
+        navigator.mediaDevices
+      )
+      const w = window as unknown as { __opens: number }
+      w.__opens = 0
+      navigator.mediaDevices.getUserMedia = (constraints) => {
+        w.__opens++
+        return real(constraints)
+      }
+    })
+    const opens = () =>
+      page.evaluate(() => (window as unknown as { __opens: number }).__opens)
+    await withoutServerMatcher(page)
+    await openCamera(page, "mission-house")
+    expect(await opens()).toBe(1)
+    await shoot(page)
+    // Longer than the frozen-picture check waits before it would open the camera again.
+    await page.waitForTimeout(4500)
+    expect(await opens()).toBe(1)
+    await page.getByTestId("rephoto-retake").click()
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    await expect.poll(opens).toBe(2)
+  })
+
   test("the camera is let go while the page is out of sight", async ({
     page,
   }) => {

@@ -4,6 +4,34 @@ import PostType, { type PendingPost, type PendingSummary, type StorySummary } fr
 
 let postsCache: (PostType | PendingPost)[] | null = null
 
+// A place file with something missing stops the build here, by name, rather than as a blank
+// error from whichever page first reads the missing field.
+function check(file: string, json: Record<string, unknown>) {
+  const fail = (what: string): never => {
+    throw new Error(`Place file ${file}: ${what}`)
+  }
+  for (const field of ["name", "description", "slug", "b_imageUrl"]) {
+    if (typeof json[field] !== "string" || !json[field]) fail(`"${field}" is missing`)
+  }
+  for (const field of ["w", "h"]) {
+    const value = json[field]
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0)
+      fail(`"${field}" must be a positive number`)
+  }
+  const location = json.location as { lat?: unknown; lng?: unknown } | undefined
+  if (typeof location?.lat !== "number" || typeof location?.lng !== "number")
+    fail(`"location" needs a numeric lat and lng`)
+  if (json.status === "pending" || !json.a_imageUrl) {
+    const archive = (json.archive ?? {}) as Record<string, unknown>
+    for (const field of ["date", "photographer", "credit", "rights", "sourceUrl", "sourceId"]) {
+      if (typeof archive[field] !== "string" || !archive[field])
+        fail(`an upcoming place needs "archive.${field}"`)
+    }
+  } else if (typeof json.ba_imageUrl !== "string" || !json.ba_imageUrl) {
+    fail(`a finished story needs "ba_imageUrl"`)
+  }
+}
+
 function readAll() {
   if (postsCache) {
     return postsCache
@@ -15,6 +43,7 @@ function readAll() {
   postsCache = postFolders.map((postFolder): PostType | PendingPost => {
     const fullPath = path.join(postsDirectory, postFolder, `${postFolder}.json`)
     const jsonContent = JSON.parse(fs.readFileSync(fullPath, "utf8"))
+    check(`${postFolder}.json`, jsonContent)
     const shared = {
       name: jsonContent.name,
       description: jsonContent.description,
