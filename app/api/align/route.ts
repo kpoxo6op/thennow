@@ -3,6 +3,7 @@ import { availableParallelism } from "node:os"
 import path from "node:path"
 import * as ort from "onnxruntime-node"
 
+import { limiter, sameSite } from "@/lib/limit"
 import {
   cellsToMatches,
   MATCH_BYTES,
@@ -36,36 +37,8 @@ function model() {
 }
 
 // Matching costs seconds of CPU here, so it is for this site's own camera only, and each visitor
-// gets a camera's worth of shots: at most LIMIT in WINDOW_MS. Counts are per function instance.
-const LIMIT = 20
-const WINDOW_MS = 10 * 60_000
-const recent = new Map<string, number[]>()
-
-function sameSite(request: Request) {
-  const site = request.headers.get("sec-fetch-site")
-  return !site || site === "same-origin"
-}
-
-function allowed(request: Request) {
-  const ip =
-    request.headers.get("x-real-ip") ??
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-    "unknown"
-  const now = Date.now()
-  const times = (recent.get(ip) ?? []).filter((t) => now - t < WINDOW_MS)
-  if (times.length >= LIMIT) {
-    recent.set(ip, times)
-    return false
-  }
-  times.push(now)
-  recent.set(ip, times)
-  if (recent.size > 10_000) {
-    for (const [key, list] of recent) {
-      if (list.every((t) => now - t >= WINDOW_MS)) recent.delete(key)
-    }
-  }
-  return true
-}
+// gets a camera's worth of shots: at most 20 in ten minutes. Counts are per function instance.
+const allowed = limiter(20, 10 * 60_000)
 
 function tensor(bytes: Uint8Array) {
   const data = new Float32Array(MATCH_BYTES)
