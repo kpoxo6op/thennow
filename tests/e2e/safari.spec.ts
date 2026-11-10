@@ -57,3 +57,35 @@ test("Your photos offers sign-up", async ({ page }) => {
   await page.goto("/me")
   await expect(page.getByTestId("me-name-save")).toHaveText("Sign up")
 })
+
+test("zen covers the whole screen without the browser's full screen, and Back closes it", async ({
+  page,
+}) => {
+  // An iPhone's Safari has no full screen for a page's own elements.
+  await page.addInitScript(() => {
+    // @ts-expect-error: removed on purpose
+    delete Element.prototype.requestFullscreen
+  })
+  await page.goto(`${STORY}?p=30`)
+  await page.getByTestId("story-zen").click()
+  const zen = page.locator(".tn-zen[data-zen]")
+  await expect(zen).toBeVisible()
+
+  const viewport = page.viewportSize()!
+  const block = (await zen.boundingBox())!
+  expect(block.x).toBe(0)
+  expect(block.y).toBe(0)
+  expect(block.width).toBe(viewport.width)
+  expect(block.height).toBe(viewport.height)
+
+  // The page doesn't scroll underneath.
+  await page.mouse.wheel(0, 600)
+  await page.waitForTimeout(200)
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+  expect((await zen.boundingBox())!.y).toBe(0)
+
+  await page.goBack()
+  await expect(zen).toHaveCount(0)
+  await expect(page).toHaveURL(/\?p=30$/)
+  await expect(page.getByTestId("compare-slider-input")).toHaveValue("30")
+})

@@ -161,18 +161,54 @@ export default function Post({ post, nearby }: PostProps) {
 
   useEffect(() => stopGlide, [stopGlide])
 
+  // Whether zen is wanted, read by a full screen request that settles late.
+  const zenWantedRef = useRef(false)
+  // Without the browser's full screen (an iPhone), zen takes a step in history so Back closes it.
+  const zenStepRef = useRef(false)
+  const positionRef = useRef(position)
+  useEffect(() => {
+    positionRef.current = position
+  }, [position])
+
   const enterZen = () => {
+    zenWantedRef.current = true
     setZen(true)
-    // Where the browser allows it the bars go too; an iPhone keeps the overlay alone.
     const block = zenRef.current
+    const takeStep = () => {
+      if (!zenWantedRef.current || zenStepRef.current) return
+      zenStepRef.current = true
+      try {
+        window.history.pushState({ ...window.history.state, zen: true }, "")
+      } catch {
+        zenStepRef.current = false
+      }
+    }
+
+    // Where the browser allows it the bars go too.
     if (block?.requestFullscreen) {
-      block.requestFullscreen({ navigationUI: "hide" }).catch(() => {})
+      block
+        .requestFullscreen({ navigationUI: "hide" })
+        .then(() => {
+          // Closed while the screen was still changing.
+          if (!zenWantedRef.current && document.fullscreenElement === block) {
+            document.exitFullscreen().catch(() => {})
+          }
+        })
+        .catch(takeStep)
+    } else {
+      takeStep()
     }
   }
 
   const exitZen = useCallback(() => {
-    if (document.fullscreenElement) {
+    zenWantedRef.current = false
+    if (document.fullscreenElement === zenRef.current) {
       document.exitFullscreen().catch(() => {})
+    }
+    if (zenStepRef.current) {
+      // The step back closes zen (see onPopState).
+      window.history.back()
+      return
     }
     setZen(false)
   }, [])
@@ -181,14 +217,55 @@ export default function Post({ post, nearby }: PostProps) {
     if (!zen) return
 
     const root = document.documentElement
+    const block = zenRef.current
     const button = zenButtonRef.current
     const { overflow, overscrollBehavior } = root.style
     root.style.overflow = "hidden"
     root.style.overscrollBehavior = "none"
 
+    // Everything else on the page is out of reach while zen is open, for screen readers too.
+    const hidden: HTMLElement[] = []
+    for (
+      let node: HTMLElement | null = block;
+      node && node !== document.body;
+      node = node.parentElement
+    ) {
+      for (const sibling of Array.from(node.parentElement?.children ?? [])) {
+        if (
+          sibling !== node &&
+          sibling instanceof HTMLElement &&
+          !sibling.inert
+        ) {
+          sibling.inert = true
+          hidden.push(sibling)
+        }
+      }
+    }
+
     // Back on Android and Esc on a desktop leave the browser's full screen first.
     const onFullscreenChange = () => {
-      if (!document.fullscreenElement) setZen(false)
+      if (!document.fullscreenElement && !zenStepRef.current) {
+        zenWantedRef.current = false
+        setZen(false)
+      }
+    }
+
+    // Back without full screen: zen closes and the line stays where it was, and the entry Back
+    // lands on is given the line's place.
+    const onPopState = () => {
+      if (!zenStepRef.current) return
+      zenStepRef.current = false
+      zenWantedRef.current = false
+      const kept = Math.round(positionRef.current)
+      const url = new URL(window.location.href)
+      if (kept === DEFAULT_POSITION) url.searchParams.delete("p")
+      else url.searchParams.set("p", String(kept))
+      try {
+        window.history.replaceState(window.history.state, "", url)
+      } catch {
+        // The address is a convenience.
+      }
+      setZen(false)
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -197,7 +274,6 @@ export default function Post({ post, nearby }: PostProps) {
         return
       }
 
-      const block = zenRef.current
       if (event.key !== "Tab" || !block) return
 
       // Focus stays with what zen shows.
@@ -222,18 +298,24 @@ export default function Post({ post, nearby }: PostProps) {
 
     document.addEventListener("fullscreenchange", onFullscreenChange)
     document.addEventListener("keydown", onKeyDown)
+    window.addEventListener("popstate", onPopState)
 
     return () => {
       root.style.overflow = overflow
       root.style.overscrollBehavior = overscrollBehavior
+      for (const sibling of hidden) sibling.inert = false
       document.removeEventListener("fullscreenchange", onFullscreenChange)
       document.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("popstate", onPopState)
       button?.focus({ preventScroll: true })
     }
   }, [zen, exitZen])
 
   useEffect(() => {
     const syncPositionFromUrl = () => {
+      // Back out of zen's own step in history only closes zen (see onPopState).
+      if (zenStepRef.current) return
+
       const url = new URL(window.location.href)
       const nextPosition = parsePositionParam(url.searchParams.get("p"))
 
@@ -332,8 +414,15 @@ export default function Post({ post, nearby }: PostProps) {
     >
       <ResetScroll />
       <div>
-        <div ref={zenRef} data-zen={zen || undefined} className="tn-zen">
-          <div className="relative">
+        <div
+          ref={zenRef}
+          data-zen={zen || undefined}
+          role={zen ? "dialog" : undefined}
+          aria-modal={zen || undefined}
+          aria-label={zen ? post.name : undefined}
+          className="tn-zen"
+        >
+          <div className="tn-zen-frame relative">
             <CompareStage
               name={post.name}
               thenSrc={post.b_imageUrl}
@@ -349,7 +438,7 @@ export default function Post({ post, nearby }: PostProps) {
               priority
               className="tn-story-stage"
             />
-            {post.sample ? (
+            {post.sample && !zen ? (
               <span className="tn-story-edge pointer-events-none absolute inset-x-0 top-3 flex">
                 <span className="ml-1.5 whitespace-nowrap rounded-full bg-black/75 px-2.5 py-1 text-xs text-white sm:ml-2 sm:px-3 sm:text-sm">
                   Placeholder photographs

@@ -229,28 +229,25 @@
   justify-content: center;
   background: #000;
   container-type: size;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* The stage keeps the page's inset, so the whole knob stays on screen at either end. */
   --stage-h: min(
-    calc(100cqw / var(--ratio)),
+    calc((100cqw - var(--stage-inset) * 2) / var(--ratio)),
     calc(100cqh - var(--legend-h))
   );
   --image-w: min(100cqw, calc(var(--stage-h) * var(--ratio)));
+  /* Declared again: an inherited --edge still carries the page's own sizing. */
+  --edge: calc((100cqw - var(--image-w)) / 2);
 }
 
-/* The years keep clear of the screen's edge gestures. */
-.tn-zen[data-zen] > .tn-story-edge {
-  padding-inline: max(var(--edge), 1rem);
-}
-
-.tn-zen[data-zen] > .relative {
+/* The close button belongs to the screen, not the photograph. */
+.tn-zen[data-zen] > .tn-zen-frame {
   position: static;
 }
 
 .tn-zen[data-zen] .tn-zen-toggle {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 0.5rem);
-  right: calc(env(safe-area-inset-right) + 0.5rem);
+  top: 0.5rem;
+  right: 0.5rem;
   left: auto;
   padding: 0;
 }

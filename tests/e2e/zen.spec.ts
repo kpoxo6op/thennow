@@ -93,7 +93,8 @@ for (const size of sizes) {
       )
       expect(covering).toBe(true)
 
-      // The whole photograph, larger than on the page, inside the screen with room for the years.
+      // The whole photograph, at least as large as on the page, inside the screen with room for the
+      // years and half a knob at either side.
       const shown = await photo(page)
       expect(shown.width / shown.height).toBeCloseTo(ratio, 1)
       expect(shown.x).toBeGreaterThanOrEqual(-0.5)
@@ -102,7 +103,7 @@ for (const size of sizes) {
       expect(shown.y + shown.height).toBeLessThanOrEqual(size.height - 44 + 0.5)
       expect(shown.width).toBeGreaterThanOrEqual(pageBefore.width - 0.5)
       expect(
-        Math.abs(shown.width - size.width) < 1 ||
+        Math.abs(shown.width - (size.width - 48)) < 1 ||
           Math.abs(shown.height - (size.height - 44)) < 1
       ).toBe(true)
 
@@ -115,6 +116,20 @@ for (const size of sizes) {
       expect(thenBox.y + thenBox.height).toBeLessThanOrEqual(size.height)
       expect(thenBox.x).toBeGreaterThanOrEqual(16 - 0.5)
       expect(nowBox.x + nowBox.width).toBeLessThanOrEqual(size.width - 16 + 0.5)
+      // ...and line up with the photograph's own edges where it leaves room.
+      expect(thenBox.x).toBeCloseTo(Math.max(shown.x, 16), 0)
+      expect(nowBox.x + nowBox.width).toBeCloseTo(
+        Math.min(shown.x + shown.width, size.width - 16),
+        0
+      )
+
+      // The page behind is out of reach, for screen readers too.
+      expect(
+        await page
+          .getByTestId("site-header")
+          .evaluate((el) => el.closest("[inert]") !== null)
+      ).toBe(true)
+      await expect(page.getByRole("dialog")).toHaveAccessibleName(/.+/)
 
       // No words in zen.
       await expect(
@@ -143,11 +158,13 @@ for (const size of sizes) {
         "Full screen"
       )
       await expect(input).toHaveValue("30")
-      expect(
-        await page.evaluate(
-          () => getComputedStyle(document.documentElement).overflow
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => getComputedStyle(document.documentElement).overflow
+          )
         )
-      ).not.toBe("hidden")
+        .not.toBe("hidden")
       expect(await page.evaluate(() => history.length)).toBe(historyLength)
       await expect
         .poll(async () => Math.round((await photo(page)).width))
@@ -223,6 +240,18 @@ test.describe("zen with a keyboard", () => {
     await expect(button).toBeFocused()
   })
 
+  test("leaving the browser's full screen (Android's Back, a desktop's Esc) closes zen", async ({
+    page,
+  }) => {
+    await page.goto("/sheep")
+    await page.getByTestId("story-zen").click()
+    await expect(page.locator(".tn-zen[data-zen]")).toBeVisible()
+    await settled(page)
+    await page.evaluate(() => document.exitFullscreen())
+    await expect(page.locator(".tn-zen[data-zen]")).toHaveCount(0)
+    await expect(page).toHaveURL(/\/sheep$/)
+  })
+
   test("a reload comes back to the page, not to zen, and ?p=50 still normalises away", async ({
     page,
   }) => {
@@ -233,5 +262,140 @@ test.describe("zen with a keyboard", () => {
     await page.reload()
     await expect(page.locator(".tn-zen[data-zen]")).toHaveCount(0)
     await expect(page.getByTestId("story-zen")).toBeVisible()
+  })
+})
+
+test.describe("zen when the browser has no full screen, as on an iPhone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+    contextOptions: { reducedMotion: "reduce" },
+  })
+
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      // @ts-expect-error: an iPhone's Safari has no full screen for a page's own elements
+      delete Element.prototype.requestFullscreen
+    })
+  })
+
+  test("Back closes zen and stays on the page with the line where it was", async ({
+    page,
+  }) => {
+    await page.goto("/sheep")
+    await page.getByTestId("story-zen").click()
+    const zen = page.locator(".tn-zen[data-zen]")
+    await expect(zen).toBeVisible()
+    const input = page.getByTestId("compare-slider-input")
+    await input.focus()
+    await input.fill("70")
+    await expect(page).toHaveURL(/\/sheep\?p=70$/)
+
+    await page.goBack()
+    await expect(zen).toHaveCount(0)
+    await expect(page).toHaveURL(/\/sheep\?p=70$/)
+    await expect(input).toHaveValue("70")
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
+  })
+
+  test("turning the phone keeps the photograph whole and the line where it was", async ({
+    page,
+  }) => {
+    await page.goto("/sheep?p=30")
+    await page.getByTestId("story-zen").click()
+    await expect(page.locator(".tn-zen[data-zen]")).toBeVisible()
+    const input = page.getByTestId("compare-slider-input")
+
+    for (const [width, height] of [
+      [844, 390],
+      [390, 844],
+    ]) {
+      await page.setViewportSize({ width, height })
+      await expect
+        .poll(async () => {
+          const box = await photo(page)
+          return (
+            box.x >= -0.5 &&
+            box.y >= -0.5 &&
+            box.x + box.width <= width + 0.5 &&
+            box.y + box.height <= height - 44 + 0.5 &&
+            (Math.abs(box.width - (width - 48)) < 1 ||
+              Math.abs(box.height - (height - 44)) < 1)
+          )
+        })
+        .toBe(true)
+      await expect(input).toHaveValue("30")
+    }
+  })
+
+  test("its own button closes it without leaving a step to go back through", async ({
+    page,
+  }) => {
+    await page.goto("/places")
+    await page.goto("/sheep")
+    await page.getByTestId("story-zen").click()
+    await expect(page.locator(".tn-zen[data-zen]")).toBeVisible()
+    await page.getByTestId("story-zen").click()
+    await expect(page.locator(".tn-zen[data-zen]")).toHaveCount(0)
+    await expect(page).toHaveURL(/\/sheep$/)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/places$/)
+  })
+})
+
+test.describe("zen by hand", () => {
+  test.use({ contextOptions: { reducedMotion: "reduce" } })
+
+  test("a mouse drags the line in zen", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto("/sheep")
+    await page.getByTestId("story-zen").click()
+    await expect(page.locator(".tn-zen[data-zen]")).toBeVisible()
+    await settled(page)
+    const input = page.getByTestId("compare-slider-input")
+    const shown = await photo(page)
+    const y = shown.y + shown.height / 2
+
+    await page.mouse.move(shown.x + shown.width / 2, y)
+    await page.mouse.down()
+    await page.mouse.move(shown.x + shown.width * 0.3, y, { steps: 8 })
+    await page.mouse.up()
+    await expect(input).toHaveValue("30")
+    await expect(page).toHaveURL(/\/sheep\?p=30$/)
+  })
+
+  test("a finger drags the line in zen and stops clear of the screen's edge", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+      reducedMotion: "reduce",
+    })
+    const page = await context.newPage()
+    await page.goto("/sheep")
+    await page.getByTestId("story-zen").click()
+    await expect(page.locator(".tn-zen[data-zen]")).toBeVisible()
+    await settled(page)
+    const shown = await photo(page)
+    const y = shown.y + shown.height / 2
+    const cdp = await context.newCDPSession(page)
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", x?: number) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: x === undefined ? [] : [{ x, y }],
+      })
+
+    await touch("touchStart", 195)
+    for (let x = 195; x >= 2; x -= 8) await touch("touchMove", x)
+    await touch("touchMove", 2)
+    await touch("touchEnd")
+
+    const knob = (await page.getByTestId("compare-slider-knob").boundingBox())!
+    expect(knob.x + knob.width / 2).toBeCloseTo(56, 0)
+    await context.close()
   })
 })
