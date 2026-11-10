@@ -54,7 +54,6 @@ for (const size of sizes) {
       await page.goto("/sheep?p=30")
       const input = page.getByTestId("compare-slider-input")
       await expect(input).toHaveValue("30")
-      const historyLength = await page.evaluate(() => history.length)
       const ratio = await page
         .locator(".tn-story")
         .evaluate((main) =>
@@ -165,7 +164,6 @@ for (const size of sizes) {
           )
         )
         .not.toBe("hidden")
-      expect(await page.evaluate(() => history.length)).toBe(historyLength)
       await expect
         .poll(async () => Math.round((await photo(page)).width))
         .toBe(Math.round(pageBefore.width))
@@ -240,6 +238,37 @@ test.describe("zen with a keyboard", () => {
     await expect(button).toBeFocused()
   })
 
+  test("Back closes zen and stays on the place; closing leaves no step behind", async ({
+    page,
+  }) => {
+    await page.goto("/places")
+    await page.goto("/sheep?p=30")
+    const zen = page.locator(".tn-zen[data-zen]")
+    const button = page.getByTestId("story-zen")
+
+    await button.click()
+    await expect(zen).toBeVisible()
+    await settled(page)
+    await page.goBack()
+    await expect(zen).toHaveCount(0)
+    await expect(page).toHaveURL(/\/sheep\?p=30$/)
+    await expect
+      .poll(() => page.evaluate(() => document.fullscreenElement === null))
+      .toBe(true)
+
+    // A double tap on the close button closes zen once and stays on the place.
+    await button.click()
+    await expect(zen).toBeVisible()
+    await settled(page)
+    await button.dblclick()
+    await expect(zen).toHaveCount(0)
+    await page.waitForTimeout(400)
+    await expect(page).toHaveURL(/\/sheep\?p=30$/)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/places$/)
+  })
+
   test("leaving the browser's full screen (Android's Back, a desktop's Esc) closes zen", async ({
     page,
   }) => {
@@ -294,6 +323,9 @@ test.describe("zen when the browser has no full screen, as on an iPhone", () => 
 
     await page.goBack()
     await expect(zen).toHaveCount(0)
+    await expect(page).toHaveURL(/\/sheep\?p=70$/)
+    // ...and stays there once the router has caught up.
+    await page.waitForTimeout(400)
     await expect(page).toHaveURL(/\/sheep\?p=70$/)
     await expect(input).toHaveValue("70")
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()

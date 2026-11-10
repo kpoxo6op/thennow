@@ -163,7 +163,8 @@ export default function Post({ post, nearby }: PostProps) {
 
   // Whether zen is wanted, read by a full screen request that settles late.
   const zenWantedRef = useRef(false)
-  // Without the browser's full screen (an iPhone), zen takes a step in history so Back closes it.
+  // Zen takes one step in history, so Back (Android's button, an iPhone's swipe) closes it
+  // rather than leaving the place.
   const zenStepRef = useRef(false)
   const positionRef = useRef(position)
   useEffect(() => {
@@ -173,18 +174,17 @@ export default function Post({ post, nearby }: PostProps) {
   const enterZen = () => {
     zenWantedRef.current = true
     setZen(true)
-    const block = zenRef.current
-    const takeStep = () => {
-      if (!zenWantedRef.current || zenStepRef.current) return
-      zenStepRef.current = true
+    if (!zenStepRef.current) {
       try {
         window.history.pushState({ ...window.history.state, zen: true }, "")
+        zenStepRef.current = true
       } catch {
-        zenStepRef.current = false
+        // Without the step, Back leaves the page as it always did.
       }
     }
 
-    // Where the browser allows it the bars go too.
+    // Where the browser allows it the bars go too; an iPhone keeps the overlay alone.
+    const block = zenRef.current
     if (block?.requestFullscreen) {
       block
         .requestFullscreen({ navigationUI: "hide" })
@@ -194,13 +194,13 @@ export default function Post({ post, nearby }: PostProps) {
             document.exitFullscreen().catch(() => {})
           }
         })
-        .catch(takeStep)
-    } else {
-      takeStep()
+        .catch(() => {})
     }
   }
 
   const exitZen = useCallback(() => {
+    // A second tap while the first is still closing does nothing.
+    if (!zenWantedRef.current) return
     zenWantedRef.current = false
     if (document.fullscreenElement === zenRef.current) {
       document.exitFullscreen().catch(() => {})
@@ -242,26 +242,26 @@ export default function Post({ post, nearby }: PostProps) {
       }
     }
 
-    // Back on Android and Esc on a desktop leave the browser's full screen first.
+    // The browser can leave its full screen itself (Esc on a desktop, Back on some phones).
     const onFullscreenChange = () => {
-      if (!document.fullscreenElement && !zenStepRef.current) {
-        zenWantedRef.current = false
-        setZen(false)
-      }
+      if (!document.fullscreenElement) exitZen()
     }
 
-    // Back without full screen: zen closes and the line stays where it was, and the entry Back
-    // lands on is given the line's place.
+    // Zen's step was left: by Back, or by exitZen. Zen closes, the line stays where it was,
+    // and the entry Back lands on is given the line's place.
     const onPopState = () => {
       if (!zenStepRef.current) return
       zenStepRef.current = false
       zenWantedRef.current = false
+      if (document.fullscreenElement === block) {
+        document.exitFullscreen().catch(() => {})
+      }
       const kept = Math.round(positionRef.current)
       const url = new URL(window.location.href)
       if (kept === DEFAULT_POSITION) url.searchParams.delete("p")
       else url.searchParams.set("p", String(kept))
       try {
-        window.history.replaceState(window.history.state, "", url)
+        window.history.replaceState(null, "", url)
       } catch {
         // The address is a convenience.
       }
