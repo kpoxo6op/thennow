@@ -456,7 +456,7 @@ export default function Post({ post, nearby }: PostProps) {
                 className="pointer-events-auto flex size-11 items-center justify-center text-white"
                 onClick={zen ? exitZen : enterZen}
               >
-                <span className="flex size-8 items-center justify-center rounded-full bg-black/50">
+                <span className="flex size-9 items-center justify-center rounded-full bg-black/60">
                   {zen ? (
                     <X className="size-[18px]" />
                   ) : (
