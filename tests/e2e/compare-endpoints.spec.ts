@@ -114,6 +114,7 @@ for (const width of PHONE_WIDTHS) {
       await expectAlignedAt(page, 0)
       await page.keyboard.press("ArrowRight")
       await expectAlignedAt(page, 1)
+      await expect(page).toHaveURL(/\?p=1$/)
       await page.reload()
       await expectAlignedAt(page, 1)
 
