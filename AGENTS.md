@@ -51,13 +51,19 @@ Playwright e2e tests are part of the expected workflow.
 
 Current e2e coverage includes:
 
-- default compare state
-- URL-driven compare state
-- slider drag updates URL
-- before image stays fixed
-- knob/border alignment
-- mobile safe margins
-- desktop header edge spacing
+- `compare.spec.ts`, `compare-endpoints.spec.ts`, `compare-pointer.spec.ts` — the compare line: default and URL-driven position, dragging, keyboard, both ends, knob/border alignment, mobile safe margins, the before image staying fixed
+- `header.spec.ts` — desktop header edge spacing
+- `story.spec.ts` — a place's page: layout and the line on touch screens, turning the screen, its own map
+- `collection.spec.ts`, `home-map.spec.ts` — the homepage, Places (list, search, the map and its markers) and upcoming places
+- `camera.spec.ts`, `camera-zoom.spec.ts` — the rephotography camera, its review, sending, and the routes behind it
+- `track.spec.ts`, `zoom.spec.ts` — the camera's following between matches and its zoom, as plain calculations
+- `me.spec.ts` — Your photos: what a new visitor sees and what the routes refuse
+- `preview.spec.ts` — what a shared link looks like, and the sitemap
+- `identity.spec.ts` — names, sent photos and passkeys end to end, against the in-memory store
+- `posts.spec.ts` — every place file is well formed
+
+Playwright reuses a server that is already listening on port 3100. After changing
+code, stop it first (`lsof -ti :3100 | xargs -r kill`), or the tests run against the old build.
 
 ## When Tests Fail
 
@@ -80,6 +86,14 @@ If a future task adds screenshot snapshots, treat them the same way:
 
 - accidental diff -> fix the UI
 - intentional diff -> update the snapshot baseline in the same change
+
+## Photo Store In Tests
+
+The test server keeps its photo store in memory (`TN_FAKE_STORE=1`, set only in
+`playwright.config.ts`; see `lib/store.ts`). App code must import store calls from
+`@/lib/store`, never from `@vercel/blob`. Never set `TN_FAKE_STORE` on Vercel: the build
+refuses it. The in-memory store imitates only what the site reads; real-store behaviour is
+checked with `scripts/claim-check.mjs` and `scripts/passkey-check.mjs` against a preview.
 
 ## Vercel
 
