@@ -469,6 +469,21 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 }
 
 test("changing the filter frames what was found, not the old camera", async ({ page }) => {
+  // DEBUG (not for merge): record every history write to see what undoes the Map tap in CI.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __hist: string[] }
+    w.__hist = []
+    for (const name of ["pushState", "replaceState"] as const) {
+      const original = history[name].bind(history)
+      history[name] = (data: unknown, unused: string, url?: string | URL | null) => {
+        w.__hist.push(`${Math.round(performance.now())} ${name} ${url ?? "(no url)"} NA=${!!(data as { __NA?: boolean } | null)?.__NA}`)
+        return original(data, unused, url)
+      }
+    }
+    window.addEventListener("popstate", () => w.__hist.push(`${Math.round(performance.now())} popstate ${location.href}`))
+  })
+  page.on("console", (message) => console.log(`[console] ${message.type()} ${message.text()}`))
+  page.on("pageerror", (error) => console.log(`[pageerror] ${error.message}`))
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(MILL_HOUSE_ON_MAP)
   await expect(page).toHaveURL(/z=13/)
@@ -476,6 +491,9 @@ test("changing the filter frames what was found, not the old camera", async ({ p
   await page.getByRole("combobox", { name: "Area" }).selectOption("Helensville")
   await expect(page).not.toHaveURL(/lat=/)
   await page.getByRole("button", { name: "Map" }).click()
+  await page.waitForTimeout(1500)
+  console.log("[debug] url", page.url(), "pressed", await page.getByRole("button", { name: "Map" }).getAttribute("aria-pressed"))
+  console.log("[debug] hist\n" + (await page.evaluate(() => (window as unknown as { __hist: string[] }).__hist.join("\n"))))
 
   await expect.poll(() =>
     page.evaluate(() => {

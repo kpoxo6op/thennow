@@ -9,7 +9,7 @@ export default defineConfig({
   retries: 0,
   use: {
     baseURL,
-    trace: "retain-on-failure",
+    trace: "on-first-retry",
   },
   webServer: {
     command: `corepack pnpm build && corepack pnpm start --hostname 127.0.0.1 --port ${PORT}`,
