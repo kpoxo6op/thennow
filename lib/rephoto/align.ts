@@ -89,6 +89,8 @@ function cut(source: CanvasImageSource, part: Region) {
 
 // Where the time of the last match went, for the camera's report: getting the picture ready,
 // and the model itself.
+const SERVER_MS = 25_000
+
 export const timing = { prepareMs: 0, modelMs: 0 }
 
 // Finds the archive view in a picture: on the phone's graphics chip when it can, otherwise, if
@@ -129,7 +131,9 @@ export async function align(
   signal.throwIfAborted()
   if (!raw) {
     if (!server) return null
-    const remote = within(signal, 10_000)
+    // The server takes about four seconds a match, plus the trip from New Zealand to its region;
+    // a busy or just-woken one, longer. It may run for 30 s, so the wait stops short of that.
+    const remote = within(signal, SERVER_MS)
     try {
       raw = await requestMatches(archive.gray, frame.gray, remote.signal)
     } finally {
