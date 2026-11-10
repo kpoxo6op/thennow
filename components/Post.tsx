@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import PostType from "@/interfaces/post"
+import { Maximize, X } from "lucide-react"
 
 import { CompareStage } from "@/components/compare-stage"
 import { PLACEHOLDER, SOURCE_LINE, toSections } from "@/components/Desc"
@@ -116,6 +117,10 @@ export default function Post({ post, nearby }: PostProps) {
   const glideRef = useRef<number | null>(null)
   // Where the line was before a whole photograph was asked for; asking again returns there.
   const returnRef = useRef(DEFAULT_POSITION)
+  // Zen: the same comparison and its years, alone on black and as large as the screen allows.
+  const [zen, setZen] = useState(false)
+  const zenRef = useRef<HTMLDivElement>(null)
+  const zenButtonRef = useRef<HTMLButtonElement>(null)
 
   const stopGlide = useCallback(() => {
     if (glideRef.current !== null) {
@@ -156,8 +161,163 @@ export default function Post({ post, nearby }: PostProps) {
 
   useEffect(() => stopGlide, [stopGlide])
 
+  // Whether zen is wanted, read by a full screen request that settles late.
+  const zenWantedRef = useRef(false)
+  // Zen takes one step in history, so Back (Android's button, an iPhone's swipe) closes it
+  // rather than leaving the place.
+  const zenStepRef = useRef(false)
+  const positionRef = useRef(position)
+  useEffect(() => {
+    positionRef.current = position
+  }, [position])
+
+  const enterZen = () => {
+    zenWantedRef.current = true
+    setZen(true)
+    if (!zenStepRef.current) {
+      try {
+        window.history.pushState({ ...window.history.state, zen: true }, "")
+        zenStepRef.current = true
+      } catch {
+        // Without the step, Back leaves the page as it always did.
+      }
+    }
+
+    // Where the browser allows it the bars go too; an iPhone keeps the overlay alone.
+    const block = zenRef.current
+    if (block?.requestFullscreen) {
+      block
+        .requestFullscreen({ navigationUI: "hide" })
+        .then(() => {
+          // Closed while the screen was still changing.
+          if (!zenWantedRef.current && document.fullscreenElement === block) {
+            document.exitFullscreen().catch(() => {})
+          }
+        })
+        .catch(() => {})
+    }
+  }
+
+  const exitZen = useCallback(() => {
+    // A second tap while the first is still closing does nothing.
+    if (!zenWantedRef.current) return
+    zenWantedRef.current = false
+    if (document.fullscreenElement === zenRef.current) {
+      document.exitFullscreen().catch(() => {})
+    }
+    if (zenStepRef.current) {
+      // The step back closes zen (see onPopState).
+      window.history.back()
+      return
+    }
+    setZen(false)
+  }, [])
+
+  useEffect(() => {
+    if (!zen) return
+
+    const root = document.documentElement
+    const block = zenRef.current
+    const button = zenButtonRef.current
+    const { overflow, overscrollBehavior } = root.style
+    root.style.overflow = "hidden"
+    root.style.overscrollBehavior = "none"
+    // Focus starts on the close button, whatever opened zen.
+    button?.focus({ preventScroll: true })
+
+    // Everything else on the page is out of reach while zen is open, for screen readers too.
+    const hidden: HTMLElement[] = []
+    for (
+      let node: HTMLElement | null = block;
+      node && node !== document.body;
+      node = node.parentElement
+    ) {
+      for (const sibling of Array.from(node.parentElement?.children ?? [])) {
+        if (
+          sibling !== node &&
+          sibling instanceof HTMLElement &&
+          !sibling.inert
+        ) {
+          sibling.inert = true
+          hidden.push(sibling)
+        }
+      }
+    }
+
+    // The browser can leave its full screen itself (Esc on a desktop, Back on some phones).
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) exitZen()
+    }
+
+    // Zen's step was left: by Back, or by exitZen. Zen closes, the line stays where it was,
+    // and the entry Back lands on is given the line's place.
+    const onPopState = () => {
+      if (!zenStepRef.current) return
+      zenStepRef.current = false
+      zenWantedRef.current = false
+      if (document.fullscreenElement === block) {
+        document.exitFullscreen().catch(() => {})
+      }
+      const kept = Math.round(positionRef.current)
+      const url = new URL(window.location.href)
+      if (kept === DEFAULT_POSITION) url.searchParams.delete("p")
+      else url.searchParams.set("p", String(kept))
+      try {
+        window.history.replaceState(null, "", url)
+      } catch {
+        // The address is a convenience.
+      }
+      setZen(false)
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        exitZen()
+        return
+      }
+
+      if (event.key !== "Tab" || !block) return
+
+      // Focus stays with what zen shows.
+      const focusable = Array.from(
+        block.querySelectorAll<HTMLElement>("button, input")
+      )
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+
+      if (!block.contains(active)) {
+        event.preventDefault()
+        first?.focus()
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault()
+        last?.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first?.focus()
+      }
+    }
+
+    document.addEventListener("fullscreenchange", onFullscreenChange)
+    document.addEventListener("keydown", onKeyDown)
+    window.addEventListener("popstate", onPopState)
+
+    return () => {
+      root.style.overflow = overflow
+      root.style.overscrollBehavior = overscrollBehavior
+      for (const sibling of hidden) sibling.inert = false
+      document.removeEventListener("fullscreenchange", onFullscreenChange)
+      document.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("popstate", onPopState)
+      button?.focus({ preventScroll: true })
+    }
+  }, [zen, exitZen])
+
   useEffect(() => {
     const syncPositionFromUrl = () => {
+      // Back out of zen's own step in history only closes zen (see onPopState).
+      if (zenStepRef.current) return
+
       const url = new URL(window.location.href)
       const nextPosition = parsePositionParam(url.searchParams.get("p"))
 
@@ -256,8 +416,15 @@ export default function Post({ post, nearby }: PostProps) {
     >
       <ResetScroll />
       <div>
-        <div>
-          <div className="relative">
+        <div
+          ref={zenRef}
+          data-zen={zen || undefined}
+          role={zen ? "dialog" : undefined}
+          aria-modal={zen || undefined}
+          aria-label={zen ? post.name : undefined}
+          className="tn-zen"
+        >
+          <div className="tn-zen-frame relative">
             <CompareStage
               name={post.name}
               thenSrc={post.b_imageUrl}
@@ -273,13 +440,31 @@ export default function Post({ post, nearby }: PostProps) {
               priority
               className="tn-story-stage"
             />
-            {post.sample ? (
+            {post.sample && !zen ? (
               <span className="tn-story-edge pointer-events-none absolute inset-x-0 top-3 flex">
                 <span className="ml-1.5 whitespace-nowrap rounded-full bg-black/75 px-2.5 py-1 text-xs text-white sm:ml-2 sm:px-3 sm:text-sm">
                   Placeholder photographs
                 </span>
               </span>
             ) : null}
+            <span className="tn-zen-toggle tn-story-edge pointer-events-none absolute inset-x-0 top-0 flex justify-end">
+              <button
+                ref={zenButtonRef}
+                type="button"
+                data-testid="story-zen"
+                aria-label={zen ? "Close full screen" : "Full screen"}
+                className="pointer-events-auto flex size-11 items-center justify-center text-white"
+                onClick={zen ? exitZen : enterZen}
+              >
+                <span className="flex size-9 items-center justify-center rounded-full bg-black/60">
+                  {zen ? (
+                    <X className="size-[18px]" />
+                  ) : (
+                    <Maximize className="size-[18px]" />
+                  )}
+                </span>
+              </button>
+            </span>
           </div>
           <div className="tn-story-edge flex h-11 items-center justify-between">
             <button
@@ -294,7 +479,13 @@ export default function Post({ post, nearby }: PostProps) {
             </button>
             {/* One hint until the line is first moved; after that only when there is no line to see. */}
             <p className="px-2 text-center text-sm text-muted-foreground">
-              {lineHidden ? "Tap to compare" : touched ? null : "Drag the line"}
+              {zen
+                ? null
+                : lineHidden
+                  ? "Tap to compare"
+                  : touched
+                    ? null
+                    : "Drag the line"}
             </p>
             <button
               type="button"
