@@ -28,6 +28,9 @@ export const maxDuration = 30
 const MAX_BYTES = 4_000_000
 // Generous: a walking group on one Wi-Fi or a shared mobile address all count as one.
 const allowed = limiter(60, 60 * 60_000)
+// Every request that names a real place counts here, retries and refused files included, before
+// its photo is read: opening a photo costs memory and seconds, and a retry writes to the store.
+const knocks = limiter(240, 60 * 60_000)
 
 // A real, whole JPEG of camera size, drawn again from its pixels alone, so nothing else that
 // rode along in the file (comments, metadata, trailing data) is kept.
@@ -62,6 +65,7 @@ export async function POST(request: Request) {
   const places = [...(await fetchPosts()), ...(await fetchPending())]
   if (!places.some((place) => place.slug === slug && !place.sample))
     return answer(404, "no such place")
+  if (!knocks(request)) return answer(429, "slow down")
 
   const length = Number(request.headers.get("content-length") ?? 0)
   if (length > MAX_BYTES) return answer(413, "too big")
@@ -83,7 +87,8 @@ export async function POST(request: Request) {
   }
   const pathname = `submissions/${slug}/${key}.jpg`
   const filed = photoPath(id, slug, key)
-  // A retry of a photo already stored is answered at once, and doesn't count against the limit.
+  // A retry of a photo already stored is answered at once, and doesn't count against the photo
+  // limit, only the knock limit above.
   // Its small copy is filed again if the first attempt stopped before that.
   try {
     await head(pathname)
