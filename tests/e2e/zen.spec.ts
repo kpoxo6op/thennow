@@ -14,6 +14,25 @@ async function photo(page: Page) {
   })
 }
 
+// Zen asks the browser for full screen, which arrives a moment later; measure after it has.
+async function settled(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          !document.fullscreenEnabled ||
+          document.fullscreenElement?.matches(".tn-zen[data-zen]") === true
+      )
+    )
+    .toBe(true)
+  await page.evaluate(
+    () =>
+      new Promise((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(done))
+      )
+  )
+}
+
 const sizes = [
   { name: "phone", width: 390, height: 844, touch: true },
   { name: "turned phone", width: 844, height: 390, touch: true },
@@ -46,6 +65,7 @@ for (const size of sizes) {
       await page.getByTestId("story-zen").click()
       const zen = page.locator(".tn-zen[data-zen]")
       await expect(zen).toBeVisible()
+      await settled(page)
       await expect(page.getByTestId("story-zen")).toHaveAccessibleName(
         "Close full screen"
       )
@@ -143,6 +163,7 @@ for (const size of sizes) {
       await page.goto("/sheep")
       await page.getByTestId("story-zen").click()
       await expect(page.locator(".tn-zen[data-zen]")).toBeVisible()
+      await settled(page)
       const input = page.getByTestId("compare-slider-input")
       const before = await rect(page, "compare-overlay-image")
 
