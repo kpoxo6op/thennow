@@ -1,7 +1,8 @@
 {
+  "status": "pending",
   "name": "Tāmaki Road Board offices, St Heliers",
   "slug": "tamaki-road-board-offices",
-  "description": "1929\nLooking north along St Heliers Bay Road from Polygon Road, circa 1929. The Tāmaki Road Board offices, now St Heliers Library, are on the right. Photographer unknown. Auckland Libraries Heritage Collections 589-0259. No known copyright restrictions.\nkura.aucklandlibraries.govt.nz/digital/collection/photos/id/320024\n\n2026\nSt Heliers Library and the view towards the bay on 11 November 2026. Photograph by Boris.",
+  "description": "Looking north along St Heliers Bay Road towards the bay from the intersection with Polygon Road. The Tāmaki Road Board offices, now the St Heliers Library, are on the right, with a bus in front of Keys Garage in the centre.",
   "b_imageUrl": "/posts/0006-tamaki-road-board-offices/then-tamaki-road-board-offices.jpg",
   "w": 2000,
   "h": 1277,
@@ -17,7 +18,5 @@
     "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/320024",
     "sourceId": "589-0259"
   },
-  "area": "Auckland",
-  "a_imageUrl": "/posts/0006-tamaki-road-board-offices/now-tamaki-road-board-offices.jpg",
-  "ba_imageUrl": "/posts/0006-tamaki-road-board-offices/compare-tamaki-road-board-offices.jpg"
+  "area": "Auckland"
 }
