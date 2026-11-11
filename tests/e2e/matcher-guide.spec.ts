@@ -214,12 +214,12 @@ for (const [orientation, viewport] of Object.entries({
     await page.evaluate(() =>
       Object.assign(window, { __reviewFailure: "runtime" })
     )
-    await page.route("**/api/align", (route) => route.abort())
     await page.setViewportSize({ width: 844, height: 390 })
     await expect(stage).toHaveAttribute("data-lock", "steady", {
       timeout: 30_000,
     })
     await screenshot(page, "landscape-manual-capture")
+    await page.route("**/api/align", (route) => route.abort())
     await page.getByTestId("rephoto-shutter").click()
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
       "data-phase",
