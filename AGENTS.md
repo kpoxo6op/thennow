@@ -156,3 +156,9 @@ Prioritize long straight references and recognizable details near the frame
 edges, including a visible horizon and surviving mural details such as Bradley
 Lane's cowboy foot. Spread guides across the composition to help framing and
 scale; do not restrict them to a central cluster or an arbitrary three features.
+
+For every new reference, apply the documented field-feedback lessons and
+per-image procedure, including long building lines and recognizable edge windows.
+Keep the faint archive for context. Review whole-frame coverage and record useful
+landmarks and omissions in the PR; adding a rule without adding the requested
+strokes does not complete a guide change.
