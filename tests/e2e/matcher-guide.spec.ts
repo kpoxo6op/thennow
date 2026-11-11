@@ -61,6 +61,42 @@ for (const [orientation, viewport] of Object.entries({
     page,
   }) => {
     test.setTimeout(120_000)
+    // The same field-failure journey owns diagnostic causality and delivery: preserve
+    // retry identity, exclude private fields, and correlate each manual shot with review.
+    type Event = {
+      event: string
+      outcome?: string
+      reason?: string
+      state?: string
+      blockers?: number
+      capture: number
+      run: number
+    }
+    const batches: { session: string; seq: number; events: Event[] }[] = []
+    const attempts: string[] = []
+    await page.route("**/api/camera-log", async (route) => {
+      const body = route.request().postData()!
+      attempts.push(body)
+      if (attempts.length === 1) {
+        await route.fulfill({ status: 503 })
+        return
+      }
+      const batch = JSON.parse(body)
+      expect(Buffer.byteLength(body)).toBeLessThanOrEqual(12 * 1024)
+      expect(batch.events.length).toBeLessThanOrEqual(16)
+      expect(body).not.toMatch(
+        /mission-house|pathname|user-agent|country|data:image|message|latitude|longitude/
+      )
+      if (
+        !batches.some(
+          (item) => item.session === batch.session && item.seq === batch.seq
+        )
+      )
+        batches.push(batch)
+      await route.fulfill({ status: 204 })
+    })
+    const events = () => batches.flatMap((batch) => batch.events)
+
     await page.setViewportSize(viewport)
     await gpu(page)
     let release!: () => void
@@ -160,7 +196,9 @@ for (const [orientation, viewport] of Object.entries({
       if (new URL(request.url()).pathname === "/api/submit") uploads++
       if (
         request.url().endsWith("/api/camera-log") &&
-        request.postDataJSON()?.event === "shot"
+        request
+          .postDataJSON()
+          ?.events?.some((event: { event: string }) => event.event === "shot")
       )
         captures++
     })
@@ -229,9 +267,63 @@ for (const [orientation, viewport] of Object.entries({
     await expect(page.getByTestId("rephoto-send")).toBeEnabled()
     expect(uploads).toBe(0)
     expect(captures).toBe(2)
+    await expect
+      .poll(() => events().filter((event) => event.event === "review").length)
+      .toBe(2)
+    expect(attempts[1]).toBe(attempts[0])
+    expect(new Set(batches.map((batch) => batch.session)).size).toBe(1)
+    expect(events()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: "match result",
+          outcome: "rejected",
+          reason: "disagreement",
+        }),
+        expect.objectContaining({
+          event: "match result",
+          outcome: "miss",
+          reason: "insufficient_matches",
+        }),
+        expect.objectContaining({ event: "guide", state: "lost" }),
+        expect.objectContaining({
+          event: "review",
+          result: "unmatched",
+          capture: 1,
+        }),
+        expect.objectContaining({
+          event: "review",
+          result: "unchecked",
+          capture: 2,
+        }),
+      ])
+    )
+    const shots = events().filter((event) => event.event === "shot")
+    expect(shots.map((event) => event.capture)).toEqual([1, 2])
+    for (const shot of shots)
+      expect(events()).toContainEqual(
+        expect.objectContaining({
+          event: "review",
+          capture: shot.capture,
+          run: shot.run,
+        })
+      )
+    expect(events().some((event) => event.event === "auto")).toBe(false)
     await page.getByRole("button", { name: "Retake", exact: true }).click()
     await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
     await expect(page.getByTestId("rephoto-review")).toHaveCount(0)
+    await page.getByRole("link", { name: "Close camera" }).click()
+    await expect
+      .poll(() => events().some((event) => event.event === "session end"))
+      .toBe(true)
+    expect(
+      events().some(
+        (event) =>
+          event.event === "live" &&
+          event.run > shots[1].run &&
+          event.capture === 0
+      )
+    ).toBe(true)
+    expect(batches.length).toBeLessThan(events().length)
   })
 }
 

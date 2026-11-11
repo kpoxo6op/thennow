@@ -224,8 +224,63 @@ test.describe("simulated camera application and API boundaries", () => {
       ).status()
     ).toBe(403)
     expect((await send({}, "not json")).status()).toBe(400)
-    expect((await send({}, "x".repeat(5000))).status()).toBe(413)
+    expect((await send({}, "x".repeat(13000))).status()).toBe(413)
     expect((await send({}, '{"event":"open"}')).status()).toBe(204)
+    // Real intake contract: cached clients remain accepted, but malformed structured
+    // diagnostics and unbounded requests never reach the log. No other journey owns intake.
+    const batch = {
+      version: 2,
+      session: "12345678-1234-1234-1234-123456789abc",
+      build: "abcdef123456",
+      browser: "chrome",
+      seq: 1,
+      dropped: 0,
+      deliveryFailures: 0,
+      events: [
+        {
+          event: "match result",
+          at: 20,
+          run: 1,
+          outcome: "miss",
+          reason: "insufficient_matches",
+          rawMatches: 2,
+        },
+      ],
+    }
+    expect((await send({}, JSON.stringify(batch))).status()).toBe(204)
+    expect(
+      (
+        await send(
+          {},
+          JSON.stringify({
+            ...batch,
+            events: [{ event: "secret-token", at: 20 }],
+          })
+        )
+      ).status()
+    ).toBe(400)
+    expect(
+      (
+        await send(
+          {},
+          JSON.stringify({ ...batch, events: Array(17).fill(batch.events[0]) })
+        )
+      ).status()
+    ).toBe(400)
+    expect(
+      (await send({}, JSON.stringify({ ...batch, seq: -1 }))).status()
+    ).toBe(400)
+    expect(
+      (
+        await send(
+          {},
+          JSON.stringify({
+            ...batch,
+            events: [{ ...batch.events[0], at: "token" }],
+          })
+        )
+      ).status()
+    ).toBe(400)
   })
 
   test("one network's camera can only report so often", async ({ request }) => {

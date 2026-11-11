@@ -8,7 +8,7 @@ import {
   align,
   NEAR_REACH,
   prepareArchive,
-  timing,
+  type AlignDiagnostic,
   type Archive,
 } from "@/lib/rephoto/align"
 import {
@@ -25,7 +25,14 @@ import {
   saveData,
 } from "@/lib/rephoto/local-matcher"
 import { loadImage } from "@/lib/rephoto/pixels"
-import { browserName, report } from "@/lib/rephoto/telemetry"
+import {
+  beginCameraRun,
+  browserName,
+  diagnostic,
+  flushTelemetry,
+  report,
+  startCameraSession,
+} from "@/lib/rephoto/telemetry"
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { slide, thumb, type Thumb } from "@/lib/rephoto/track"
 import { releaseScreen } from "@/components/rephoto/camera-link"
@@ -193,6 +200,18 @@ export function RephotoCamera({
   // How long the latest live placement stays good for: one round of matching and a bit more.
   const lockLife = useRef(2500)
   const attempt = useRef(0)
+  const telemetryRun = useRef(0)
+  const telemetry = useRef({
+    state: "searching",
+    runs: 0,
+    found: 0,
+    rejected: 0,
+    lost: 0,
+    firstFound: -1,
+    firstSteady: -1,
+    inFlightAt: 0,
+    frameAt: 0,
+  })
   const plain = useRef(false)
   // Report the camera's actual zoom; the guide never changes it.
   const zoomRef = useRef(1)
@@ -246,7 +265,18 @@ export function RephotoCamera({
   }, [lock, lastPlacement])
 
   useEffect(() => {
+    startCameraSession()
     const loading = performance.now()
+    const heartbeat = () => {
+      const { inFlightAt, frameAt, ...counts } = telemetry.current
+      diagnostic("heartbeat", {
+        ...counts,
+        seconds: Math.round((performance.now() - loading) / 1000),
+        inFlightMs: inFlightAt ? performance.now() - inFlightAt : 0,
+        frameAge: frameAt ? performance.now() - frameAt : null,
+      })
+    }
+    const pulse = setInterval(heartbeat, 5000)
     report(
       "open",
       {
@@ -273,6 +303,10 @@ export function RephotoCamera({
       )
     // Leaving the camera hands the shot's memory and the screen back.
     return () => {
+      clearInterval(pulse)
+      heartbeat()
+      diagnostic("session end", { reason: "unmount" })
+      flushTelemetry()
       releaseScreen()
       if (shotRef.current) releaseCanvas(shotRef.current.canvas)
     }
@@ -320,6 +354,18 @@ export function RephotoCamera({
 
   const restart = useRef(async () => {})
   const start = useCallback(async () => {
+    beginCameraRun(++telemetryRun.current)
+    Object.assign(telemetry.current, {
+      state: "searching",
+      runs: 0,
+      found: 0,
+      rejected: 0,
+      lost: 0,
+      firstFound: -1,
+      firstSteady: -1,
+      inFlightAt: 0,
+      frameAt: 0,
+    })
     // Only the latest start keeps its camera; an older one that finishes late lets it go.
     const mine = ++attempt.current
     const asked = performance.now()
@@ -463,6 +509,7 @@ export function RephotoCamera({
     let handle = 0
     const onFrame = () => {
       last = performance.now()
+      telemetry.current.frameAt = last
       handle = video.requestVideoFrameCallback!(onFrame)
     }
     handle = video.requestVideoFrameCallback(onFrame)
@@ -499,6 +546,9 @@ export function RephotoCamera({
   useEffect(() => {
     if (shot || status !== "live" || !canMatchLocally()) return
     const controller = new AbortController()
+    const runSequence = telemetryRun
+    const run = runSequence.current
+    const counters = telemetry.current
     const began = performance.now()
     let reach = 1
     let misses = 0
@@ -553,22 +603,43 @@ export function RephotoCamera({
       Math.abs(a.width / b.width - 1) < 0.05 &&
       Math.abs(a.rotation - b.rotation) < (3 * Math.PI) / 180
     const fresh = (at: number) => performance.now() - at < lockLife.current
-    const lose = () => {
+    const guide = (
+      state: string,
+      reason: string,
+      motion: number | null = null
+    ) => {
+      if (telemetry.current.state === state) return
+      telemetry.current.state = state
+      diagnostic("guide", {
+        state,
+        reason,
+        motion,
+        frameAge: anchor ? performance.now() - anchor.at : null,
+        trackedAge: anchor ? performance.now() - anchor.trackedAt : null,
+        confirmedAge: anchor?.confirmedAt
+          ? performance.now() - anchor.confirmedAt
+          : null,
+      })
+    }
+    guide("searching", "first")
+    const lose = (reason = "expired") => {
       if (anchor) stats.lost++
+      guide("lost", reason)
       anchor = null
       setLock(null)
     }
-    const invalidateView = () => {
+    const invalidateView = (reason: string) => {
       viewEpoch++
       candidate = null
-      lose()
+      lose(reason)
     }
+    const onResize = () => invalidateView("resize")
     const onVisibility = () => {
-      if (document.visibilityState !== "visible") invalidateView()
+      if (document.visibilityState !== "visible") invalidateView("hidden")
     }
     const liveVideo = videoRef.current
     document.addEventListener("visibilitychange", onVisibility)
-    liveVideo?.addEventListener("resize", invalidateView)
+    liveVideo?.addEventListener("resize", onResize)
     const follow = async () => {
       const video = videoRef.current
       const archive = archiveRef.current
@@ -579,7 +650,13 @@ export function RephotoCamera({
         !fresh(anchor.at) ||
         !currentSize(video, anchor.photoSize)
       ) {
-        lose()
+        lose(
+          document.visibilityState !== "visible"
+            ? "hidden"
+            : !currentSize(video, anchor.photoSize)
+              ? "resize"
+              : "expired"
+        )
         return
       }
       following = true
@@ -599,7 +676,13 @@ export function RephotoCamera({
           !currentSize(video, photo) ||
           document.visibilityState !== "visible"
         ) {
-          lose()
+          lose(
+            !by || !now
+              ? "tracking-failed"
+              : epoch !== viewEpoch
+                ? "view-changed"
+                : "expired"
+          )
           return
         }
         const crop = shifted(from.crop, by, photo)
@@ -622,6 +705,11 @@ export function RephotoCamera({
           stats.firstSteady = Math.round(performance.now() - began)
           navigator.vibrate?.(10)
         }
+        guide(
+          steady ? "steady" : from.held ? "held" : "candidate",
+          "agreement",
+          motion
+        )
         setLock({
           crop,
           held: from.held,
@@ -654,9 +742,23 @@ export function RephotoCamera({
           let photo = { width: video.videoWidth, height: video.videoHeight }
           const epoch = viewEpoch
           const sampled = performance.now()
+          const sampledReach = reach
           let frame: ImageBitmap | null = null
           let seen: Thumb | null = null
           let found: Awaited<ReturnType<typeof align>> = null
+          let measured: AlignDiagnostic = {
+            reason: "prepare_error",
+            backend: "none",
+            prepareMs: 0,
+            modelMs: 0,
+          }
+          let dx: number | null = null
+          let dy: number | null = null
+          let scaleDelta: number | null = null
+          let rotationDelta: number | null = null
+          let outcome = "miss"
+          let reason: string = "frame-unavailable"
+          telemetry.current.inFlightAt = sampled
           try {
             frame = await createImageBitmap(video)
             photo = { width: frame.width, height: frame.height }
@@ -671,6 +773,9 @@ export function RephotoCamera({
               found = await align(archive, frame, photo, controller.signal, {
                 server: false,
                 reach,
+                diagnostic: (details) => {
+                  measured = details
+                },
               })
           } catch {
             // A stopped stream or unavailable matcher is a miss, never a usable placement.
@@ -678,12 +783,28 @@ export function RephotoCamera({
             frame?.close()
           }
           if (controller.signal.aborted) return
+          telemetry.current.inFlightAt = 0
+          reason = seen
+            ? measured.reason
+            : frame
+              ? "thumbnail-unavailable"
+              : "frame-unavailable"
+          if (
+            [
+              "local_timeout",
+              "local_inference_error",
+              "server_timeout",
+              "server_error",
+              "prepare_error",
+            ].includes(reason)
+          )
+            outcome = "error"
           stats.runs++
           stats.matchMs += performance.now() - sampled
-          stats.prepareMs += timing.prepareMs
-          stats.modelMs += timing.modelMs
+          stats.prepareMs += measured.prepareMs
+          stats.modelMs += measured.modelMs
           debug(
-            `match ${Math.round(timing.prepareMs)}+${Math.round(timing.modelMs)}ms ${found ? `w${Math.round(found.crop.width)} n${found.inliers}` : "miss"}`
+            `match ${Math.round(measured.prepareMs)}+${Math.round(measured.modelMs)}ms ${found ? `w${Math.round(found.crop.width)} n${found.inliers}` : "miss"}`
           )
           if (
             document.visibilityState !== "visible" ||
@@ -691,7 +812,9 @@ export function RephotoCamera({
             !currentSize(video, photo)
           ) {
             candidate = null
-            lose()
+            outcome = "discarded"
+            reason = "view-changed"
+            lose(reason)
           } else if (found && seen && fresh(sampled)) {
             stats.found++
             if (stats.firstFound < 0)
@@ -714,7 +837,14 @@ export function RephotoCamera({
                 document.visibilityState !== "visible"
               ) {
                 candidate = null
-                lose()
+                outcome = "discarded"
+                reason =
+                  !latest || !drift
+                    ? "drift-failed"
+                    : !fresh(sampled)
+                      ? "stale-result"
+                      : "view-changed"
+                lose(reason)
               } else {
                 const crop = shifted(found.crop, drift, photo)
                 if (
@@ -730,6 +860,12 @@ export function RephotoCamera({
                   previous && movement
                     ? shifted(previous.crop, movement, photo)
                     : null
+                if (predicted) {
+                  dx = (crop.cx - predicted.cx) / photo.width
+                  dy = (crop.cy - predicted.cy) / photo.height
+                  scaleDelta = crop.width / predicted.width - 1
+                  rotationDelta = crop.rotation - predicted.rotation
+                }
                 const near = predicted != null && agrees(crop, predicted)
                 const pendingMovement =
                   candidate &&
@@ -741,6 +877,9 @@ export function RephotoCamera({
                   agrees(crop, shifted(candidate.crop, pendingMovement, photo))
                 if (!near && !repeated) {
                   if (previous) stats.rejected++
+                  outcome = previous ? "rejected" : "candidate"
+                  reason = previous ? "disagreement" : "first"
+                  guide("candidate", reason)
                   // Retain the accepted position, but a disagreement cancels readiness now.
                   anchor = previous
                     ? {
@@ -768,6 +907,8 @@ export function RephotoCamera({
                     at: sampled,
                   }
                 } else {
+                  outcome = "accepted"
+                  reason = "agreement"
                   const held = near || !!repeated
                   const completed = performance.now()
                   const elapsed = previous
@@ -804,6 +945,11 @@ export function RephotoCamera({
                     settledAt > 0 &&
                     nowAt - settledAt >= 750 &&
                     fits(crop, archive.aspect, photo)
+                  guide(
+                    steady ? "steady" : "held",
+                    "agreement",
+                    Number.isFinite(motion) ? motion : null
+                  )
                   setLock({
                     crop,
                     held,
@@ -820,6 +966,10 @@ export function RephotoCamera({
               publishing = false
             }
           } else {
+            if (found && !fresh(sampled)) {
+              outcome = "discarded"
+              reason = "stale-result"
+            }
             reach = reach < 1 ? 1 : NEAR_REACH
             candidate = null
             if (anchor) {
@@ -836,8 +986,35 @@ export function RephotoCamera({
                   : null
               )
             }
-            if (++misses >= 2) lose()
+            if (anchor) guide("candidate", "misses")
+            if (++misses >= 2) lose("misses")
           }
+          Object.assign(telemetry.current, {
+            runs: stats.runs,
+            found: stats.found,
+            rejected: stats.rejected,
+            lost: stats.lost,
+            firstFound: stats.firstFound,
+            firstSteady: stats.firstSteady,
+          })
+          diagnostic("match result", {
+            attempt: stats.runs,
+            dx,
+            dy,
+            scaleDelta,
+            rotationDelta,
+            outcome,
+            reason,
+            backend: measured.backend,
+            prepareMs: measured.prepareMs,
+            modelMs: measured.modelMs,
+            matchMs: performance.now() - sampled,
+            rawMatches: measured.matches ?? null,
+            inliers: measured.inliers ?? null,
+            fallbackReason: measured.fallbackReason ?? null,
+            frameAge: performance.now() - sampled,
+            reach: sampledReach,
+          })
         }
         const pace = performance.now() - began > 60_000 ? 2000 : 700
         const took = performance.now() - started
@@ -849,10 +1026,12 @@ export function RephotoCamera({
     void loop()
     return () => {
       controller.abort()
+      counters.inFlightAt = 0
       clearInterval(follower)
       document.removeEventListener("visibilitychange", onVisibility)
-      liveVideo?.removeEventListener("resize", invalidateView)
+      liveVideo?.removeEventListener("resize", onResize)
       setLock(null)
+      if (run !== runSequence.current) return
       report(
         "live matching",
         {

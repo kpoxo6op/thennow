@@ -249,13 +249,35 @@ function coverage(crop: Crop, aspect: number, photo: Size) {
 // photograph's height over width.
 // cell is the size, in the new photograph's pixels, of one of the model's 8x8 cells: matches can
 // only be that precise, so agreement is judged against it.
+export type FitDiagnostic = {
+  reason:
+    | "insufficient_matches"
+    | "insufficient_inliers"
+    | "degenerate"
+    | "rotation"
+    | "scale"
+    | "spread"
+    | "coverage"
+    | "accepted"
+  matches: number
+  inliers: number
+}
+
 export function fitCrop(
   matches: Match[],
   aspect: number,
   photo: Size,
-  cell: number
+  cell: number,
+  diagnostic?: (details: FitDiagnostic) => void
 ): Fit | null {
-  if (matches.length < MIN_INLIERS) return null
+  const report = (reason: FitDiagnostic["reason"], inliers = 0) => {
+    // Observability must never change the matching decision.
+    try {
+      diagnostic?.({ reason, matches: matches.length, inliers })
+    } catch {}
+    return null
+  }
+  if (matches.length < MIN_INLIERS) return report("insufficient_matches")
   // Archive points in units where its width is 1000, new-photo points in its pixels.
   const qs = matches.map(([u, v]) => ({ x: u * 1000, y: v * 1000 * aspect }))
   const ps = matches.map(([, , u, v]) => ({
@@ -283,7 +305,8 @@ export function fitCrop(
     const list = agreeing(t)
     if (list.length > best.length) best = list
   }
-  if (best.length < MIN_INLIERS) return null
+  if (best.length < MIN_INLIERS)
+    return report("insufficient_inliers", best.length)
 
   let fit: Similarity | null = null
   for (let round = 0; round < 3; round++) {
@@ -291,30 +314,34 @@ export function fitCrop(
       best.map((i) => qs[i]),
       best.map((i) => ps[i])
     )
-    if (!fit) return null
+    if (!fit) return report("degenerate", best.length)
     const list = agreeing(fit)
-    if (list.length < MIN_INLIERS) return null
+    if (list.length < MIN_INLIERS)
+      return report("insufficient_inliers", list.length)
     best = list
   }
-  if (!fit) return null
+  if (!fit) return report("degenerate", best.length)
 
   const scale = Math.hypot(fit.a, fit.b)
   const rotation = Math.atan2(fit.b, fit.a)
   const centre = apply(fit, { x: 500, y: 500 * aspect })
   const crop = { cx: centre.x, cy: centre.y, width: scale * 1000, rotation }
   // A real rephotograph is nearly level and fills a fair part of the frame.
-  if (Math.abs(rotation) > (25 * Math.PI) / 180) return null
+  if (Math.abs(rotation) > (25 * Math.PI) / 180)
+    return report("rotation", best.length)
   if (crop.width < photo.width * 0.15 || crop.width > photo.width * 2)
-    return null
+    return report("scale", best.length)
 
   // Agreement from one small patch (a repeated window, a single gable) isn't a match of the view.
   const xs = best.map((i) => qs[i].x)
   const ys = best.map((i) => qs[i].y)
   const spanX = (Math.max(...xs) - Math.min(...xs)) / 1000
   const spanY = (Math.max(...ys) - Math.min(...ys)) / (1000 * aspect)
-  if (spanX < 0.3 || spanY < 0.2) return null
+  if (spanX < 0.3 || spanY < 0.2) return report("spread", best.length)
   // Most of the archive view must be in the shot; a few black corners are fine.
-  if (coverage(crop, aspect, photo) < 0.75) return null
+  if (coverage(crop, aspect, photo) < 0.75)
+    return report("coverage", best.length)
 
+  report("accepted", best.length)
   return { crop, inliers: best.length }
 }
