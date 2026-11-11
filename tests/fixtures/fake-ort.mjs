@@ -1,4 +1,4 @@
-// Stands in for onnxruntime-web in tests: the browser has no graphics chip, so each "on-phone"
+// Application simulation only, never phone/GPU acceptance. Each simulated "local"
 // run asks the site's server matcher instead and hands back the same per-cell answer the real
 // model gives. Answers are kept per picture pair, so a live view of a still scene asks once.
 

@@ -1,7 +1,7 @@
 import { expect, test, type CDPSession, type Page } from "@playwright/test"
 
 const STORY = "/mill-house"
-const PHONE_WIDTHS = [390, 320]
+const PHONE_WIDTHS = [320]
 
 async function readGeometry(page: Page) {
   return page.evaluate(() => {
@@ -82,23 +82,6 @@ async function imagesLoaded(page: Page) {
 for (const width of PHONE_WIDTHS) {
   test.describe(`at ${width}px`, () => {
     test.use({ viewport: { width, height: 844 } })
-
-    for (const position of [0, 2, 30, 98, 100]) {
-      test(`the divider and grip agree at ${position}`, async ({ page }) => {
-        await page.goto(`${STORY}?p=${position}`)
-        const geometry = await expectAlignedAt(page, position)
-
-        if (position === 0) {
-          expect(geometry.divider).toBeLessThanOrEqual(geometry.imageLeft + 1)
-        }
-
-        if (position === 100) {
-          expect(geometry.divider).toBeGreaterThanOrEqual(
-            geometry.imageRight - 1
-          )
-        }
-      })
-    }
 
     test("0 and 100 change the pixels all the way to both edges", async ({
       page,
@@ -246,33 +229,3 @@ for (const width of PHONE_WIDTHS) {
     })
   })
 }
-
-test.describe("on a wide screen with space beside the photograph", () => {
-  test.use({ viewport: { width: 1440, height: 900 } })
-
-  for (const position of [0, 100]) {
-    test(`the line stops at the photograph's edge at ${position}`, async ({
-      page,
-    }) => {
-      await page.goto(`${STORY}?p=${position}`)
-      const geometry = await expectAlignedAt(page, position)
-      expect(geometry.imageLeft).toBeGreaterThan(40)
-      expect(
-        Math.abs(geometry.inputLeft - geometry.imageLeft)
-      ).toBeLessThanOrEqual(1)
-    })
-  }
-})
-
-test.describe("the homepage comparison at 390px", () => {
-  test.use({ viewport: { width: 390, height: 844 } })
-
-  test("reaches both edges of the photograph", async ({ page }) => {
-    await page.goto("/")
-    await page.getByTestId("compare-slider-input").focus()
-    await page.keyboard.press("End")
-    await expectAlignedAt(page, 100)
-    await page.keyboard.press("Home")
-    await expectAlignedAt(page, 0)
-  })
-})

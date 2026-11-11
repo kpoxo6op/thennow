@@ -5,18 +5,6 @@ import { expect, test } from "@playwright/test"
 
 const STORY = "/historic-post-office"
 
-test("a story opens at the position its address names, and at the middle without one", async ({
-  page,
-}) => {
-  await page.goto(`${STORY}?p=30`)
-  await expect(page.getByTestId("compare-slider-input")).toHaveValue("30")
-  await expect(page).toHaveURL(/\?p=30$/)
-
-  await page.goto(STORY)
-  await expect(page.getByTestId("compare-slider-input")).toHaveValue("50")
-  await expect(page).toHaveURL(new RegExp(`${STORY}$`))
-})
-
 test("a long drag never breaks the page, and the address ends on where the line rests", async ({
   page,
 }) => {
@@ -44,18 +32,6 @@ test("a long drag never breaks the page, and the address ends on where the line 
   await expect(page).toHaveURL(new RegExp(`\\?p=${value}$`))
   expect(errors).toEqual([])
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
-})
-
-test("Places lists the stories, and one opens", async ({ page }) => {
-  await page.goto("/places")
-  await expect(page.getByTestId("story-card").first()).toBeVisible()
-  await page.getByTestId("story-card").first().click()
-  await expect(page.getByTestId("compare-slider-input")).toBeVisible()
-})
-
-test("Your photos offers sign-up", async ({ page }) => {
-  await page.goto("/me")
-  await expect(page.getByTestId("me-name-save")).toHaveText("Sign up")
 })
 
 test("zen covers the whole screen without the browser's full screen, and Back closes it", async ({

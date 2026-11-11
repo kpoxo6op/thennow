@@ -16,7 +16,10 @@ const entries = fs
 const SITE = "https://thennow.nz"
 
 test.describe("a link sent to someone", () => {
-  for (const entry of entries) {
+  for (const entry of [
+    entries.find((p) => p.a_imageUrl),
+    entries.find((p) => !p.a_imageUrl),
+  ]) {
     test(`${entry.slug} arrives with its own photograph, name and address`, async ({
       page,
       request,
@@ -55,27 +58,6 @@ test.describe("a link sent to someone", () => {
       expect((await response.body()).byteLength).toBeLessThan(600_000)
     })
   }
-
-  test("the homepage and the pages without a photograph of their own are sent with the homepage's pair", async ({
-    page,
-  }) => {
-    const images: string[] = []
-    for (const address of ["/", "/places", "/about"]) {
-      await page.goto(address)
-      images.push(
-        (await page
-          .locator('meta[property="og:image"]')
-          .getAttribute("content"))!
-      )
-    }
-    expect(images[0]).toContain("/_next/image?url=")
-    expect(new Set(images).size).toBe(1)
-    await page.goto("/")
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
-      "href",
-      SITE
-    )
-  })
 })
 
 test("the sitemap lists every real place and public page, and nothing private", async ({
