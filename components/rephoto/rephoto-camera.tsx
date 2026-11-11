@@ -25,6 +25,7 @@ import {
   saveData,
 } from "@/lib/rephoto/local-matcher"
 import { loadImage } from "@/lib/rephoto/pixels"
+import { referenceLines } from "@/lib/rephoto/reference-lines"
 import {
   beginCameraRun,
   browserName,
@@ -36,7 +37,9 @@ import {
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { slide, thumb, type Thumb } from "@/lib/rephoto/track"
 import { releaseScreen } from "@/components/rephoto/camera-link"
+import { LiveDivider } from "@/components/rephoto/live-divider"
 import { MatcherGuide } from "@/components/rephoto/matcher-guide"
+import { ReferenceTrace } from "@/components/rephoto/reference-trace"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
 interface Props {
@@ -51,7 +54,6 @@ type Box = { left: number; top: number; width: number; height: number }
 
 // The resting guide sits a little inside the camera's view, leaving room to turn the crop.
 const GHOST_FILL = 0.9
-const GHOST_OPACITY = 0.4
 const MAX_TILT_RADIANS = (15 * Math.PI) / 180
 
 function fit(aspect: number, width: number, height: number, fill = 1) {
@@ -191,6 +193,7 @@ export function RephotoCamera({
   thenSrc,
   aspect: listedAspect,
 }: Props) {
+  const trace = referenceLines(slug, thenSrc)
   const [aspect, setAspect] = useState(listedAspect)
   const stageRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -202,7 +205,7 @@ export function RephotoCamera({
   const attempt = useRef(0)
   const telemetryRun = useRef(0)
   const telemetry = useRef({
-    state: "searching",
+    state: trace ? "tracing" : "searching",
     runs: 0,
     found: 0,
     rejected: 0,
@@ -235,14 +238,15 @@ export function RephotoCamera({
       onDebug = null
     }
   }, [])
-  const [peek, setPeek] = useState(false)
+  const [showArchive, setShowArchive] = useState(false)
+  const [reveal, setReveal] = useState(50)
   const capturing = useRef(false)
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
     crop: Crop
     // Found twice running in the same place.
     held: boolean
-    // Held, and the whole old view is inside the picture: ready to shoot.
+    // Temporally stable; this is not a photographic accuracy measurement.
     steady: boolean
     at: number
     // Carried along by the follower between matches: the ghost moves in short, even steps.
@@ -286,21 +290,24 @@ export function RephotoCamera({
       },
       {
         browser: browserName(),
-        matcher: canMatchLocally() ? "phone" : "server",
+        matcher: trace ? "traced" : canMatchLocally() ? "phone" : "server",
       }
     )
-    prepareLocalMatcher()
-      ?.then(() => {
-        debug("matcher ready")
-        report("matcher ready", { ms: Math.round(performance.now() - loading) })
-      })
-      .catch((error) =>
-        report(
-          "matcher failed",
-          { message: String(error).slice(0, 200) },
-          { ms: Math.round(performance.now() - loading) }
+    if (!trace)
+      prepareLocalMatcher()
+        ?.then(() => {
+          debug("matcher ready")
+          report("matcher ready", {
+            ms: Math.round(performance.now() - loading),
+          })
+        })
+        .catch((error) =>
+          report(
+            "matcher failed",
+            { message: String(error).slice(0, 200) },
+            { ms: Math.round(performance.now() - loading) }
+          )
         )
-      )
     // Leaving the camera hands the shot's memory and the screen back.
     return () => {
       clearInterval(pulse)
@@ -310,7 +317,7 @@ export function RephotoCamera({
       releaseScreen()
       if (shotRef.current) releaseCanvas(shotRef.current.canvas)
     }
-  }, [])
+  }, [trace])
 
   useEffect(() => {
     let cancelled = false
@@ -356,7 +363,7 @@ export function RephotoCamera({
   const start = useCallback(async () => {
     beginCameraRun(++telemetryRun.current)
     Object.assign(telemetry.current, {
-      state: "searching",
+      state: trace ? "tracing" : "searching",
       runs: 0,
       found: 0,
       rejected: 0,
@@ -446,7 +453,7 @@ export function RephotoCamera({
       report("camera error", {}, { message: explain(caught) })
       setStatus("error")
     }
-  }, [stop])
+  }, [stop, trace])
   useEffect(() => {
     restart.current = start
   }, [start])
@@ -544,7 +551,7 @@ export function RephotoCamera({
   // Matching and following share immutable frames. Hardware zoom stays fixed: the review
   // crops the full photo without moving the view while someone is composing it.
   useEffect(() => {
-    if (shot || status !== "live" || !canMatchLocally()) return
+    if (trace || shot || status !== "live" || !canMatchLocally()) return
     const controller = new AbortController()
     const runSequence = telemetryRun
     const run = runSequence.current
@@ -1051,7 +1058,7 @@ export function RephotoCamera({
         { steady: stats.firstSteady >= 0 }
       )
     }
-  }, [shot, status])
+  }, [shot, status, trace])
 
   // A placement that has gone stale leaves the screen too, so what is shown is what is shot.
   useEffect(() => {
@@ -1072,19 +1079,20 @@ export function RephotoCamera({
 
   // Where the camera picture and the archive view sit on screen.
   let ghost: (Box & { rotation: number }) | null = null
+  let view: Box | null = null
   if (videoSize.width && stage.width) {
     const shown = fit(
       videoSize.height / videoSize.width,
       stage.width,
       stage.height
     )
-    const view = {
+    view = {
       ...shown,
       left: (stage.width - shown.width) / 2,
       top: (stage.height - shown.height) / 2,
     }
     const scale = view.width / videoSize.width
-    const placement = lock ?? lastPlacement
+    const placement = trace ? null : (lock ?? lastPlacement)
     if (placement) {
       const width = placement.crop.width * scale
       ghost = {
@@ -1123,6 +1131,7 @@ export function RephotoCamera({
     // and still shows it held, or else the resting guide, levelled. The review refines it from the full picture.
     const now = performance.now()
     const held =
+      !trace &&
       lock?.held &&
       now - lock.at < lockLife.current &&
       lock.trackedAt != null &&
@@ -1138,7 +1147,7 @@ export function RephotoCamera({
           cx: photo.width / 2,
           cy: photo.height / 2,
           width: target.width,
-          rotation: lean == null ? 0 : -lean,
+          rotation: trace || lean == null ? 0 : -lean,
         },
         aspect,
         photo
@@ -1152,7 +1161,7 @@ export function RephotoCamera({
         zoom: zoomRef.current,
         steady: !!lock?.steady,
       },
-      { framing: held ? "live" : "levelled", how: "manual" }
+      { framing: trace ? "traced" : held ? "live" : "levelled", how: "manual" }
     )
     attempt.current++
     stop()
@@ -1160,6 +1169,7 @@ export function RephotoCamera({
       canvas,
       crop,
       locked: !!held,
+      traced: !!trace,
       archive: archiveRef.current,
       takenAt: new Date(),
     })
@@ -1206,10 +1216,6 @@ export function RephotoCamera({
             : "none"
         }
         className="relative min-h-0 flex-1 touch-none select-none overflow-hidden [-webkit-touch-callout:none]"
-        onPointerDown={() => setPeek(true)}
-        onPointerUp={() => setPeek(false)}
-        onPointerCancel={() => setPeek(false)}
-        onPointerLeave={() => setPeek(false)}
         onContextMenu={(event) => event.preventDefault()}
       >
         <video
@@ -1222,38 +1228,76 @@ export function RephotoCamera({
           onLoadedMetadata={onVideoSize}
           onResize={onVideoSize}
         />
-        {ghost && (
+        {ghost && view && (
           <div
-            key={lock || lastPlacement ? "tracked" : "resting"}
-            data-testid="rephoto-frame"
-            className={`tn-enter pointer-events-none absolute transition-[left,top,width,height,transform] motion-reduce:transition-none ${
-              // The follower's small steps run into each other; a new match's jump eases in.
-              lock?.followed
-                ? "duration-[250ms] ease-linear"
-                : "duration-300 ease-out"
-            }`}
+            className="pointer-events-none absolute inset-0"
             style={{
-              left: ghost.left,
-              top: ghost.top,
-              width: ghost.width,
-              height: ghost.height,
-              transform: `rotate(${ghost.rotation}rad)`,
+              clipPath: trace
+                ? undefined
+                : `inset(${view.top}px ${stage.width - view.left - (view.width * reveal) / 100}px ${stage.height - view.top - view.height}px ${view.left}px)`,
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={thenSrc}
-              alt=""
-              aria-hidden
-              draggable={false}
-              data-testid="rephoto-ghost"
-              className="size-full transition-opacity duration-150"
+            <div
+              key={lock || lastPlacement ? "tracked" : "resting"}
+              data-testid="rephoto-frame"
+              className={`tn-enter pointer-events-none absolute transition-[left,top,width,height,transform] motion-reduce:transition-none ${
+                // The follower's small steps run into each other; a new match's jump eases in.
+                lock?.followed
+                  ? "duration-[250ms] ease-linear"
+                  : "duration-300 ease-out"
+              }`}
               style={{
-                opacity: peek || (!lock && lastPlacement) ? 0 : GHOST_OPACITY,
+                left: ghost.left,
+                top: ghost.top,
+                width: ghost.width,
+                height: ghost.height,
+                transform: `rotate(${ghost.rotation}rad)`,
               }}
-            />
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={thenSrc}
+                alt=""
+                aria-hidden
+                draggable={false}
+                data-testid="rephoto-ghost"
+                className="size-full transition-opacity duration-150"
+                style={{
+                  opacity: trace
+                    ? showArchive
+                      ? 1
+                      : 0
+                    : !lock && lastPlacement
+                      ? 0
+                      : 1,
+                }}
+              />
+              {trace && (
+                <>
+                  <div className="absolute inset-0 border border-white/35" />
+                  <ReferenceTrace guide={trace} />
+                </>
+              )}
+            </div>
           </div>
         )}
+        {!trace &&
+          view &&
+          status === "live" &&
+          !interrupted &&
+          !(!lock && lastPlacement) && (
+            <div
+              className="pointer-events-none absolute"
+              style={{
+                left: view.left,
+                top: view.top,
+                width: view.width,
+                height: view.height,
+              }}
+            >
+              <LiveDivider value={reveal} onChange={setReveal} />
+            </div>
+          )}
 
         {status === "error" && (
           <div className="absolute inset-x-6 top-1/2 mx-auto max-w-xs -translate-y-1/2 text-center">
@@ -1273,10 +1317,28 @@ export function RephotoCamera({
           </div>
         )}
 
-        <MatcherGuide
-          hidden={status !== "live" || interrupted || peek}
-          stable={!!lock?.steady}
-        />
+        {trace ? (
+          <>
+            {status === "live" && !interrupted && (
+              <p className="pointer-events-none absolute left-16 right-28 top-4 text-center text-sm [text-shadow:0_1px_3px_black]">
+                Match the building to the lines
+              </p>
+            )}
+            <button
+              type="button"
+              aria-pressed={showArchive}
+              onClick={() => setShowArchive(!showArchive)}
+              className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] min-h-11 rounded-full bg-black/65 px-3 text-sm"
+            >
+              {showArchive ? "Live camera" : "Old photo"}
+            </button>
+          </>
+        ) : (
+          <MatcherGuide
+            hidden={status !== "live" || interrupted}
+            found={!!lock?.held}
+          />
+        )}
 
         {debugText && (
           <pre className="pointer-events-none absolute inset-x-2 top-16 whitespace-pre-wrap break-all text-[10px] text-lime-300">
@@ -1298,7 +1360,9 @@ export function RephotoCamera({
           type="button"
           data-testid="rephoto-shutter"
           aria-label="Take photo"
-          disabled={status !== "live" || interrupted}
+          disabled={
+            status !== "live" || interrupted || (!!trace && showArchive)
+          }
           onClick={() => capture()}
           className="relative grid size-[4.5rem] place-items-center rounded-full border-4 border-white transition-transform duration-300 active:scale-95 disabled:opacity-40"
         >

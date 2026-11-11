@@ -13,6 +13,7 @@ test.use({
     ],
   },
   permissions: ["camera"],
+  hasTouch: true,
 })
 
 async function gpu(page: Page, capability: "yes" | "none" | "no-f16" = "yes") {
@@ -149,12 +150,11 @@ for (const [orientation, viewport] of Object.entries({
       page.getByRole("button", { name: "Guide", exact: true })
     ).toHaveCount(0)
     await expect(page.getByTestId("capture-guide")).toContainText(
-      "Find the view in the old photo"
+      "Point at the view in the old photo"
     )
     await screenshot(page, `${orientation}-searching`)
-    // Peek hides guidance without changing the accepted placement.
+    // The live split remains usable without holding a finger on the view.
     const stage = page.getByTestId("rephoto-stage")
-    await stage.dispatchEvent("pointerdown")
     await page.evaluate(() => Object.assign(window, { __matcherDown: false }))
     await expect(page.getByTestId("rephoto-stage")).toHaveAttribute(
       "data-lock",
@@ -167,6 +167,36 @@ for (const [orientation, viewport] of Object.entries({
     // This reproduces the field jump at the model/browser boundary, not source text.
     const frame = page.getByTestId("rephoto-frame")
     const before = await frame.boundingBox()
+    const divider = page.getByRole("slider", {
+      name: "Compare old photo with live camera",
+    })
+    const handle = await divider.boundingBox()
+    await page.mouse.move(
+      handle!.x + handle!.width / 2,
+      handle!.y + handle!.height / 2
+    )
+    await page.mouse.down()
+    await page.mouse.move(
+      handle!.x + handle!.width / 2 + 70,
+      handle!.y + handle!.height / 2,
+      { steps: 8 }
+    )
+    await page.mouse.up()
+    expect(Number(await divider.getAttribute("aria-valuenow"))).toBeGreaterThan(
+      60
+    )
+    await expect(page.getByTestId("rephoto-ghost")).toHaveCSS("opacity", "1")
+    expect(await frame.boundingBox()).toEqual(before)
+    await divider.press("Home")
+    await expect(divider).toHaveAttribute("aria-valuenow", "0")
+    await divider.tap()
+    await expect(divider).toHaveAttribute("aria-valuenow", "0")
+    await divider.press("End")
+    await expect(divider).toHaveAttribute("aria-valuenow", "100")
+    await divider.tap()
+    await expect(divider).toHaveAttribute("aria-valuenow", "100")
+    for (let i = 0; i < 10; i++) await divider.press("ArrowLeft")
+    await expect(divider).toHaveAttribute("aria-valuenow", "50")
     await page.evaluate(() => Object.assign(window, { __matchShift: 0.15 }))
     await expect
       .poll(() =>
@@ -188,7 +218,9 @@ for (const [orientation, viewport] of Object.entries({
       { timeout: 15_000 }
     )
     await expect(guide).toHaveCount(0)
-    await expect(page.getByTestId("rephoto-ghost")).toHaveCSS("opacity", "0")
+    await expect(page.getByTestId("capture-guide")).toContainText(
+      "Point at the view in the old photo"
+    )
     await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
     let uploads = 0
     let captures = 0
@@ -202,7 +234,6 @@ for (const [orientation, viewport] of Object.entries({
       )
         captures++
     })
-    await stage.dispatchEvent("pointerup")
     // A resting reference returns after the lost placement fades out.
     await expect(page.getByTestId("rephoto-ghost")).not.toHaveCSS(
       "opacity",
@@ -213,7 +244,7 @@ for (const [orientation, viewport] of Object.entries({
     await expect(stage).toHaveAttribute("data-lock", "steady", {
       timeout: 30_000,
     })
-    await expect(captureGuide).toContainText("Line up the edges, then tap")
+    await expect(captureGuide).toContainText("Scene found · Slide to compare")
     // A stable coarse fit must never fire the shutter. The former 1.2-second
     // countdown is a credible regression only this live-lock journey exercises.
     await page.waitForTimeout(1800)
@@ -324,6 +355,74 @@ for (const [orientation, viewport] of Object.entries({
       )
     ).toBe(true)
     expect(batches.length).toBeLessThan(events().length)
+    // Curated traces are fixed aiming targets. Matcher output must not silently
+    // replace the exact crop that the photographer composed against them.
+    for (const slug of [
+      "bradley-lane-line-road",
+      "tamaki-road-board-offices",
+    ]) {
+      await page.setViewportSize({ width: 844, height: 390 })
+      await page.goto(`/${slug}/camera`)
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+      const target = await page.getByTestId("rephoto-frame").boundingBox()
+      await page.waitForTimeout(500)
+      expect(await page.getByTestId("rephoto-frame").boundingBox()).toEqual(
+        target
+      )
+      await screenshot(page, `${slug}-trace-live`)
+      if (process.env.MATCHER_SCREENSHOTS) {
+        // Diagnostic screenshot only: inspect editorial traces against their source.
+        await page
+          .getByTestId("rephoto-ghost")
+          .evaluate((img) => (img.style.opacity = "1"))
+        await screenshot(page, `${slug}-trace-source`)
+        await page.setViewportSize({ width: 2200, height: 1500 })
+        await screenshot(page, `${slug}-trace-source-detail`)
+        await page.setViewportSize({ width: 844, height: 390 })
+        await page
+          .getByTestId("rephoto-ghost")
+          .evaluate((img) => (img.style.opacity = "0"))
+      }
+      await page.getByRole("button", { name: "Old photo", exact: true }).click()
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      await expect(page.getByTestId("rephoto-shutter")).toBeDisabled()
+      await expect(page.getByTestId("rephoto-ghost")).toHaveCSS("opacity", "1")
+      await page
+        .getByRole("button", { name: "Live camera", exact: true })
+        .click()
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      const stageBox = await page.getByTestId("rephoto-stage").boundingBox()
+      const size = await page
+        .getByTestId("rephoto-video")
+        .evaluate((v: HTMLVideoElement) => ({
+          width: v.videoWidth,
+          height: v.videoHeight,
+        }))
+      const scale = Math.min(
+        stageBox!.width / size.width,
+        stageBox!.height / size.height
+      )
+      const expectedWidth = target!.width / scale
+      await page.getByTestId("rephoto-shutter").click()
+      await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+        "data-phase",
+        "unchecked"
+      )
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      const crop = JSON.parse(
+        (await page.getByTestId("rephoto-review").getAttribute("data-crop"))!
+      )
+      expect(crop.width).toBeCloseTo(expectedWidth, 0)
+      expect(crop.cx).toBeCloseTo(size.width / 2, 0)
+      expect(crop.cy).toBeCloseTo(size.height / 2, 0)
+      expect(crop.rotation).toBe(0)
+      await screenshot(page, `${slug}-trace-review`)
+      await page.getByRole("button", { name: "Retake", exact: true }).click()
+      await page.setViewportSize({ width: 390, height: 844 })
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      await screenshot(page, `${slug}-trace-portrait`)
+    }
   })
 }
 

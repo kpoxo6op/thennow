@@ -18,8 +18,10 @@ import {
   type Crop,
 } from "@/lib/rephoto/crop"
 import { loadImage } from "@/lib/rephoto/pixels"
+import { referenceLines } from "@/lib/rephoto/reference-lines"
 import { newKey, sendPhoto } from "@/lib/rephoto/submit"
 import { report } from "@/lib/rephoto/telemetry"
+import { ReferenceTrace } from "@/components/rephoto/reference-trace"
 
 export type Shot = {
   // The real photograph, at the camera's full resolution.
@@ -28,6 +30,8 @@ export type Shot = {
   crop: Crop
   // Whether that was the matcher's own placement, rather than the resting guide.
   locked: boolean
+  // Fixed trace geometry must survive review and export unchanged.
+  traced?: boolean
   archive: Archive | null
   takenAt: Date
 }
@@ -128,6 +132,7 @@ export function RephotoReview({
   shot,
   onRetake,
 }: Props) {
+  const trace = shot.traced ? referenceLines(slug, thenSrc) : null
   const [aspect, setAspect] = useState(listedAspect)
   const stageRef = useRef<HTMLDivElement>(null)
   const [stage, setStage] = useState({ width: 0, height: 0 })
@@ -203,6 +208,12 @@ export function RephotoReview({
         }
       )
     const run = async () => {
+      if (shot.traced) {
+        setNote("Your framing. Hold the photo to compare.")
+        setPhase("unchecked")
+        done("unchecked", { moved: 0 })
+        return
+      }
       try {
         const archive =
           shot.archive ??
@@ -439,7 +450,7 @@ export function RephotoReview({
       })()
     : null
   const k = box ? box.width / crop.width : 1
-  const ghostOpacity = peek || !settled ? 0.5 : 0
+  const ghostOpacity = peek ? 1 : !settled ? 0.5 : 0
 
   return (
     <div
@@ -490,6 +501,7 @@ export function RephotoReview({
               className="pointer-events-none absolute inset-0 size-full transition-opacity duration-500"
               style={{ opacity: ghostOpacity }}
             />
+            {trace && !peek && settled && <ReferenceTrace guide={trace} />}
           </div>
         )}
         {status && (

@@ -6,10 +6,10 @@ import { matcherStatus, subscribeMatcher } from "@/lib/rephoto/local-matcher"
 
 export function MatcherGuide({
   hidden,
-  stable = false,
+  found = false,
 }: {
   hidden: boolean
-  stable?: boolean
+  found?: boolean
 }) {
   const status = useSyncExternalStore(
     subscribeMatcher,
@@ -52,9 +52,9 @@ export function MatcherGuide({
       <div className="inline-flex max-w-full items-center gap-2 text-balance rounded-full bg-black/65 px-3 py-1.5 text-sm leading-5">
         <span role="status">
           {ready
-            ? stable
-              ? "Line up the edges, then tap"
-              : "Find the view in the old photo"
+            ? found
+              ? "Scene found · Slide to compare"
+              : "Point at the view in the old photo"
             : notice.failed
               ? "Live guide unavailable"
               : status.phase === "starting"

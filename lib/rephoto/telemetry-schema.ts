@@ -113,7 +113,7 @@ const fields: Record<string, string[]> = {
 }
 const enums: Record<string, string[]> = {
   browser: BROWSERS,
-  matcher: ["phone", "server"],
+  matcher: ["phone", "server", "traced"],
   backend: ["local", "remote", "none", "phone", "server"],
   error: [
     "NotAllowedError",
@@ -125,7 +125,7 @@ const enums: Record<string, string[]> = {
     "SecurityError",
     "other",
   ],
-  framing: ["live", "levelled"],
+  framing: ["live", "levelled", "traced"],
   how: ["manual", "auto", "share", "download"],
   phase: ["aligning", "framed", "aligned", "unchecked", "unmatched"],
   result: [
@@ -144,7 +144,15 @@ const enums: Record<string, string[]> = {
     "refused",
   ],
   to: ["portrait", "landscape"],
-  state: ["searching", "candidate", "held", "steady", "lost", "refused"],
+  state: [
+    "searching",
+    "candidate",
+    "held",
+    "steady",
+    "lost",
+    "refused",
+    "tracing",
+  ],
   outcome: ["accepted", "candidate", "rejected", "miss", "discarded", "error"],
   fallbackReason: [
     "local_timeout",
