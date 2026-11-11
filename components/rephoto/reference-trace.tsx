@@ -1,6 +1,14 @@
 import type { ReferenceLines } from "@/lib/rephoto/reference-lines"
 
-export function ReferenceTrace({ guide }: { guide: ReferenceLines }) {
+export function ReferenceTrace({
+  guide,
+  highlighted = null,
+  supported,
+}: {
+  guide: ReferenceLines
+  highlighted?: number | null
+  supported?: number[]
+}) {
   return (
     <svg
       data-testid="reference-trace"
@@ -13,8 +21,17 @@ export function ReferenceTrace({ guide }: { guide: ReferenceLines }) {
       strokeLinejoin="round"
       strokeLinecap="round"
     >
-      {guide.features.map((feature) => (
-        <g key={feature.name}>
+      {guide.features.map((feature, index) => (
+        <g
+          key={feature.name}
+          opacity={
+            supported?.length &&
+            !supported.includes(index) &&
+            highlighted !== index
+              ? 0.35
+              : 1
+          }
+        >
           <polyline
             points={feature.points
               .map(([x, y]) => `${x * 1000},${y * 1000}`)
@@ -28,7 +45,7 @@ export function ReferenceTrace({ guide }: { guide: ReferenceLines }) {
             points={feature.points
               .map(([x, y]) => `${x * 1000},${y * 1000}`)
               .join(" ")}
-            stroke="white"
+            stroke={highlighted === index ? "#ffb45b" : "white"}
             strokeWidth="1.5"
             vectorEffect="non-scaling-stroke"
           />

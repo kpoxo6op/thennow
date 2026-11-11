@@ -7,9 +7,11 @@ import { matcherStatus, subscribeMatcher } from "@/lib/rephoto/local-matcher"
 export function MatcherGuide({
   hidden,
   found = false,
+  message,
 }: {
   hidden: boolean
   found?: boolean
+  message?: string
 }) {
   const status = useSyncExternalStore(
     subscribeMatcher,
@@ -47,14 +49,20 @@ export function MatcherGuide({
       hidden={hidden}
       data-testid={ready ? "capture-guide" : "matcher-guide"}
       data-state={status.phase}
+      style={
+        message
+          ? { right: "calc(max(0.75rem, env(safe-area-inset-right)) + 7rem)" }
+          : undefined
+      }
       className="pointer-events-none absolute left-[calc(max(0.75rem,env(safe-area-inset-left))+3.25rem)] right-[calc(max(0.75rem,env(safe-area-inset-right))+3.25rem)] top-[max(0.75rem,env(safe-area-inset-top))] text-center"
     >
       <div className="inline-flex max-w-full items-center gap-2 text-balance rounded-full bg-black/65 px-3 py-1.5 text-sm leading-5">
         <span role="status">
           {ready
-            ? found
-              ? "Scene found · Slide to compare"
-              : "Point at the view in the old photo"
+            ? (message ??
+              (found
+                ? "Scene found · Slide to compare"
+                : "Point at the view in the old photo"))
             : notice.failed
               ? "Live guide unavailable"
               : status.phase === "starting"

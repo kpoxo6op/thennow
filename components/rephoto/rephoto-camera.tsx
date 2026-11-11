@@ -44,6 +44,7 @@ import { LiveDivider } from "@/components/rephoto/live-divider"
 import { MatcherGuide } from "@/components/rephoto/matcher-guide"
 import { ReferenceTrace } from "@/components/rephoto/reference-trace"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
+import { useHandheldGuide } from "@/components/rephoto/use-handheld-guide"
 
 interface Props {
   name: string
@@ -263,6 +264,13 @@ export function RephotoCamera({
     return () => clearTimeout(timer)
   }, [shot, status, trace, showArchive, reveal, stage.width, stage.height])
   const capturing = useRef(false)
+  const [captureBusy, setCaptureBusy] = useState(false)
+  const assistance = useHandheldGuide({
+    guide: trace,
+    thenSrc,
+    video: videoRef,
+    active: status === "live" && !shot && !interrupted,
+  })
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
     crop: Crop
@@ -318,24 +326,23 @@ export function RephotoCamera({
       },
       {
         browser: browserName(),
-        matcher: trace ? "traced" : canMatchLocally() ? "phone" : "server",
+        matcher: canMatchLocally() ? "phone" : "server",
       }
     )
-    if (!trace)
-      prepareLocalMatcher()
-        ?.then(() => {
-          debug("matcher ready")
-          report("matcher ready", {
-            ms: Math.round(performance.now() - loading),
-          })
+    prepareLocalMatcher()
+      ?.then(() => {
+        debug("matcher ready")
+        report("matcher ready", {
+          ms: Math.round(performance.now() - loading),
         })
-        .catch((error) =>
-          report(
-            "matcher failed",
-            { message: String(error).slice(0, 200) },
-            { ms: Math.round(performance.now() - loading) }
-          )
+      })
+      .catch((error) =>
+        report(
+          "matcher failed",
+          { message: String(error).slice(0, 200) },
+          { ms: Math.round(performance.now() - loading) }
         )
+      )
     // Leaving the camera hands the shot's memory and the screen back.
     return () => {
       clearInterval(pulse)
@@ -1141,7 +1148,7 @@ export function RephotoCamera({
     }
   }
 
-  const capture = () => {
+  const capture = async () => {
     const video = videoRef.current
     if (
       !video?.videoWidth ||
@@ -1152,9 +1159,10 @@ export function RephotoCamera({
     )
       return
     capturing.current = true
+    setCaptureBusy(true)
     const lean = tiltRef.current
-    const canvas = grabFrame(video)
-    const photo = { width: canvas.width, height: canvas.height }
+    let canvas: HTMLCanvasElement
+    const photo = { width: video.videoWidth, height: video.videoHeight }
     // The shot starts where the old photograph sat on screen: where the matcher had just put it
     // and still shows it held, or else the resting guide, levelled. The review refines it from the full picture.
     const now = performance.now()
@@ -1168,7 +1176,7 @@ export function RephotoCamera({
         ? lock.crop
         : null
     const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
-    const crop =
+    let crop =
       held ??
       shrinkToFit(
         {
@@ -1180,6 +1188,34 @@ export function RephotoCamera({
         aspect,
         photo
       )
+    const displayedAssistance = !!assistance.crop
+    let assisted = false
+    let burst: {
+      frames: number
+      selected: number
+      assisted: boolean
+      ms: number
+    } | null = null
+    let mediaTime = video.currentTime * 1000
+    if (trace) {
+      try {
+        const selected = await assistance.capture(crop, aspect)
+        if (!selected) {
+          capturing.current = false
+          setCaptureBusy(false)
+          return
+        }
+        canvas = selected.canvas
+        crop = selected.crop
+        assisted = selected.assisted
+        burst = selected.burst
+        mediaTime = selected.mediaTime
+      } catch {
+        capturing.current = false
+        setCaptureBusy(false)
+        return
+      }
+    } else canvas = grabFrame(video)
     report(
       "shot",
       {
@@ -1196,12 +1232,13 @@ export function RephotoCamera({
         frameAge: telemetry.current.frameAt
           ? now - telemetry.current.frameAt
           : null,
-        mediaTime: video.currentTime * 1000,
+        mediaTime,
         reveal: trace ? 100 : Math.round(reveal),
         overlay: trace ? TRACE_OVERLAY_OPACITY : 1,
       },
       { framing: trace ? "traced" : held ? "live" : "levelled", how: "manual" }
     )
+    if (burst) diagnostic("burst", burst)
     attempt.current++
     stop()
     setShot({
@@ -1209,6 +1246,8 @@ export function RephotoCamera({
       crop,
       locked: !!held,
       traced: !!trace,
+      assisted,
+      assistanceLost: !!trace && displayedAssistance && !assisted,
       archive: archiveRef.current,
       takenAt: new Date(),
     })
@@ -1230,6 +1269,7 @@ export function RephotoCamera({
           releaseCanvas(shot.canvas)
           report("retake")
           capturing.current = false
+          setCaptureBusy(false)
           setLastPlacement(null)
           setShot(null)
         }}
@@ -1264,6 +1304,13 @@ export function RephotoCamera({
           autoPlay
           muted
           playsInline
+          style={
+            trace && assistance.crop && view && !showArchive
+              ? {
+                  transform: `scale(${ghost!.width / ((assistance.crop.width * view.width) / videoSize.width)}) rotate(${-assistance.crop.rotation}rad) translate(${((videoSize.width / 2 - assistance.crop.cx) * view.width) / videoSize.width}px, ${((videoSize.height / 2 - assistance.crop.cy) * view.width) / videoSize.width}px)`,
+                }
+              : undefined
+          }
           onLoadedMetadata={onVideoSize}
           onResize={onVideoSize}
         />
@@ -1314,7 +1361,19 @@ export function RephotoCamera({
               {trace && (
                 <>
                   <div className="absolute inset-0 border border-white/35" />
-                  <ReferenceTrace guide={trace} />
+                  <ReferenceTrace
+                    guide={trace}
+                    highlighted={
+                      showArchive
+                        ? null
+                        : assistance.state === "conflict"
+                          ? assistance.worstFeatureIndex
+                          : null
+                    }
+                    supported={
+                      showArchive ? undefined : assistance.supportedIndices
+                    }
+                  />
                 </>
               )}
             </div>
@@ -1359,13 +1418,29 @@ export function RephotoCamera({
         {trace ? (
           <>
             {status === "live" && !interrupted && (
-              <p className="pointer-events-none absolute left-16 right-28 top-4 text-center text-sm [text-shadow:0_1px_3px_black]">
-                Match the building to the lines
-              </p>
+              <div data-testid="handheld-guide" data-state={assistance.state}>
+                <MatcherGuide
+                  hidden={false}
+                  message={
+                    captureBusy
+                      ? "Taking photo…"
+                      : assistance.state === "adjusted"
+                        ? "Framing adjusted"
+                        : assistance.state === "conflict"
+                          ? assistance.worstFeatureIndex !== null
+                            ? "Check highlighted edge"
+                            : "Parts don’t line up yet"
+                          : assistance.state === "unavailable"
+                            ? "Match the view to the lines"
+                            : "Point at the old scene"
+                  }
+                />
+              </div>
             )}
             <button
               type="button"
               aria-pressed={showArchive}
+              disabled={captureBusy}
               onClick={() => setShowArchive(!showArchive)}
               className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] min-h-11 rounded-full bg-black/65 px-3 text-sm"
             >
@@ -1400,7 +1475,10 @@ export function RephotoCamera({
           data-testid="rephoto-shutter"
           aria-label="Take photo"
           disabled={
-            status !== "live" || interrupted || (!!trace && showArchive)
+            status !== "live" ||
+            interrupted ||
+            captureBusy ||
+            (!!trace && showArchive)
           }
           onClick={() => capture()}
           className="relative grid size-[4.5rem] place-items-center rounded-full border-4 border-white transition-transform duration-300 active:scale-95 disabled:opacity-40"

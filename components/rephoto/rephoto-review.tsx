@@ -32,6 +32,8 @@ export type Shot = {
   locked: boolean
   // Fixed trace geometry must survive review and export unchanged.
   traced?: boolean
+  assisted?: boolean
+  assistanceLost?: boolean
   archive: Archive | null
   takenAt: Date
 }
@@ -208,8 +210,18 @@ export function RephotoReview({
         }
       )
     const run = async () => {
+      if (shot.assistanceLost) {
+        setNote("Framing changed while shooting. Try again.")
+        setPhase("unmatched")
+        done("unmatched")
+        return
+      }
       if (shot.traced) {
-        setNote("Your framing. Hold the photo to compare.")
+        setNote(
+          shot.assisted
+            ? "Framing adjusted. Hold to compare."
+            : "Your framing. Hold the photo to compare."
+        )
         setPhase("unchecked")
         done("unchecked", { moved: 0 })
         return

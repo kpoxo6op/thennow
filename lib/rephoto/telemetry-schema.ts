@@ -24,6 +24,8 @@ const fields: Record<string, string[]> = {
     "viewportWidth",
     "viewportHeight",
   ],
+  assistance: ["state", "supported", "regions", "residual", "frameAge", "ms"],
+  burst: ["frames", "selected", "assisted", "ms"],
   framing: ["phase", "cropX", "cropY", "cropWidth", "cropRotation", "aspect"],
   open: ["gpu", "saveData", "browser", "matcher"],
   stream: ["ask", "allowed", "width", "height", "fps"],
@@ -172,6 +174,9 @@ const enums: Record<string, string[]> = {
     "lost",
     "refused",
     "tracing",
+    "conflict",
+    "adjusted",
+    "unavailable",
   ],
   outcome: ["accepted", "candidate", "rejected", "miss", "discarded", "error"],
   fallbackReason: [
@@ -263,7 +268,19 @@ export function sanitizeDetails(
   const output: Record<string, TelemetryValue> = {}
   for (const key of fields[event]) {
     const value = input[key]
-    if (key === "submissionTag") {
+    if (event === "assistance" || event === "burst") {
+      if (key === "state") {
+        if (
+          typeof value === "string" &&
+          ["searching", "conflict", "adjusted", "unavailable"].includes(value)
+        )
+          output[key] = value
+      } else if (key === "assisted") {
+        if (typeof value === "boolean") output[key] = value
+      } else if (key === "residual" && value === null) output[key] = null
+      else if (boundedNumber(value))
+        output[key] = Math.round(value * 1000) / 1000
+    } else if (key === "submissionTag") {
       if (typeof value === "string" && /^[a-f0-9]{16}$/.test(value))
         output[key] = value
     } else if (value === null) output[key] = null

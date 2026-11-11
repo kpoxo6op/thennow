@@ -211,7 +211,11 @@ The matcher-guide journey owns the observed St Heliers regression: an inconsiste
 model placement must not move the accepted overlay; lost tracking fades it in
 place. A stable coarse fit is only framing assistance and must not fire the
 shutter or certify alignment. Manual capture remains available while loading,
-searching and with an unsupported matcher. A failed still-frame match must revoke
+searching and with an unsupported matcher. The same journey supplies a deliberately
+positive simulated model answer over an unrelated camera frame for traced places:
+regional evidence must refuse assistance, the aiming target stays fixed, and a
+manual burst falls back to its first frame and exact composed crop. The download
+journey also takes an unchecked traced photo while identity assistance is loading. A failed still-frame match must revoke
 a live placement; runtime failures remain unchecked. Coarse framing never marks a
 submission as geometrically verified.
 

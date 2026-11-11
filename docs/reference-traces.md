@@ -94,20 +94,33 @@ match or justify an automatic lock/shutter signal.
 
 ## Current pilot behaviour
 
-The camera uses a centred archive-aspect frame with a little margin. It does not
-run the matcher for these places or move the lines in response to the scene.
-The Old photo toggle shows the source with the same traces, so users can identify
-the features. Return to Live camera to shoot. The shutter is disabled only while
-viewing the opaque archive, never because an alignment score is low.
+The camera uses a centred archive-aspect target with a little margin. The reference
+stays fixed. On supported phones, coarse matching first recognises the place;
+signed image-edge checks then refine a bounded crop, roll and uniform scale across
+separate required regions. Only supported corrections transform the live video
+under the fixed target. This is framing assistance, not an alignment certificate.
 
-Capture uses exactly the displayed frame, with no gravity rotation. Review
-preserves that crop rather than replacing it with a new match. The same traces
-appear over the captured crop as a comparison aid; holding shows the archive.
-SVG traces and the frame border are UI only and are not drawn into the exported
-JPEG. Submissions remain unchecked and subject to the manual-photo publication
-baseline. If all features cannot be aligned, the guide does not pretend otherwise.
+Bradley requires wall and canopy evidence; the library requires roof and window
+evidence. Changed signs, shutters, road markings and decorative mural contours
+remain outside computational acceptance. Weak or missing evidence cannot certify
+a region. One observed conflicting feature can be highlighted with a short cue;
+the app does not infer a physical walking direction from a 2D discrepancy.
 
-Places without editorial traces retain the live old/photo split and matcher.
-Synthetic camera checks cover fixed target/capture geometry and controls. The
-pilot still needs Boris's handheld field test; passing those checks does not
-establish better photographs, robust outdoor visibility or automatic correction.
+The Old photo toggle shows the source with the same traces. Return to Live camera
+to shoot. Capture remains available during loading and unsupported operation.
+Freshly recognised scenes use up to three frames over roughly 240 milliseconds;
+each frame is independently checked. A later frame replaces the pressed frame
+only when its supported regional residuals are no worse and it is sharper (or the
+pressed frame lacked supported geometry). Without evidence, keep the pressed
+frame and manual crop. If an assisted preview cannot be confirmed at capture,
+review requires a retake rather than silently exporting a different framing.
+
+Review preserves the selected crop. Guides never enter the JPEG. These photos
+remain unchecked under the [manual-photo baseline](alignment-quality.md), with no
+automatic shutter, hardware zoom, perspective warping or automatic publication.
+Places without editorial traces retain their existing split-view matcher.
+
+The first evaluation rejects the morning Bradley shot despite 403 coarse inliers;
+identity/perturbation controls pass, and unrelated/blank controls refuse. These
+controls do not establish real photographic precision or Pixel latency. The
+30-second handheld goal remains a field acceptance target, not a measured result.
