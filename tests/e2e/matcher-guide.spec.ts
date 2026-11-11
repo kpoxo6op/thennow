@@ -669,7 +669,9 @@ test("a late session cannot overwrite failure or a newer guide session", async (
   await page.clock.install()
   await page.goto("/mission-house/camera")
   const guide = page.getByTestId("matcher-guide")
-  await expect(guide).toHaveAttribute("data-state", "starting")
+  await expect(guide).toHaveAttribute("data-state", "starting", {
+    timeout: 15_000,
+  })
   await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
   await page.clock.fastForward(90_001)
   await expect(guide).toHaveAttribute("data-state", "failed")
@@ -720,10 +722,13 @@ test("a hung first inference leaves starting and recovers without disabling capt
   await page.goto("/mission-house/camera")
   const guide = page.getByTestId("matcher-guide")
   await expect
-    .poll(() =>
-      page.evaluate(
-        () => (window as unknown as { __ranGuide: boolean }).__ranGuide
-      )
+    .poll(
+      () =>
+        page.evaluate(
+          () => (window as unknown as { __ranGuide: boolean }).__ranGuide
+        ),
+      // Wait for the real model bytes before testing the simulated inference deadline.
+      { timeout: 15_000 }
     )
     .toBe(true)
   await expect(guide).toHaveAttribute("data-state", "starting")
