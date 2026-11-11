@@ -365,6 +365,10 @@ for (const [orientation, viewport] of Object.entries({
       await page.goto(`/${slug}/camera`)
       await expect(page.getByTestId("reference-trace")).toBeVisible()
       await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+      await expect(page.getByTestId("rephoto-ghost")).toHaveCSS(
+        "opacity",
+        "0.16"
+      )
       const target = await page.getByTestId("rephoto-frame").boundingBox()
       await page.waitForTimeout(500)
       expect(await page.getByTestId("rephoto-frame").boundingBox()).toEqual(
@@ -382,7 +386,7 @@ for (const [orientation, viewport] of Object.entries({
         await page.setViewportSize({ width: 844, height: 390 })
         await page
           .getByTestId("rephoto-ghost")
-          .evaluate((img) => (img.style.opacity = "0"))
+          .evaluate((img) => (img.style.opacity = "0.16"))
       }
       await page.getByRole("button", { name: "Old photo", exact: true }).click()
       await expect(page.getByTestId("reference-trace")).toBeVisible()
