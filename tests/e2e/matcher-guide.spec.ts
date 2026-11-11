@@ -301,6 +301,7 @@ test("a late session cannot overwrite failure or a newer guide session", async (
   await page.goto("/mission-house/camera")
   const guide = page.getByTestId("matcher-guide")
   await expect(guide).toHaveAttribute("data-state", "starting")
+  await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
   await page.clock.fastForward(90_001)
   await expect(guide).toHaveAttribute("data-state", "failed")
   await page.evaluate(() =>
@@ -315,6 +316,7 @@ test("a late session cannot overwrite failure or a newer guide session", async (
     )
     .toBe(true)
   await expect(guide).toHaveAttribute("data-state", "failed")
+  await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
   await page.clock.fastForward(15_001)
   await expect
     .poll(
