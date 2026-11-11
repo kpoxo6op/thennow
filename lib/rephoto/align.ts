@@ -14,6 +14,7 @@ import {
   requestMatches,
   unplace,
   type Fit,
+  type FitDiagnostic,
 } from "@/lib/rephoto/match"
 
 export type Archive = ReturnType<typeof matchPixels> & { aspect: number }
@@ -95,68 +96,141 @@ export const timing = { prepareMs: 0, modelMs: 0 }
 
 // Finds the archive view in a picture: on the phone's graphics chip when it can, otherwise, if
 // allowed, on the server. Null when the two can't be matched.
+export type AlignDiagnostic = {
+  reason:
+    | FitDiagnostic["reason"]
+    | "aborted"
+    | "local_timeout"
+    | "local_inference_error"
+    | "model_unavailable"
+    | "server_timeout"
+    | "server_error"
+    | "prepare_error"
+  backend: "none" | "local" | "server"
+  prepareMs: number
+  modelMs: number
+  matches?: number
+  inliers?: number
+  fallbackReason?:
+    | "local_timeout"
+    | "local_inference_error"
+    | "model_unavailable"
+}
+
 export async function align(
   archive: Archive,
   source: CanvasImageSource,
   photo: Size,
   signal: AbortSignal,
-  { server, reach = 1 }: { server: boolean; reach?: number }
+  {
+    server,
+    reach = 1,
+    diagnostic,
+  }: {
+    server: boolean
+    reach?: number
+    diagnostic?: (details: AlignDiagnostic) => void
+  }
 ): Promise<Fit | null> {
   const begun = performance.now()
-  const part = region(photo, archive.aspect, reach)
-  const picture = part ? cut(source, part) : null
-  const frame = picture
-    ? matchPixels(picture, picture.width, picture.height)
-    : matchPixels(source, photo.width, photo.height)
-  if (picture) {
-    picture.width = 0
-    picture.height = 0
-  }
-  timing.prepareMs = performance.now() - begun
-  const modelBegun = performance.now()
-  let raw = null
-  if (canMatchLocally()) {
-    // A warm matcher answers in a few seconds, its first run (compiling as it goes) takes
-    // longer, and one still loading gets a short grace.
-    const local = within(
-      signal,
-      localMatcherWarm() ? 8_000 : localMatcherReady() ? 20_000 : 3_000
-    )
-    raw = await matchLocally(archive.gray, frame.gray, local.signal).catch(
-      () => null
-    )
-    local.done()
-  }
-  timing.modelMs = performance.now() - modelBegun
-  signal.throwIfAborted()
-  if (!raw) {
-    if (!server) return null
-    // The server takes about four seconds a match, plus the trip from New Zealand to its region;
-    // a busy or just-woken one, longer. It may run for 30 s, so the wait stops short of that.
-    const remote = within(signal, SERVER_MS)
-    try {
-      raw = await requestMatches(archive.gray, frame.gray, remote.signal)
-    } finally {
-      remote.done()
+  let modelBegun = 0
+  let backend: AlignDiagnostic["backend"] = "none"
+  let prepareMs = 0
+  let fallbackReason: AlignDiagnostic["fallbackReason"]
+  let outcome: AlignDiagnostic["reason"] = "prepare_error"
+  const report = (reason: AlignDiagnostic["reason"], fit?: FitDiagnostic) => {
+    const details: AlignDiagnostic = {
+      ...fit,
+      reason,
+      backend,
+      prepareMs,
+      modelMs: modelBegun ? performance.now() - modelBegun : 0,
+      ...(fallbackReason ? { fallbackReason } : {}),
     }
+    timing.prepareMs = details.prepareMs
+    timing.modelMs = details.modelMs
+    try {
+      diagnostic?.(details)
+    } catch {}
   }
-  signal.throwIfAborted()
-  timing.modelMs = performance.now() - modelBegun
-  const matches = unplace(raw, archive.placement, frame.placement).map(
-    ([u0, v0, u1, v1]): (typeof raw)[number] =>
-      part
-        ? [
-            u0,
-            v0,
-            (part.x + u1 * part.width) / photo.width,
-            (part.y + v1 * part.height) / photo.height,
-          ]
-        : [u0, v0, u1, v1]
-  )
-  return fitCrop(
-    matches,
-    archive.aspect,
-    photo,
-    cellSize(part ?? photo, frame.placement)
-  )
+  try {
+    const part = region(photo, archive.aspect, reach)
+    const picture = part ? cut(source, part) : null
+    let frame: ReturnType<typeof matchPixels>
+    try {
+      frame = picture
+        ? matchPixels(picture, picture.width, picture.height)
+        : matchPixels(source, photo.width, photo.height)
+    } finally {
+      if (picture) {
+        picture.width = 0
+        picture.height = 0
+      }
+    }
+    prepareMs = performance.now() - begun
+    modelBegun = performance.now()
+    let raw = null
+    fallbackReason = "model_unavailable"
+    if (canMatchLocally()) {
+      backend = "local"
+      const local = within(
+        signal,
+        localMatcherWarm() ? 8_000 : localMatcherReady() ? 20_000 : 3_000
+      )
+      try {
+        raw = await matchLocally(archive.gray, frame.gray, local.signal)
+        fallbackReason = undefined
+      } catch {
+        fallbackReason =
+          local.signal.aborted && !signal.aborted
+            ? "local_timeout"
+            : canMatchLocally()
+              ? "local_inference_error"
+              : "model_unavailable"
+      } finally {
+        local.done()
+      }
+    }
+    signal.throwIfAborted()
+    if (!raw) {
+      if (!server) {
+        report(fallbackReason ?? "model_unavailable")
+        return null
+      }
+      backend = "server"
+      outcome = "server_error"
+      const remote = within(signal, SERVER_MS)
+      try {
+        raw = await requestMatches(archive.gray, frame.gray, remote.signal)
+      } catch (error) {
+        if (remote.signal.aborted && !signal.aborted) outcome = "server_timeout"
+        throw error
+      } finally {
+        remote.done()
+      }
+    }
+    signal.throwIfAborted()
+    const matches = unplace(raw, archive.placement, frame.placement).map(
+      ([u0, v0, u1, v1]): (typeof raw)[number] =>
+        part
+          ? [
+              u0,
+              v0,
+              (part.x + u1 * part.width) / photo.width,
+              (part.y + v1 * part.height) / photo.height,
+            ]
+          : [u0, v0, u1, v1]
+    )
+    return fitCrop(
+      matches,
+      archive.aspect,
+      photo,
+      cellSize(part ?? photo, frame.placement),
+      (fit) => report(fit.reason, fit)
+    )
+  } catch (error) {
+    if (!modelBegun) prepareMs = performance.now() - begun
+    report(signal.aborted ? "aborted" : outcome)
+    throw error
+  }
 }

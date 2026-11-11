@@ -15,6 +15,7 @@ if (process.env.TN_FAKE_STORE && DEPLOYED.some((name) => process.env[name])) {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  env: { NEXT_PUBLIC_CAMERA_BUILD: process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_CAMERA_BUILD || 'unknown' },
   // The image matcher behind /api/align: native onnxruntime plus its model, Linux x64 only.
   serverExternalPackages: ['onnxruntime-node'],
   outputFileTracingIncludes: {
