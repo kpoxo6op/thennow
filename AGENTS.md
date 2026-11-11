@@ -147,3 +147,12 @@ changing matcher acceptance or publishing a modern photograph. Match or exceed
 those reference pairs; reject visibly worse alignment. Browser checks, model
 confidence and temporal stability do not prove photographic accuracy. Inspect the
 exported pair across the whole subject before publishing.
+
+## Reference guide drawing
+
+Before drawing or changing camera or composite/review guides, follow the
+[drawing rules in docs/reference-traces.md](docs/reference-traces.md#drawing-rules).
+Prioritize long straight references and recognizable details near the frame
+edges, including a visible horizon and surviving mural details such as Bradley
+Lane's cowboy foot. Spread guides across the composition to help framing and
+scale; do not restrict them to a central cluster or an arbitrary three features.
