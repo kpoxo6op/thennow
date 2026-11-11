@@ -175,7 +175,8 @@ On 11 November 2026, the reviewer exercised production commit
   visual correctness is **inconclusive**, not passed. Cause was not established.
 - Pixel 9 Pro XL, Chrome 156: the reviewer observed actual camera startup,
   capture/review and retake; production telemetry reported matcher ready in
-  1,822 ms. The unrelated indoor scene did not match Mission House. Close was
+  1,822 ms and 59 actual inference runs before capture (zero matches on the
+  unrelated indoor scene). Retake restored the stream in 378 ms. Close was
   not verified: the phone returned to ChatGPT and the guarded action refused
   without input. No further Pixel action was attempted.
 - Physical field lock/reacquisition/zoom, cold-cache timing, rotation/background
