@@ -602,6 +602,16 @@ for (const viewport of [
   test(`at ${viewport.width}px a list row chooses its place on the map, and the card leads to the story`, async ({
     page,
   }) => {
+    // On a slower phone the map's last moveend can arrive after the story link was tapped.
+    // Keep navigation pending long enough to catch a map URL update cancelling it.
+    if (viewport.width === 390) {
+      const cdp = await page.context().newCDPSession(page)
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 })
+      await page.route("**/mission-house?*", async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await route.continue()
+      })
+    }
     await page.setViewportSize(viewport)
     await page.goto("/places?view=map")
     await expect(markers(page).first()).toBeVisible()

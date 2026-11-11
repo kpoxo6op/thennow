@@ -1044,9 +1044,7 @@ export function RephotoCamera({
           </div>
         )}
 
-        {status === "live" && !interrupted && (
-          <MatcherGuide steady={!!lock?.steady} hidden={peek} />
-        )}
+        <MatcherGuide hidden={status !== "live" || interrupted || peek} />
 
         {debugText && (
           <pre className="pointer-events-none absolute inset-x-2 top-16 whitespace-pre-wrap break-all text-[10px] text-lime-300">
