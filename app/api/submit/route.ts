@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import sharp from "sharp"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
@@ -154,7 +155,7 @@ export async function POST(request: Request) {
     return answer(502, "store failed")
   }
   console.log(
-    `submit-photo ${JSON.stringify({ place: slug, key, checked, bytes: photo.length })}`
+    `submit-photo ${JSON.stringify({ place: slug, key, checked, bytes: photo.length, submissionTag: createHash("sha256").update(key).digest("hex").slice(0, 16) })}`
   )
   return done()
 }

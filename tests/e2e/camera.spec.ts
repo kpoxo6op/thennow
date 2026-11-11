@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from "fs"
+import { createHash } from "node:crypto"
 import path from "path"
 import { expect, test, type Page } from "@playwright/test"
 
@@ -306,6 +307,15 @@ test.describe("simulated camera application and API boundaries", () => {
     page,
   }) => {
     const place = archive("mission-house")
+    const diagnosticSends: { submissionTag?: string; capture: number }[] = []
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/camera-log"))
+        diagnosticSends.push(
+          ...(request.postDataJSON()?.events ?? []).filter(
+            (e: { event: string }) => e.event === "send"
+          )
+        )
+    })
     const sent: { url: URL; body: Buffer }[] = []
     await page.route("**/api/submit?**", async (route) => {
       sent.push({
@@ -332,6 +342,16 @@ test.describe("simulated camera application and API boundaries", () => {
     expect(url.searchParams.get("place")).toBe("mission-house")
     expect(url.searchParams.get("checked")).toBe("0")
     expect(url.searchParams.get("key")).toMatch(/^[a-z0-9]{24}$/)
+    // Join the actual upload to its diagnostic capture without logging its raw key.
+    const tag = createHash("sha256")
+      .update(url.searchParams.get("key")!)
+      .digest("hex")
+      .slice(0, 16)
+    await expect
+      .poll(() =>
+        diagnosticSends.some((e) => e.capture === 1 && e.submissionTag === tag)
+      )
+      .toBe(true)
     expect(body.length).toBeLessThan(3_500_000)
     expect([...body.subarray(0, 2)]).toEqual([0xff, 0xd8])
     const size = await page.evaluate(async (base64) => {

@@ -77,6 +77,8 @@ for (const [session, batches] of sessions) {
   console.log(
     `\nSession ${clean(session)} | build ${clean(last.build)} | ${clean(last.browser)}`
   )
+  const startedAt = ordered.find((batch) => Number.isFinite(batch.startedAt))?.startedAt
+  console.log(`Client session start: ${startedAt ? new Date(startedAt).toISOString() : "unavailable (older client)"}; compare with recording clock, allowing for phone clock error.`)
   console.log(
     `Batches ${unique.size}; duplicate batches ${batches.length - unique.size}; gaps ${gaps.join(", ") || "none observed"}; client dropped ${Math.max(...ordered.map((b) => b.dropped ?? 0))}; delivery failures ${Math.max(...ordered.map((b) => b.deliveryFailures ?? 0))}`
   )
@@ -89,7 +91,7 @@ for (const [session, batches] of sessions) {
       .map(([key, value]) => `${clean(key)}=${clean(value)}`)
       .join(" ")
     console.log(
-      `  ${seconds(event.at).padStart(9)} run=${clean(event.run ?? "?")} ${clean(event.event)} ${details}`
+      `  ${startedAt ? new Date(startedAt + event.at).toISOString() : ""} ${seconds(event.at).padStart(9)} run=${clean(event.run ?? "?")} ${clean(event.event)} ${details}`
     )
     if (
       typeof event.reason === "string" &&

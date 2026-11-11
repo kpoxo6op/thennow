@@ -33,3 +33,33 @@ counter update. Do not infer that nothing happened just because no event arrived
 
 Do not add private logs or recordings to Git. Do not turn these diagnostics into
 additional product analytics dimensions or a user-facing technical dashboard.
+
+## Field experiments and recordings
+
+Each batch includes the client's session-start UTC milliseconds. The offline
+report combines this with monotonic event offsets to show a recording-friendly
+UTC timeline. The phone clock may be wrong; server receipt time is not capture
+time, particularly after retries. Keep the recording's original timestamp.
+
+An `experiment` event identifies the public archive by its numeric catalogue
+prefix (for example 14 for Bradley Lane), the trace/split mode, configured overlay
+opacity and feature count. No place path or GPS coordinates are logged. `guide
+view` records source-photo switches, reveal position and viewport dimensions;
+drag/resize updates in split mode are debounced. Each shot includes its actual
+normalized crop, overlay/reveal, media time and latest video-frame age. A separate
+`framing` event records the resulting review crop, so automatic recropping and
+fixed-trace preservation can be distinguished.
+
+A `submissionTag` is the first 16 hexadecimal characters of SHA-256 of the random
+per-upload key. It appears in the diagnostic `send` event and the server's
+`submit-photo` log, allowing the private submitted photograph to be correlated
+with a session/capture. It is not an identity or authentication credential; raw
+upload keys are not added to camera telemetry. Existing submission logs retain
+their existing operator information. No photos are collected beyond an explicit
+Send photo action, and the new fields do not enter product analytics.
+
+For a field session, start screen recording before opening the camera, then use
+it normally. Include the review and any retake/send outcome. No special experiment
+button or technical overlay is needed. The recording and exported photograph are
+still required to judge visual quality: these diagnostics do not measure regional
+landmark errors, blur or the quality of hypothetical buffered frames.

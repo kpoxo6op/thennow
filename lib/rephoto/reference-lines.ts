@@ -1,3 +1,5 @@
+export const TRACE_OVERLAY_OPACITY = 0.16
+
 // Editorial traces, tied to the exact uncropped archive. Coordinates are fractions
 // of that image, not detections or a claim that the modern scene is unchanged.
 export type ReferenceLines = {

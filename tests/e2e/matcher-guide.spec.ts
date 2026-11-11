@@ -83,6 +83,8 @@ for (const [orientation, viewport] of Object.entries({
         return
       }
       const batch = JSON.parse(body)
+      expect(batch.startedAt).toBeGreaterThan(Date.now() - 180_000)
+      expect(batch.startedAt).toBeLessThanOrEqual(Date.now())
       expect(Buffer.byteLength(body)).toBeLessThanOrEqual(12 * 1024)
       expect(batch.events.length).toBeLessThanOrEqual(16)
       expect(body).not.toMatch(
@@ -421,6 +423,32 @@ for (const [orientation, viewport] of Object.entries({
       expect(crop.cx).toBeCloseTo(size.width / 2, 0)
       expect(crop.cy).toBeCloseTo(size.height / 2, 0)
       expect(crop.rotation).toBe(0)
+      await expect
+        .poll(() => events().filter((e) => e.event === "framing").length)
+        .toBeGreaterThan(0)
+      expect(events()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: "experiment",
+            reference: slug === "bradley-lane-line-road" ? 14 : 6,
+            mode: "traces",
+            overlay: 0.16,
+          }),
+          expect.objectContaining({
+            event: "guide view",
+            view: "archive",
+            overlay: 1,
+          }),
+          expect.objectContaining({
+            event: "shot",
+            framing: "traced",
+            cropX: 0.5,
+            cropY: 0.5,
+            cropWidth: 0.9,
+            cropRotation: 0,
+          }),
+        ])
+      )
       await screenshot(page, `${slug}-trace-review`)
       await page.getByRole("button", { name: "Retake", exact: true }).click()
       await page.setViewportSize({ width: 390, height: 844 })

@@ -25,7 +25,10 @@ import {
   saveData,
 } from "@/lib/rephoto/local-matcher"
 import { loadImage } from "@/lib/rephoto/pixels"
-import { referenceLines } from "@/lib/rephoto/reference-lines"
+import {
+  referenceLines,
+  TRACE_OVERLAY_OPACITY,
+} from "@/lib/rephoto/reference-lines"
 import {
   beginCameraRun,
   browserName,
@@ -240,6 +243,25 @@ export function RephotoCamera({
   }, [])
   const [showArchive, setShowArchive] = useState(false)
   const [reveal, setReveal] = useState(50)
+  // Debounce drag/resize updates; no per-frame or per-pointer log stream.
+  useEffect(() => {
+    if (shot || status !== "live") return
+    const record = () => {
+      diagnostic("guide view", {
+        view: trace ? (showArchive ? "archive" : "traces") : "split",
+        overlay: trace ? (showArchive ? 1 : TRACE_OVERLAY_OPACITY) : 1,
+        reveal: trace ? 100 : Math.round(reveal),
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      })
+    }
+    if (trace) {
+      record()
+      return
+    }
+    const timer = setTimeout(record, 300)
+    return () => clearTimeout(timer)
+  }, [shot, status, trace, showArchive, reveal, stage.width, stage.height])
   const capturing = useRef(false)
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
@@ -270,6 +292,12 @@ export function RephotoCamera({
 
   useEffect(() => {
     startCameraSession()
+    diagnostic("experiment", {
+      reference: Number(thenSrc.match(/^\/posts\/(\d{4})-/)?.[1] ?? -1),
+      mode: trace ? "traces" : "split",
+      overlay: trace ? TRACE_OVERLAY_OPACITY : 1,
+      features: trace?.features.length ?? 0,
+    })
     const loading = performance.now()
     const heartbeat = () => {
       const { inFlightAt, frameAt, ...counts } = telemetry.current
@@ -317,7 +345,7 @@ export function RephotoCamera({
       releaseScreen()
       if (shotRef.current) releaseCanvas(shotRef.current.canvas)
     }
-  }, [trace])
+  }, [trace, thenSrc])
 
   useEffect(() => {
     let cancelled = false
@@ -1160,6 +1188,17 @@ export function RephotoCamera({
         lean: lean == null ? null : Math.round((lean * 180) / Math.PI),
         zoom: zoomRef.current,
         steady: !!lock?.steady,
+        cropX: crop.cx / photo.width,
+        cropY: crop.cy / photo.height,
+        cropWidth: crop.width / photo.width,
+        cropRotation: crop.rotation,
+        aspect,
+        frameAge: telemetry.current.frameAt
+          ? now - telemetry.current.frameAt
+          : null,
+        mediaTime: video.currentTime * 1000,
+        reveal: trace ? 100 : Math.round(reveal),
+        overlay: trace ? TRACE_OVERLAY_OPACITY : 1,
       },
       { framing: trace ? "traced" : held ? "live" : "levelled", how: "manual" }
     )
@@ -1266,7 +1305,7 @@ export function RephotoCamera({
                   opacity: trace
                     ? showArchive
                       ? 1
-                      : 0.16
+                      : TRACE_OVERLAY_OPACITY
                     : !lock && lastPlacement
                       ? 0
                       : 1,
