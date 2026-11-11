@@ -31,6 +31,26 @@ type Ort = {
   }
 }
 
+export type MatcherStatus = {
+  phase: "loading" | "starting" | "ready" | "failed" | "unsupported"
+  downloaded?: number
+}
+let status: MatcherStatus = { phase: "loading" }
+const listeners = new Set<() => void>()
+export const matcherStatus = () => status
+export function subscribeMatcher(listener: () => void) {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+function publish(next: MatcherStatus) {
+  status = next
+  listeners.forEach((listener) => listener())
+}
+let retryAfter = 0
+let generation = 0
+let download: AbortController | null = null
 let loading: Promise<{ ort: Ort; session: Session }> | null = null
 let ready = false
 // Whether a run has finished, so the shaders are compiled and later runs take their usual time.
@@ -60,6 +80,9 @@ export function canMatchLocally() {
 }
 
 function reset() {
+  generation++
+  download?.abort()
+  download = null
   // A session given up on hands its graphics memory back, as far as it still can.
   loading?.then(({ session }) => session.release?.()).catch(() => {})
   loading = null
@@ -84,13 +107,25 @@ function timeLimit<T>(promise: Promise<T>, ms: number) {
 
 // Starts loading the runtime and the model, once. Safe to call again.
 export function prepareLocalMatcher() {
-  if (!canMatchLocally()) return null
-  loading ??= (async () => {
-    // The model is in half precision; a graphics chip without it goes straight to the server.
+  if (!canMatchLocally()) {
+    if (status.phase !== "unsupported") publish({ phase: "unsupported" })
+    return null
+  }
+  if (loading) return loading
+  if (performance.now() < retryAfter) return null
+  const mine = generation
+  const controller = new AbortController()
+  download = controller
+  const update = (next: MatcherStatus) => {
+    if (mine === generation) publish(next)
+  }
+  update({ phase: "loading" })
+  const work = (async () => {
     const gpu = navigator.gpu as {
       requestAdapter: () => Promise<{ features: Set<string> } | null>
     }
     const adapter = await gpu.requestAdapter()
+    controller.signal.throwIfAborted()
     if (!adapter?.features.has("shader-f16")) {
       unsupported = true
       throw new Error("No half-precision WebGPU")
@@ -98,24 +133,55 @@ export function prepareLocalMatcher() {
     const ort = (await import(
       /* webpackIgnore: true */ /* turbopackIgnore: true */ `${ORT_BASE}ort.webgpu.min.mjs`
     )) as Ort
+    controller.signal.throwIfAborted()
     ort.env.wasm.wasmPaths = ORT_BASE
     ort.env.logLevel = "error"
-    const response = await fetch(MODEL_PATH)
+    const response = await fetch(MODEL_PATH, { signal: controller.signal })
     if (!response.ok) throw new Error(`Model ${response.status}`)
-    const bytes = new Uint8Array(await response.arrayBuffer())
-    const session = await timeLimit(
-      ort.InferenceSession.create(bytes, {
-        executionProviders: ["webgpu"],
-        logSeverityLevel: 3,
-      }),
-      60_000
-    )
-    // No warm-up run on blank pictures: the first real match compiles the shaders instead,
-    // which saves a whole run (seconds on a phone) before the old view can first be found.
+    // Report only measured model bytes, not a percentage of the whole startup.
+    const reader = response.body?.getReader()
+    const chunks: Uint8Array[] = []
+    let size = 0
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+        size += value.length
+        update({ phase: "loading", downloaded: size })
+      }
+    } else {
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      chunks.push(bytes)
+      size = bytes.length
+    }
+    const bytes = new Uint8Array(size)
+    let offset = 0
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset)
+      offset += chunk.length
+    }
+    controller.signal.throwIfAborted()
+    update({ phase: "starting" })
+    const session = await ort.InferenceSession.create(bytes, {
+      executionProviders: ["webgpu"],
+      logSeverityLevel: 3,
+    })
+    if (mine !== generation || controller.signal.aborted) {
+      await session.release?.()
+      throw new Error("Matcher superseded")
+    }
+    // First real inference compiles shaders. Only that completion says the guide is ready.
     ready = true
     return { ort, session }
   })()
-  loading.catch(reset)
+  loading = timeLimit(work, 90_000)
+  loading.catch(() => {
+    if (mine !== generation) return
+    reset()
+    retryAfter = performance.now() + 15_000
+    publish({ phase: unsupported ? "unsupported" : "failed" })
+  })
   return loading
 }
 
@@ -153,6 +219,7 @@ export async function matchLocally(
   const loaded = prepareLocalMatcher()
   if (!loaded) throw new Error("No WebGPU")
   // Giving up doesn't wait for the download; the download carries on for the next shot.
+  const mine = generation
   const { ort, session } = await Promise.race([loaded, aborted(signal)])
   signal.throwIfAborted()
   const tensor = (bytes: Uint8Array) => {
@@ -160,22 +227,37 @@ export async function matchLocally(
     for (let i = 0; i < data.length; i++) data[i] = bytes[i] / 255
     return new ort.Tensor("float32", data, [1, 1, MATCH_HEIGHT, MATCH_WIDTH])
   }
+  let began = false
   const run = queue.then(async () => {
     signal.throwIfAborted()
-    const mine = { since: performance.now() }
-    running = mine
+    if (mine !== generation) throw new Error("Matcher superseded")
+    began = true
+    const activeRun = { since: performance.now() }
+    running = activeRun
     try {
-      const result = await session.run({
-        image0: tensor(then),
-        image1: tensor(now),
-      })
-      warm = true
+      const result = await timeLimit(
+        session.run({
+          image0: tensor(then),
+          image1: tensor(now),
+        }),
+        warm ? STUCK_MS : 60_000
+      )
+      if (mine === generation) {
+        warm = true
+        if (status.phase !== "ready") publish({ phase: "ready" })
+      }
       return result
     } finally {
-      if (running === mine) running = null
+      if (running === activeRun) running = null
     }
   })
-  queue = run.catch(() => {})
+  queue = run.catch(() => {
+    if (mine === generation && began) {
+      reset()
+      retryAfter = performance.now() + 15_000
+      publish({ phase: "failed" })
+    }
+  })
   let result
   try {
     // A caller that gives up stops waiting; the run itself can't be stopped and finishes alone.
@@ -183,7 +265,11 @@ export async function matchLocally(
   } catch (error) {
     if (signal.aborted) throw error
     // A failed run gets a fresh session next time.
-    reset()
+    if (mine === generation) {
+      reset()
+      retryAfter = performance.now() + 15_000
+      publish({ phase: "failed" })
+    }
     throw error
   }
   return cellsToMatches(
