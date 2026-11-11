@@ -956,7 +956,10 @@ export function RephotoCamera({
       fits(lock.crop, aspect, photo)
         ? lock.crop
         : null
-    if (how === "auto" && (!held || now - lastFrameAt.current >= 600)) {
+    if (
+      how === "auto" &&
+      (!held || video.paused || video.ended || now - lastFrameAt.current >= 600)
+    ) {
       capturing.current = false
       releaseCanvas(canvas)
       return
@@ -1003,6 +1006,9 @@ export function RephotoCamera({
       const eligible =
         !shot &&
         status === "live" &&
+        videoRef.current != null &&
+        !videoRef.current.paused &&
+        !videoRef.current.ended &&
         !interrupted &&
         !peek &&
         document.visibilityState === "visible" &&
