@@ -3,6 +3,7 @@ import type { PendingPost as PendingPostType } from "@/interfaces/post"
 import { Camera } from "lucide-react"
 
 import { Comments } from "@/components/comments"
+import { ContributionDemo } from "@/components/contribution-demo"
 import { NearbyList, type Nearby } from "@/components/nearby-list"
 import { CameraLink } from "@/components/rephoto/camera-link"
 import { ResetScroll } from "@/components/reset-scroll"
@@ -36,19 +37,22 @@ export function PendingPost({ post, nearby }: Props) {
           />
         </div>
       </figure>
-      <div className="tn-story-edge flex min-h-11 items-center justify-between gap-4 py-1">
+      <div className="tn-story-edge flex min-h-11 flex-wrap items-center justify-between gap-2 py-1">
         <p data-testid="pending-date" className="text-muted-foreground">
           {archive.date}
         </p>
-        <CameraLink
-          href={`/${post.slug}/camera`}
-          landscape={post.w > post.h}
-          data-testid="pending-camera"
-          className="inline-flex min-h-11 items-center gap-2 rounded-md bg-foreground px-5 font-medium text-background transition-opacity hover:opacity-85"
-        >
-          <Camera className="size-4" aria-hidden />
-          Take it now
-        </CameraLink>
+        <div className="flex shrink-0 items-center gap-1">
+          <CameraLink
+            href={`/${post.slug}/camera`}
+            landscape={post.w > post.h}
+            data-testid="pending-camera"
+            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-foreground px-5 font-medium text-background transition-opacity hover:opacity-85"
+          >
+            <Camera className="size-4" aria-hidden />
+            Take it now
+          </CameraLink>
+          <ContributionDemo />
+        </div>
       </div>
 
       <article className="tn-story-edge pb-14 pt-3">

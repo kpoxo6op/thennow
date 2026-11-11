@@ -279,7 +279,7 @@ test.describe("a place whose modern photograph is pending", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } })
 
   for (const entry of pendingEntries.slice(0, 1)) {
-    test(`${entry.slug} offers no comparison, only its date and the camera`, async ({
+    test(`${entry.slug} offers its archive, camera and optional contribution demo`, async ({
       page,
     }) => {
       const response = await page.goto(`/${entry.slug}`)
@@ -291,6 +291,28 @@ test.describe("a place whose modern photograph is pending", () => {
         entry.archive.date
       )
       await expect(page.getByTestId("pending-camera")).toHaveText("Take it now")
+      // This journey owns discovery and real media playback: a broken asset or
+      // modal focus trap would leave contributors without the demonstration.
+      const help = page.getByRole("button", { name: "Watch how to contribute" })
+      await help.click()
+      const demo = page.getByRole("dialog", { name: "How to contribute" })
+      await expect(demo).toBeVisible()
+      const video = demo.locator("video")
+      await expect
+        .poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState))
+        .toBeGreaterThanOrEqual(2)
+      expect(await video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true)
+      await video.evaluate((v: HTMLVideoElement) => v.play())
+      await expect
+        .poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime))
+        .toBeGreaterThan(0)
+      await page.keyboard.press("Escape")
+      await expect(demo).not.toBeVisible()
+      await expect(help).toBeFocused()
+      await expect(video).toHaveCount(0)
+      await help.click()
+      await page.getByRole("button", { name: "Close video" }).click()
+      await expect(help).toBeFocused()
       // The camera button says what is missing; no status label repeats it.
       await expect(page.getByText("Upcoming", { exact: true })).toHaveCount(0)
       await expect(page.getByTestId("pending-photograph")).toHaveAttribute(
