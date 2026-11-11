@@ -138,3 +138,12 @@ vercel inspect <deployment-url>
 - Avoid brittle tests that depend on incidental class names or formatting.
 - For geometry-sensitive UI, test real browser layout, not just component internals.
 - For this repo, browser e2e tests are more valuable than unit tests for compare behavior.
+
+## Photographic alignment quality
+
+Boris's older manual comparisons are the minimum acceptance baseline for new
+photographs. Read [docs/alignment-quality.md](docs/alignment-quality.md) before
+changing matcher acceptance or publishing a modern photograph. Match or exceed
+those reference pairs; reject visibly worse alignment. Browser checks, model
+confidence and temporal stability do not prove photographic accuracy. Inspect the
+exported pair across the whole subject before publishing.
