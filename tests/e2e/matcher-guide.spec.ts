@@ -355,6 +355,74 @@ for (const [orientation, viewport] of Object.entries({
       )
     ).toBe(true)
     expect(batches.length).toBeLessThan(events().length)
+    // Curated traces are fixed aiming targets. Matcher output must not silently
+    // replace the exact crop that the photographer composed against them.
+    for (const slug of [
+      "bradley-lane-line-road",
+      "tamaki-road-board-offices",
+    ]) {
+      await page.setViewportSize({ width: 844, height: 390 })
+      await page.goto(`/${slug}/camera`)
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+      const target = await page.getByTestId("rephoto-frame").boundingBox()
+      await page.waitForTimeout(500)
+      expect(await page.getByTestId("rephoto-frame").boundingBox()).toEqual(
+        target
+      )
+      await screenshot(page, `${slug}-trace-live`)
+      if (process.env.MATCHER_SCREENSHOTS) {
+        // Diagnostic screenshot only: inspect editorial traces against their source.
+        await page
+          .getByTestId("rephoto-ghost")
+          .evaluate((img) => (img.style.opacity = "1"))
+        await screenshot(page, `${slug}-trace-source`)
+        await page.setViewportSize({ width: 2200, height: 1500 })
+        await screenshot(page, `${slug}-trace-source-detail`)
+        await page.setViewportSize({ width: 844, height: 390 })
+        await page
+          .getByTestId("rephoto-ghost")
+          .evaluate((img) => (img.style.opacity = "0"))
+      }
+      await page.getByRole("button", { name: "Old photo", exact: true }).click()
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      await expect(page.getByTestId("rephoto-shutter")).toBeDisabled()
+      await expect(page.getByTestId("rephoto-ghost")).toHaveCSS("opacity", "1")
+      await page
+        .getByRole("button", { name: "Live camera", exact: true })
+        .click()
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      const stageBox = await page.getByTestId("rephoto-stage").boundingBox()
+      const size = await page
+        .getByTestId("rephoto-video")
+        .evaluate((v: HTMLVideoElement) => ({
+          width: v.videoWidth,
+          height: v.videoHeight,
+        }))
+      const scale = Math.min(
+        stageBox!.width / size.width,
+        stageBox!.height / size.height
+      )
+      const expectedWidth = target!.width / scale
+      await page.getByTestId("rephoto-shutter").click()
+      await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+        "data-phase",
+        "unchecked"
+      )
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      const crop = JSON.parse(
+        (await page.getByTestId("rephoto-review").getAttribute("data-crop"))!
+      )
+      expect(crop.width).toBeCloseTo(expectedWidth, 0)
+      expect(crop.cx).toBeCloseTo(size.width / 2, 0)
+      expect(crop.cy).toBeCloseTo(size.height / 2, 0)
+      expect(crop.rotation).toBe(0)
+      await screenshot(page, `${slug}-trace-review`)
+      await page.getByRole("button", { name: "Retake", exact: true }).click()
+      await page.setViewportSize({ width: 390, height: 844 })
+      await expect(page.getByTestId("reference-trace")).toBeVisible()
+      await screenshot(page, `${slug}-trace-portrait`)
+    }
   })
 }
 
