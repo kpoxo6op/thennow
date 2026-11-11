@@ -13,8 +13,25 @@ const guides: Record<string, ReferenceLines> = {
       {
         name: "Mural wall corner",
         points: [
-          [0.396, 0.207],
+          [0.396, 0.01],
           [0.392, 0.81],
+        ],
+      },
+      {
+        name: "Cowboy boot outline",
+        points: [
+          [0.026, 0.318],
+          [0.034, 0.345],
+          [0.027, 0.363],
+          [0.013, 0.391],
+          [0.001, 0.394],
+        ],
+      },
+      {
+        name: "Long mural wall joint",
+        points: [
+          [0.025, 0.315],
+          [0.349, 0.297],
         ],
       },
       {
@@ -32,6 +49,20 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
+        name: "Shopfront base receding from wall corner",
+        points: [
+          [0.405, 0.811],
+          [0.674, 0.687],
+        ],
+      },
+      {
+        name: "Shopfront window upright",
+        points: [
+          [0.626, 0.423],
+          [0.624, 0.703],
+        ],
+      },
+      {
         name: "Receding canopy edge",
         points: [
           [0.864, 0.294],
@@ -44,6 +75,43 @@ const guides: Record<string, ReferenceLines> = {
     image:
       "/posts/0006-tamaki-road-board-offices/then-tamaki-road-board-offices.jpg",
     features: [
+      {
+        name: "Visible distant horizon at left edge",
+        points: [
+          [0.039, 0.496],
+          [0.068, 0.496],
+        ],
+      },
+      {
+        name: "Long street kerb",
+        points: [
+          [0.29, 0.579],
+          [0.615, 0.7],
+          [0.985, 0.818],
+        ],
+      },
+      {
+        name: "Right roof ridge near frame edge",
+        points: [
+          [0.9, 0.21],
+          [0.985, 0.215],
+        ],
+      },
+      {
+        name: "Left wing eaves",
+        points: [
+          [0.538, 0.374],
+          [0.602, 0.366],
+        ],
+      },
+      {
+        name: "Base of right brick facade",
+        points: [
+          [0.718, 0.573],
+          [0.849, 0.603],
+          [0.985, 0.598],
+        ],
+      },
       {
         name: "Right roof hip",
         points: [
@@ -60,11 +128,13 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Right window left and lower frame",
+        name: "Right edge window frame",
         points: [
           [0.947, 0.4],
           [0.947, 0.533],
           [0.982, 0.533],
+          [0.982, 0.4],
+          [0.947, 0.4],
         ],
       },
     ],
