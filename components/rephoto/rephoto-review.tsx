@@ -44,7 +44,7 @@ interface Props {
 // Unchecked: the photo couldn't be compared with the old one (no signal, matcher busy), which
 // says nothing about the photo, so it can still be sent. Unmatched: it was compared and isn't
 // the same view, so it can only be taken again.
-type Phase = "aligning" | "aligned" | "unchecked" | "unmatched"
+type Phase = "aligning" | "framed" | "unchecked" | "unmatched"
 type Sending =
   | "idle"
   | "sending"
@@ -133,8 +133,6 @@ export function RephotoReview({
   const [stage, setStage] = useState({ width: 0, height: 0 })
   const [crop, setCrop] = useState<Crop>(shot.crop)
   const [phase, setPhase] = useState<Phase>("aligning")
-  // Whether the matcher itself confirmed the match, not just the live view's placement.
-  const [confirmed, setConfirmed] = useState(false)
   const [settled, setSettled] = useState(false)
   const [peek, setPeek] = useState(false)
   const [note, setNote] = useState("")
@@ -236,8 +234,12 @@ export function RephotoReview({
         // the photograph the corner is left black, never filled in, and the note says why.
         setCrop(found.crop)
         const whole = fits(found.crop, archive.aspect, photo)
-        setNote(whole ? "" : "Step back to include the whole view.")
-        done("aligned", {
+        setNote(
+          whole
+            ? "Hold the photo to compare. Retake if the edges differ."
+            : "Step back to include the whole view."
+        )
+        done("framed", {
           whole,
           moved: Math.round(
             (Math.hypot(
@@ -250,29 +252,25 @@ export function RephotoReview({
           zoom: Math.round((found.crop.width / photo.width) * 100),
           turn: Math.round((found.crop.rotation * 180) / Math.PI),
         })
-        setConfirmed(true)
-        setPhase("aligned")
+        setPhase("framed")
       } catch (error) {
         if (controller.signal.aborted) return
-        done(shot.locked ? "kept live" : "unmatched", {
+        done(error instanceof NoMatch ? "unmatched" : "unchecked", {
           why: String(error).slice(0, 120),
         })
-        // The live view had already placed it; that placement stands.
         const listed = shot.archive?.aspect ?? listedAspect
         const partial = !fits(shot.crop, listed, photo)
-        if (shot.locked) {
-          if (partial) setNote("Step back to include the whole view.")
-          return setPhase("aligned")
-        }
         if (error instanceof NoMatch) {
           setPhase("unmatched")
-          setNote(
-            "This doesn’t match the old photo. Stand where it was taken and try again."
-          )
+          setNote("The views don’t line up. Try another nearby viewpoint.")
           return
         }
         // Not compared at all: the photo is kept as framed, and may still be sent.
-        if (partial) setNote("Step back to include the whole view.")
+        setNote(
+          partial
+            ? "Step back to include the whole view."
+            : "Couldn’t check alignment. Hold the photo to compare."
+        )
         setPhase("unchecked")
       }
     }
@@ -333,7 +331,8 @@ export function RephotoReview({
     const result = await sendPhoto(file, {
       slug,
       key,
-      checked: confirmed,
+      // Coarse framing has not passed a photographic accuracy check.
+      checked: false,
     })
     report(
       "send",
@@ -425,7 +424,7 @@ export function RephotoReview({
     sending === "busy" ||
     sending === "limited" ||
     sending === "refused"
-  const sendable = phase === "aligned" || phase === "unchecked"
+  const sendable = phase === "framed" || phase === "unchecked"
   const status = saveNote || (failed ? NOT_SENT[sending] : note)
 
   const box = stage.width

@@ -57,10 +57,10 @@ async function runtime(page: Page, body = ort) {
 for (const [orientation, viewport] of Object.entries({
   portrait: { width: 390, height: 844 },
 })) {
-  test(`${orientation}: loading, rejected jumps, loss and automatic capture form one camera journey`, async ({
+  test(`${orientation}: loading, rejected jumps, loss and manual review form one camera journey`, async ({
     page,
   }) => {
-    test.setTimeout(60_000)
+    test.setTimeout(120_000)
     await page.setViewportSize(viewport)
     await gpu(page)
     let release!: () => void
@@ -76,7 +76,15 @@ for (const [orientation, viewport] of Object.entries({
       ort.replace(
         "async function run({ image0, image1 }) {",
         `async function run({ image0, image1 }) {
-      while (!window.__runGuide) await new Promise(r => setTimeout(r, 50));`
+      while (!window.__runGuide) await new Promise(r => setTimeout(r, 50));
+      if (document.querySelector('[data-testid="rephoto-review"]')) {
+        if (window.__reviewFailure === "runtime") throw new Error("Matcher unavailable");
+        if (window.__reviewFailure === "unmatched") return {
+          match: { data: new BigInt64Array(2640) },
+          confidence: { data: new Float32Array(2640) },
+          mutual: { data: new Float32Array(2640) },
+        };
+      }`
       )
     )
     await page.addInitScript(() => {
@@ -104,8 +112,11 @@ for (const [orientation, viewport] of Object.entries({
     await expect(
       page.getByRole("button", { name: "Guide", exact: true })
     ).toHaveCount(0)
+    await expect(page.getByTestId("capture-guide")).toContainText(
+      "Find the view in the old photo"
+    )
     await screenshot(page, `${orientation}-searching`)
-    // Hold-to-peek deliberately suspends automatic capture while investigating loss.
+    // Peek hides guidance without changing the accepted placement.
     const stage = page.getByTestId("rephoto-stage")
     await stage.dispatchEvent("pointerdown")
     await page.evaluate(() => Object.assign(window, { __matcherDown: false }))
@@ -146,7 +157,7 @@ for (const [orientation, viewport] of Object.entries({
     let uploads = 0
     let captures = 0
     page.on("request", (request) => {
-      if (request.url().endsWith("/api/submit")) uploads++
+      if (new URL(request.url()).pathname === "/api/submit") uploads++
       if (
         request.url().endsWith("/api/camera-log") &&
         request.postDataJSON()?.event === "shot"
@@ -160,12 +171,16 @@ for (const [orientation, viewport] of Object.entries({
       "0"
     )
     await page.evaluate(() => Object.assign(window, { __matcherDown: false }))
-    await expect(page.getByTestId("capture-guide")).toContainText(
-      "Hold still…",
-      { timeout: 30_000 }
-    )
-    // Cancel a running countdown by stopping actual video frames. It must not
-    // capture the frozen frame after the original deadline.
+    const captureGuide = page.getByTestId("capture-guide")
+    await expect(stage).toHaveAttribute("data-lock", "steady", {
+      timeout: 30_000,
+    })
+    await expect(captureGuide).toContainText("Line up the edges, then tap")
+    // A stable coarse fit must never fire the shutter. The former 1.2-second
+    // countdown is a credible regression only this live-lock journey exercises.
+    await page.waitForTimeout(1800)
+    await expect(page.getByTestId("rephoto-review")).toHaveCount(0)
+    expect(captures).toBe(0)
     await page
       .getByTestId("rephoto-video")
       .evaluate((video: HTMLVideoElement) => video.pause())
@@ -175,21 +190,45 @@ for (const [orientation, viewport] of Object.entries({
     await page
       .getByTestId("rephoto-video")
       .evaluate((video: HTMLVideoElement) => video.play())
-    await expect(page.getByTestId("capture-guide")).toContainText(
-      "Hold still…",
-      { timeout: 30_000 }
-    )
-    await screenshot(page, "portrait-auto-capture")
-    await page.setViewportSize({ width: 844, height: 390 })
-    await screenshot(page, "landscape-auto-capture")
-    await expect(page.getByTestId("rephoto-review")).toBeVisible({
+    await expect(stage).toHaveAttribute("data-lock", "steady", {
       timeout: 30_000,
     })
-    await expect(
-      page.getByRole("button", { name: "Send photo", exact: true })
-    ).toBeEnabled({ timeout: 30_000 })
+    await screenshot(page, "portrait-manual-capture")
+    // Final rejection overrides held placement; server-only journeys cannot
+    // expose the former locked-shot fallback.
+    await page.evaluate(() =>
+      Object.assign(window, { __reviewFailure: "unmatched" })
+    )
+    await page.getByTestId("rephoto-shutter").click()
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "unmatched",
+      { timeout: 30_000 }
+    )
+    await expect(page.getByTestId("rephoto-send")).toHaveCount(0)
+    await page.getByRole("button", { name: "Retake", exact: true }).click()
+    await expect(stage).toHaveAttribute("data-lock", "steady", {
+      timeout: 30_000,
+    })
+    // Runtime failure after a live lock is unknown, not a successful fit.
+    await page.evaluate(() =>
+      Object.assign(window, { __reviewFailure: "runtime" })
+    )
+    await page.setViewportSize({ width: 844, height: 390 })
+    await expect(stage).toHaveAttribute("data-lock", "steady", {
+      timeout: 30_000,
+    })
+    await screenshot(page, "landscape-manual-capture")
+    await page.route("**/api/align", (route) => route.abort())
+    await page.getByTestId("rephoto-shutter").click()
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "unchecked",
+      { timeout: 30_000 }
+    )
+    await expect(page.getByTestId("rephoto-send")).toBeEnabled()
     expect(uploads).toBe(0)
-    expect(captures).toBe(1)
+    expect(captures).toBe(2)
     await page.getByRole("button", { name: "Retake", exact: true }).click()
     await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
     await expect(page.getByTestId("rephoto-review")).toHaveCount(0)

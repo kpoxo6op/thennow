@@ -155,7 +155,7 @@ test.describe("simulated camera application and API boundaries", () => {
     await shoot(page)
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
       "data-phase",
-      "aligned",
+      "framed",
       { timeout: 30_000 }
     )
     expect(serverCalls).toBe(1)
@@ -191,7 +191,7 @@ test.describe("simulated camera application and API boundaries", () => {
     await shoot(page)
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
       "data-phase",
-      "aligned",
+      "framed",
       { timeout: 45_000 }
     )
   })
@@ -263,7 +263,7 @@ test.describe("simulated camera application and API boundaries", () => {
     await shoot(page)
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
       "data-phase",
-      "aligned",
+      "framed",
       { timeout: 30_000 }
     )
     await expect(page.getByTestId("rephoto-consent")).toBeVisible()
@@ -275,7 +275,7 @@ test.describe("simulated camera application and API boundaries", () => {
     expect(sent).toHaveLength(1)
     const [{ url, body }] = sent
     expect(url.searchParams.get("place")).toBe("mission-house")
-    expect(url.searchParams.get("checked")).toBe("1")
+    expect(url.searchParams.get("checked")).toBe("0")
     expect(url.searchParams.get("key")).toMatch(/^[a-z0-9]{24}$/)
     expect(body.length).toBeLessThan(3_500_000)
     expect([...body.subarray(0, 2)]).toEqual([0xff, 0xd8])

@@ -205,14 +205,17 @@ that the old bug or a small credible fault fails it when feasible; do not build
 a mutation-testing programme for every edit. Count, coverage, runnable status
 and an agent's approval are not evidence of real device behaviour.
 
-## Automatic camera capture
+## Camera framing and capture
 
-The existing matcher-guide journey now owns the observed St Heliers regression:
-one inconsistent model placement must not move the accepted overlay; lost tracking
-must fade it in place and cancel readiness. After fresh agreement and stillness,
-automatic capture reaches review without uploading. Manual capture while loading
-and with an unsupported matcher remains covered by the existing camera journeys.
-These checks use simulated inference and do not establish physical image quality.
-Live hardware autozoom is disabled; review crops the full captured frame instead.
+The matcher-guide journey owns the observed St Heliers regression: an inconsistent
+model placement must not move the accepted overlay; lost tracking fades it in
+place. A stable coarse fit is only framing assistance and must not fire the
+shutter or certify alignment. Manual capture remains available while loading,
+searching and with an unsupported matcher. A failed still-frame match must revoke
+a live placement; runtime failures remain unchecked. Coarse framing never marks a
+submission as geometrically verified.
 
-Removed the unused live-zoom calculations and their two math checks with the intentional removal of automatic hardware zoom. They no longer protect a production behavior.
+These existing journeys protect control flow with simulated inference. The manual
+photo baseline in [alignment-quality.md](alignment-quality.md) and real field
+captures determine photographic quality. Automatic capture remains disabled until
+that separate quality evidence exists. Live hardware autozoom remains disabled.

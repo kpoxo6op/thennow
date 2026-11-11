@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { X } from "lucide-react"
 
@@ -218,9 +218,6 @@ export function RephotoCamera({
   }, [])
   const [peek, setPeek] = useState(false)
   const capturing = useRef(false)
-  const captureSince = useRef(0)
-  const lastFrameAt = useRef(0)
-  const [autoProgress, setAutoProgress] = useState(0)
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
     crop: Crop
@@ -463,11 +460,9 @@ export function RephotoCamera({
       | null
     if (shot || status !== "live" || !video?.requestVideoFrameCallback) return
     let last = performance.now()
-    lastFrameAt.current = 0
     let handle = 0
     const onFrame = () => {
       last = performance.now()
-      lastFrameAt.current = last
       handle = video.requestVideoFrameCallback!(onFrame)
     }
     handle = video.requestVideoFrameCallback(onFrame)
@@ -931,7 +926,7 @@ export function RephotoCamera({
     }
   }
 
-  const capture = (how: "manual" | "auto" = "manual") => {
+  const capture = () => {
     const video = videoRef.current
     if (
       !video?.videoWidth ||
@@ -956,14 +951,6 @@ export function RephotoCamera({
       fits(lock.crop, aspect, photo)
         ? lock.crop
         : null
-    if (
-      how === "auto" &&
-      (!held || video.paused || video.ended || now - lastFrameAt.current >= 600)
-    ) {
-      capturing.current = false
-      releaseCanvas(canvas)
-      return
-    }
     const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
     const crop =
       held ??
@@ -986,7 +973,7 @@ export function RephotoCamera({
         zoom: zoomRef.current,
         steady: !!lock?.steady,
       },
-      { framing: held ? "live" : "levelled", how }
+      { framing: held ? "live" : "levelled", how: "manual" }
     )
     attempt.current++
     stop()
@@ -999,46 +986,8 @@ export function RephotoCamera({
     })
   }
 
-  const takeAutomatically = useEffectEvent(() => capture("auto"))
-  useEffect(() => {
-    const check = () => {
-      const now = performance.now()
-      const eligible =
-        !shot &&
-        status === "live" &&
-        videoRef.current != null &&
-        !videoRef.current.paused &&
-        !videoRef.current.ended &&
-        !interrupted &&
-        !peek &&
-        document.visibilityState === "visible" &&
-        lock?.steady &&
-        lock.trackedAt != null &&
-        now - lock.trackedAt < 600 &&
-        now - lastFrameAt.current < 600 &&
-        fits(
-          { ...lock.crop, width: lock.crop.width * 1.02 },
-          aspect,
-          videoSize
-        ) &&
-        !!lock.confirmedAt &&
-        now - lock.confirmedAt < Math.min(lockLife.current, 5000) &&
-        lock.motion != null &&
-        lock.motion <= 0.008
-      if (!eligible) {
-        captureSince.current = 0
-        setAutoProgress(0)
-        return
-      }
-      captureSince.current ||= now
-      const progress = Math.min(1, (now - captureSince.current) / 1200)
-      setAutoProgress(progress)
-      if (progress === 1) takeAutomatically()
-    }
-    check()
-    const timer = setInterval(check, 100)
-    return () => clearInterval(timer)
-  }, [lock, shot, status, interrupted, peek, aspect, videoSize])
+  // A stable coarse match is framing assistance, not geometric verification.
+  // Automatic capture returns only after real-image quality acceptance is proven.
 
   if (shot) {
     return (
@@ -1053,9 +1002,7 @@ export function RephotoCamera({
           releaseCanvas(shot.canvas)
           report("retake")
           capturing.current = false
-          captureSince.current = 0
           setLastPlacement(null)
-          setAutoProgress(0)
           setShot(null)
         }}
       />
@@ -1149,11 +1096,7 @@ export function RephotoCamera({
 
         <MatcherGuide
           hidden={status !== "live" || interrupted || peek}
-          autoProgress={autoProgress}
-          automatic={
-            typeof HTMLVideoElement !== "undefined" &&
-            "requestVideoFrameCallback" in HTMLVideoElement.prototype
-          }
+          stable={!!lock?.steady}
         />
 
         {debugText && (
@@ -1178,28 +1121,8 @@ export function RephotoCamera({
           aria-label="Take photo"
           disabled={status !== "live" || interrupted}
           onClick={() => capture()}
-          className={`relative grid size-[4.5rem] place-items-center rounded-full border-4 transition-[transform,border-color] duration-300 active:scale-95 disabled:opacity-40 ${
-            lock?.steady ? "border-accent" : "border-white"
-          }`}
+          className="relative grid size-[4.5rem] place-items-center rounded-full border-4 border-white transition-transform duration-300 active:scale-95 disabled:opacity-40"
         >
-          {autoProgress > 0 && (
-            <svg
-              aria-hidden
-              viewBox="0 0 80 80"
-              className="pointer-events-none absolute -inset-2 size-20 -rotate-90 text-accent"
-            >
-              <circle
-                cx="40"
-                cy="40"
-                r="37"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                pathLength="1"
-                strokeDasharray={`${autoProgress} 1`}
-              />
-            </svg>
-          )}
           <span className="size-14 rounded-full bg-white" />
         </button>
       </div>
