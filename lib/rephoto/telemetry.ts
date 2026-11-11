@@ -13,6 +13,7 @@ type Session = {
   ended: boolean
   id: string
   opened: number
+  startedAt: number
   run: number
   seq: number
   captures: number
@@ -31,6 +32,7 @@ const makeSession = (): Session => ({
   ended: false,
   id: crypto.randomUUID(),
   opened: now(),
+  startedAt: Date.now(),
   run: 0,
   seq: 0,
   captures: 0,
@@ -152,6 +154,7 @@ export function flushTelemetry() {
   const envelope = () => ({
     version: 2,
     session: owner.id,
+    startedAt: owner.startedAt,
     build: buildLabel(process.env.NEXT_PUBLIC_CAMERA_BUILD),
     browser: browserName(),
     seq: owner.seq,
@@ -221,4 +224,20 @@ export function browserName() {
   if (/CriOS|Chrome\//.test(agent)) return "chrome"
   if (/Safari\//.test(agent)) return "safari"
   return "other"
+}
+
+// A per-upload correlation tag, never an account ID or upload credential.
+export async function submissionTag(key: string): Promise<string | null> {
+  try {
+    const hash = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(key)
+    )
+    return Array.from(new Uint8Array(hash))
+      .map((n) => n.toString(16).padStart(2, "0"))
+      .join("")
+      .slice(0, 16)
+  } catch {
+    return null
+  }
 }

@@ -59,6 +59,9 @@ export async function POST(request: Request) {
       clean = {
         version: 2,
         session: input.session,
+        startedAt: boundedNumber(input.startedAt, 1577836800000, 4102444800000)
+          ? Math.round(input.startedAt)
+          : null,
         build: buildLabel(input.build),
         browser: BROWSERS.includes(input.browser) ? input.browser : "other",
         seq: input.seq,

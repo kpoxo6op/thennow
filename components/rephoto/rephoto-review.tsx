@@ -20,7 +20,7 @@ import {
 import { loadImage } from "@/lib/rephoto/pixels"
 import { referenceLines } from "@/lib/rephoto/reference-lines"
 import { newKey, sendPhoto } from "@/lib/rephoto/submit"
-import { report } from "@/lib/rephoto/telemetry"
+import { diagnostic, report, submissionTag } from "@/lib/rephoto/telemetry"
 import { ReferenceTrace } from "@/components/rephoto/reference-trace"
 
 export type Shot = {
@@ -330,6 +330,17 @@ export function RephotoReview({
   }, [sending])
 
   // Set at once, so a quick second tap can't start a second send before the screen updates.
+  useEffect(() => {
+    if (phase === "aligning") return
+    diagnostic("framing", {
+      phase,
+      cropX: crop.cx / shot.canvas.width,
+      cropY: crop.cy / shot.canvas.height,
+      cropWidth: crop.width / shot.canvas.width,
+      cropRotation: crop.rotation,
+      aspect,
+    })
+  }, [phase, crop, aspect, shot])
   const sendingRef = useRef(false)
   const send = async () => {
     if (!file || sendingRef.current) return
@@ -347,7 +358,12 @@ export function RephotoReview({
     })
     report(
       "send",
-      { bytes: file.size, phase, ms: Math.round(performance.now() - began) },
+      {
+        bytes: file.size,
+        phase,
+        ms: Math.round(performance.now() - began),
+        submissionTag: await submissionTag(key),
+      },
       { result }
     )
     sendingRef.current = false

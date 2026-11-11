@@ -16,6 +16,15 @@ export const BROWSERS = [
   "other",
 ]
 const fields: Record<string, string[]> = {
+  experiment: ["reference", "mode", "overlay", "features"],
+  "guide view": [
+    "view",
+    "overlay",
+    "reveal",
+    "viewportWidth",
+    "viewportHeight",
+  ],
+  framing: ["phase", "cropX", "cropY", "cropWidth", "cropRotation", "aspect"],
   open: ["gpu", "saveData", "browser", "matcher"],
   stream: ["ask", "allowed", "width", "height", "fps"],
   "stream failed": ["ask", "error"],
@@ -47,6 +56,15 @@ const fields: Record<string, string[]> = {
     "framing",
     "how",
     "capture",
+    "cropX",
+    "cropY",
+    "cropWidth",
+    "cropRotation",
+    "aspect",
+    "frameAge",
+    "mediaTime",
+    "reveal",
+    "overlay",
   ],
   retake: ["capture"],
   review: [
@@ -60,7 +78,7 @@ const fields: Record<string, string[]> = {
     "capture",
     "error",
   ],
-  send: ["bytes", "phase", "ms", "result", "capture"],
+  send: ["bytes", "phase", "ms", "result", "capture", "submissionTag"],
   save: ["bytes", "how", "phase", "capture"],
   "save failed": ["cancelled", "error", "capture"],
   turned: ["ok", "to"],
@@ -112,6 +130,8 @@ const fields: Record<string, string[]> = {
   "session end": ["reason"],
 }
 const enums: Record<string, string[]> = {
+  mode: ["traces", "split"],
+  view: ["archive", "traces", "split"],
   browser: BROWSERS,
   matcher: ["phone", "server", "traced"],
   backend: ["local", "remote", "none", "phone", "server"],
@@ -243,7 +263,10 @@ export function sanitizeDetails(
   const output: Record<string, TelemetryValue> = {}
   for (const key of fields[event]) {
     const value = input[key]
-    if (value === null) output[key] = null
+    if (key === "submissionTag") {
+      if (typeof value === "string" && /^[a-f0-9]{16}$/.test(value))
+        output[key] = value
+    } else if (value === null) output[key] = null
     else if (enums[key]) {
       if (typeof value === "string" && enums[key].includes(value))
         output[key] = value
