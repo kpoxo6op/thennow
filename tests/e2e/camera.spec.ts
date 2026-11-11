@@ -132,7 +132,7 @@ test.describe("the rephotography camera", () => {
     await expect(page.getByText(/Turn sideways|Hold upright/)).toHaveCount(0)
   })
 
-  test("the live view shows only the old photograph over the camera, a close button and the shutter", async ({
+  test("the live view keeps the old photograph in frame and guide clear of the shutter", async ({
     page,
   }) => {
     const place = archive("mission-house")
@@ -170,10 +170,19 @@ test.describe("the rephotography camera", () => {
       video.top + video.height + 0.5
     )
 
-    // No words on a landscape screen for a landscape photograph.
+    // Guidance is deliberately visible in landscape, without covering the photo controls.
     await page.setViewportSize({ width: 844, height: 390 })
-    const words = await page.getByTestId("rephoto-camera").innerText()
-    expect(words.trim()).toBe("")
+    const guide = page.getByTestId("matcher-guide")
+    await expect(guide).toBeVisible()
+    await expect(page.getByRole("link", { name: "Close camera" })).toBeVisible()
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    await expect
+      .poll(async () => {
+        const help = await guide.boundingBox()
+        const shutter = await page.getByTestId("rephoto-shutter").boundingBox()
+        return !!help && !!shutter && help.x + help.width < shutter.x
+      })
+      .toBe(true)
   })
 
   test("holding the view hides the old photograph until let go", async ({
