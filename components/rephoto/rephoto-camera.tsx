@@ -36,6 +36,7 @@ import {
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { slide, thumb, type Thumb } from "@/lib/rephoto/track"
 import { releaseScreen } from "@/components/rephoto/camera-link"
+import { LiveDivider } from "@/components/rephoto/live-divider"
 import { MatcherGuide } from "@/components/rephoto/matcher-guide"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
@@ -51,7 +52,6 @@ type Box = { left: number; top: number; width: number; height: number }
 
 // The resting guide sits a little inside the camera's view, leaving room to turn the crop.
 const GHOST_FILL = 0.9
-const GHOST_OPACITY = 0.4
 const MAX_TILT_RADIANS = (15 * Math.PI) / 180
 
 function fit(aspect: number, width: number, height: number, fill = 1) {
@@ -235,14 +235,14 @@ export function RephotoCamera({
       onDebug = null
     }
   }, [])
-  const [peek, setPeek] = useState(false)
+  const [reveal, setReveal] = useState(50)
   const capturing = useRef(false)
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
     crop: Crop
     // Found twice running in the same place.
     held: boolean
-    // Held, and the whole old view is inside the picture: ready to shoot.
+    // Temporally stable; this is not a photographic accuracy measurement.
     steady: boolean
     at: number
     // Carried along by the follower between matches: the ghost moves in short, even steps.
@@ -1072,13 +1072,14 @@ export function RephotoCamera({
 
   // Where the camera picture and the archive view sit on screen.
   let ghost: (Box & { rotation: number }) | null = null
+  let view: Box | null = null
   if (videoSize.width && stage.width) {
     const shown = fit(
       videoSize.height / videoSize.width,
       stage.width,
       stage.height
     )
-    const view = {
+    view = {
       ...shown,
       left: (stage.width - shown.width) / 2,
       top: (stage.height - shown.height) / 2,
@@ -1206,10 +1207,6 @@ export function RephotoCamera({
             : "none"
         }
         className="relative min-h-0 flex-1 touch-none select-none overflow-hidden [-webkit-touch-callout:none]"
-        onPointerDown={() => setPeek(true)}
-        onPointerUp={() => setPeek(false)}
-        onPointerCancel={() => setPeek(false)}
-        onPointerLeave={() => setPeek(false)}
         onContextMenu={(event) => event.preventDefault()}
       >
         <video
@@ -1222,38 +1219,61 @@ export function RephotoCamera({
           onLoadedMetadata={onVideoSize}
           onResize={onVideoSize}
         />
-        {ghost && (
+        {ghost && view && (
           <div
-            key={lock || lastPlacement ? "tracked" : "resting"}
-            data-testid="rephoto-frame"
-            className={`tn-enter pointer-events-none absolute transition-[left,top,width,height,transform] motion-reduce:transition-none ${
-              // The follower's small steps run into each other; a new match's jump eases in.
-              lock?.followed
-                ? "duration-[250ms] ease-linear"
-                : "duration-300 ease-out"
-            }`}
+            className="pointer-events-none absolute inset-0"
             style={{
-              left: ghost.left,
-              top: ghost.top,
-              width: ghost.width,
-              height: ghost.height,
-              transform: `rotate(${ghost.rotation}rad)`,
+              clipPath: `inset(${view.top}px ${stage.width - view.left - (view.width * reveal) / 100}px ${stage.height - view.top - view.height}px ${view.left}px)`,
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={thenSrc}
-              alt=""
-              aria-hidden
-              draggable={false}
-              data-testid="rephoto-ghost"
-              className="size-full transition-opacity duration-150"
+            <div
+              key={lock || lastPlacement ? "tracked" : "resting"}
+              data-testid="rephoto-frame"
+              className={`tn-enter pointer-events-none absolute transition-[left,top,width,height,transform] motion-reduce:transition-none ${
+                // The follower's small steps run into each other; a new match's jump eases in.
+                lock?.followed
+                  ? "duration-[250ms] ease-linear"
+                  : "duration-300 ease-out"
+              }`}
               style={{
-                opacity: peek || (!lock && lastPlacement) ? 0 : GHOST_OPACITY,
+                left: ghost.left,
+                top: ghost.top,
+                width: ghost.width,
+                height: ghost.height,
+                transform: `rotate(${ghost.rotation}rad)`,
               }}
-            />
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={thenSrc}
+                alt=""
+                aria-hidden
+                draggable={false}
+                data-testid="rephoto-ghost"
+                className="size-full transition-opacity duration-150"
+                style={{
+                  opacity: !lock && lastPlacement ? 0 : 1,
+                }}
+              />
+            </div>
           </div>
         )}
+        {view &&
+          status === "live" &&
+          !interrupted &&
+          !(!lock && lastPlacement) && (
+            <div
+              className="pointer-events-none absolute"
+              style={{
+                left: view.left,
+                top: view.top,
+                width: view.width,
+                height: view.height,
+              }}
+            >
+              <LiveDivider value={reveal} onChange={setReveal} />
+            </div>
+          )}
 
         {status === "error" && (
           <div className="absolute inset-x-6 top-1/2 mx-auto max-w-xs -translate-y-1/2 text-center">
@@ -1274,8 +1294,8 @@ export function RephotoCamera({
         )}
 
         <MatcherGuide
-          hidden={status !== "live" || interrupted || peek}
-          stable={!!lock?.steady}
+          hidden={status !== "live" || interrupted}
+          found={!!lock?.held}
         />
 
         {debugText && (
