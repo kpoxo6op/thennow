@@ -29,7 +29,6 @@ do not already catch it; prefer extending or replacing an existing journey.
 | `posts.spec.ts`                          | Every image decodes with the dimensions its record declares.                                                                                                                                                              | One data-integrity pass over all assets, independent decoded metadata; no browser per file.                                                                              |
 | `preview.spec.ts`                        | Finished and pending story previews serve real optimized images; sitemap excludes private routes.                                                                                                                         | Two representative rendering branches replace browser runs for every content record.                                                                                     |
 | `track.spec.ts`                          | Known noisy translation and rejection of blank/repeating/unrelated images.                                                                                                                                                | Independent synthetic ground truth catches a wrong sign or false movement. Does not establish field tracking.                                                            |
-| `zoom.spec.ts`                           | Zoom request <=2x, rectangle remains in frame, unsupported zoom refused and overflow backs out.                                                                                                                           | Independent geometry bounds; no expected safety value imported from implementation. Does not establish hardware zoom.                                                    |
 
 Removed `camera-zoom.spec.ts`: it changed reported camera settings without changing
 frames. `fake-ort.mjs` calls the **server** matcher and returns constructed model
@@ -205,3 +204,15 @@ expects is not an independent oracle. For a new regression test, demonstrate
 that the old bug or a small credible fault fails it when feasible; do not build
 a mutation-testing programme for every edit. Count, coverage, runnable status
 and an agent's approval are not evidence of real device behaviour.
+
+## Automatic camera capture
+
+The existing matcher-guide journey now owns the observed St Heliers regression:
+one inconsistent model placement must not move the accepted overlay; lost tracking
+must fade it in place and cancel readiness. After fresh agreement and stillness,
+automatic capture reaches review without uploading. Manual capture while loading
+and with an unsupported matcher remains covered by the existing camera journeys.
+These checks use simulated inference and do not establish physical image quality.
+Live hardware autozoom is disabled; review crops the full captured frame instead.
+
+Removed the unused live-zoom calculations and their two math checks with the intentional removal of automatic hardware zoom. They no longer protect a production behavior.
