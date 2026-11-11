@@ -70,6 +70,9 @@ for (const [orientation, viewport] of Object.entries({
       reason?: string
       state?: string
       blockers?: number
+      frames?: number
+      selected?: number
+      assisted?: boolean
       capture: number
       run: number
     }
@@ -357,13 +360,33 @@ for (const [orientation, viewport] of Object.entries({
       )
     ).toBe(true)
     expect(batches.length).toBeLessThan(events().length)
-    // Curated traces are fixed aiming targets. Matcher output must not silently
-    // replace the exact crop that the photographer composed against them.
+    // Curated traces are fixed aiming targets. This unrelated camera fixture must
+    // retain the photographer's manual crop even if the model offers a positive
+    // identity match. A coarse positive is not independent regional edge evidence.
+    await runtime(
+      page,
+      ort
+        .replace(
+          "if (window.__matcherDown || bytes.every((value) => value === 0))",
+          "if (false)"
+        )
+        .replace(
+          'const response = await fetch("/api/align", { method: "POST", body: bytes })',
+          `const response = { ok: true, json: async () => ({ matches:
+          Array.from({ length: 100 }, (_, i) => {
+            const u = 0.1 + (i % 10) * 0.08;
+            const v = 0.1 + Math.floor(i / 10) * 0.08;
+            return [u, v, u + 0.02, v];
+          })
+        }) }`
+        )
+    )
     for (const slug of [
       "bradley-lane-line-road",
       "tamaki-road-board-offices",
     ]) {
       await page.setViewportSize({ width: 844, height: 390 })
+      const eventStart = events().length
       await page.goto(`/${slug}/camera`)
       await expect(page.getByTestId("reference-trace")).toBeVisible()
       await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
@@ -372,7 +395,28 @@ for (const [orientation, viewport] of Object.entries({
         "0.16"
       )
       const target = await page.getByTestId("rephoto-frame").boundingBox()
-      await page.waitForTimeout(500)
+      await expect(page.getByTestId("handheld-guide")).toHaveAttribute(
+        "data-state",
+        /searching|conflict|unavailable/
+      )
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              (window as unknown as { __localRuns: number }).__localRuns ?? 0
+          )
+        )
+        .toBeGreaterThan(1)
+      await expect(page.getByTestId("handheld-guide")).toHaveAttribute(
+        "data-state",
+        /searching|conflict|unavailable/
+      )
+      await expect(page.getByTestId("rephoto-review")).toHaveCount(0)
+      expect(
+        events()
+          .slice(eventStart)
+          .filter((e) => e.event === "shot")
+      ).toEqual([])
       expect(await page.getByTestId("rephoto-frame").boundingBox()).toEqual(
         target
       )
@@ -424,6 +468,21 @@ for (const [orientation, viewport] of Object.entries({
       expect(crop.cy).toBeCloseTo(size.height / 2, 0)
       expect(crop.rotation).toBe(0)
       await expect
+        .poll(
+          () =>
+            events()
+              .slice(eventStart)
+              .filter((e) => e.event === "burst").length
+        )
+        .toBe(1)
+      const burst = events()
+        .slice(eventStart)
+        .find((e) => e.event === "burst")!
+      expect(burst.assisted).toBe(false)
+      expect(burst.selected).toBe(0)
+      expect(burst.frames).toBeGreaterThanOrEqual(1)
+      expect(burst.frames).toBeLessThanOrEqual(3)
+      await expect
         .poll(() => events().filter((e) => e.event === "framing").length)
         .toBeGreaterThan(0)
       expect(events()).toEqual(
@@ -442,6 +501,7 @@ for (const [orientation, viewport] of Object.entries({
           expect.objectContaining({
             event: "shot",
             framing: "traced",
+            how: "manual",
             cropX: 0.5,
             cropY: 0.5,
             cropWidth: 0.9,
@@ -506,6 +566,31 @@ test("a photo can be taken while the guide downloads", async ({ page }) => {
   )
   await page.getByTestId("rephoto-shutter").click()
   await expect(page.getByTestId("rephoto-review")).toBeVisible()
+  // Traced assistance has the same independent manual-capture contract while
+  // identity acquisition is still loading; no wait for the model may block a shot.
+  await page.goto("/bradley-lane-line-road/camera")
+  await expect(page.getByTestId("handheld-guide")).toHaveAttribute(
+    "data-state",
+    "searching"
+  )
+  await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+  const size = await page
+    .getByTestId("rephoto-video")
+    .evaluate((video: HTMLVideoElement) => ({
+      width: video.videoWidth,
+      height: video.videoHeight,
+    }))
+  await page.getByTestId("rephoto-shutter").click()
+  await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+    "data-phase",
+    "unchecked"
+  )
+  const crop = JSON.parse(
+    (await page.getByTestId("rephoto-review").getAttribute("data-crop"))!
+  )
+  expect(crop.cx).toBeCloseTo(size.width / 2, 0)
+  expect(crop.cy).toBeCloseTo(size.height / 2, 0)
+  expect(crop.rotation).toBe(0)
 })
 
 // The existing camera tests own matching/capture geometry, not loading feedback. A streamed
@@ -584,7 +669,9 @@ test("a late session cannot overwrite failure or a newer guide session", async (
   await page.clock.install()
   await page.goto("/mission-house/camera")
   const guide = page.getByTestId("matcher-guide")
-  await expect(guide).toHaveAttribute("data-state", "starting")
+  await expect(guide).toHaveAttribute("data-state", "starting", {
+    timeout: 15_000,
+  })
   await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
   await page.clock.fastForward(90_001)
   await expect(guide).toHaveAttribute("data-state", "failed")
@@ -635,10 +722,13 @@ test("a hung first inference leaves starting and recovers without disabling capt
   await page.goto("/mission-house/camera")
   const guide = page.getByTestId("matcher-guide")
   await expect
-    .poll(() =>
-      page.evaluate(
-        () => (window as unknown as { __ranGuide: boolean }).__ranGuide
-      )
+    .poll(
+      () =>
+        page.evaluate(
+          () => (window as unknown as { __ranGuide: boolean }).__ranGuide
+        ),
+      // Wait for the real model bytes before testing the simulated inference deadline.
+      { timeout: 15_000 }
     )
     .toBe(true)
   await expect(guide).toHaveAttribute("data-state", "starting")

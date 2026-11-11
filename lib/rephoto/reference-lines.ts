@@ -4,7 +4,7 @@ export const TRACE_OVERLAY_OPACITY = 0.16
 // of that image, not detections or a claim that the modern scene is unchanged.
 export type ReferenceLines = {
   image: string
-  features: { name: string; points: [number, number][] }[]
+  features: { name: string; points: [number, number][]; region?: string }[]
 }
 const guides: Record<string, ReferenceLines> = {
   "bradley-lane-line-road": {
@@ -12,6 +12,7 @@ const guides: Record<string, ReferenceLines> = {
     features: [
       {
         name: "Mural wall corner",
+        region: "wall",
         points: [
           [0.396, 0.01],
           [0.392, 0.81],
@@ -36,6 +37,7 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Foot of mural wall",
+        region: "wall",
         points: [
           [0.01, 0.787],
           [0.391, 0.825],
@@ -43,6 +45,7 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Front canopy underside",
+        region: "canopy",
         points: [
           [0.416, 0.311],
           [0.864, 0.294],
@@ -64,6 +67,7 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Receding canopy edge",
+        region: "canopy",
         points: [
           [0.864, 0.294],
           [0.894, 0.412],
@@ -92,6 +96,7 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Right roof ridge near frame edge",
+        region: "roof",
         points: [
           [0.9, 0.21],
           [0.985, 0.215],
@@ -99,6 +104,7 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Left wing eaves",
+        region: "roof",
         points: [
           [0.538, 0.374],
           [0.602, 0.366],
@@ -114,6 +120,7 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Right roof hip",
+        region: "roof",
         points: [
           [0.845, 0.323],
           [0.899, 0.218],
@@ -121,6 +128,7 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Eaves across the right facade",
+        region: "roof",
         points: [
           [0.694, 0.35],
           [0.85, 0.335],
@@ -129,6 +137,7 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Right edge window frame",
+        region: "window",
         points: [
           [0.947, 0.4],
           [0.947, 0.533],
