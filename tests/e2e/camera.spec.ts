@@ -333,6 +333,24 @@ test.describe("the rephotography camera", () => {
     expect(serverCalls).toBe(1)
   })
 
+  test("a phone that asks to save data still gets the live guide", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, "connection", {
+        configurable: true,
+        get: () => ({ saveData: true }),
+      })
+    })
+    await onPhoneMatcher(page)
+    await openCamera(page, "mission-house")
+    await expect(page.getByTestId("rephoto-stage")).toHaveAttribute(
+      "data-lock",
+      /found|held|steady/,
+      { timeout: 30_000 }
+    )
+  })
+
   test("a server that takes over ten seconds to match still lines the shot up", async ({
     page,
   }) => {

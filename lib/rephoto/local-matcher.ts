@@ -42,8 +42,10 @@ const STUCK_MS = 15_000
 // Set for good once the graphics chip turns out to lack half precision.
 let unsupported = false
 
-// Cellular users who asked to save data aren't sent the 22 MB matcher.
-function saveData() {
+// Asking to save data doesn't turn the matcher off: someone who opens the camera came to take
+// the photo, and the 22 MB model is fetched once and then kept (its name changes with it). Turning
+// it off left a Pixel on 5G with no live guide at Glen Innes, 11 Nov 2026.
+export function saveData() {
   return !!(navigator as { connection?: { saveData?: boolean } }).connection
     ?.saveData
 }
@@ -52,7 +54,6 @@ export function canMatchLocally() {
   return (
     !unsupported &&
     typeof navigator !== "undefined" &&
-    !saveData() &&
     "gpu" in navigator &&
     !!navigator.gpu
   )

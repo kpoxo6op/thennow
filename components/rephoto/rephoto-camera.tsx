@@ -22,6 +22,7 @@ import {
   canMatchLocally,
   localMatcherReady,
   prepareLocalMatcher,
+  saveData,
 } from "@/lib/rephoto/local-matcher"
 import { loadImage } from "@/lib/rephoto/pixels"
 import { browserName, report } from "@/lib/rephoto/telemetry"
@@ -246,6 +247,7 @@ export function RephotoCamera({
       {
         screen: `${screen.width}x${screen.height}`,
         gpu: "gpu" in navigator,
+        saveData: saveData(),
       },
       {
         browser: browserName(),
