@@ -30,6 +30,7 @@ import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { slide, thumb, type Thumb } from "@/lib/rephoto/track"
 import { zoomed, zoomFor, type ZoomRange } from "@/lib/rephoto/zoom"
 import { releaseScreen } from "@/components/rephoto/camera-link"
+import { MatcherGuide } from "@/components/rephoto/matcher-guide"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
 interface Props {
@@ -503,7 +504,6 @@ export function RephotoCamera({
     // in the whole picture is looked for in its middle, every other try, until found.
     let reach = 1
     let buzzed = false
-    let nextLoad = 0
     const stats = {
       runs: 0,
       found: 0,
@@ -665,8 +665,7 @@ export function RephotoCamera({
       while (!controller.signal.aborted) {
         const started = performance.now()
         // A matcher that failed to load or lost its graphics device is tried again, gently.
-        if (!localMatcherReady() && canMatchLocally() && started >= nextLoad) {
-          nextLoad = started + 15_000
+        if (!localMatcherReady() && canMatchLocally()) {
           prepareLocalMatcher()?.catch(() => {})
         }
         // Nothing is looked at while the zoom moves.
@@ -1043,6 +1042,10 @@ export function RephotoCamera({
               {error ? "Try again" : "Start camera"}
             </button>
           </div>
+        )}
+
+        {status === "live" && !interrupted && (
+          <MatcherGuide steady={!!lock?.steady} hidden={peek} />
         )}
 
         {debugText && (
