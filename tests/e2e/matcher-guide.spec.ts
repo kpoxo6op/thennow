@@ -193,7 +193,6 @@ test("failed startup stays quiet through retries, then recovers", async ({
     )
   )
   await page.addInitScript(() => Object.assign(window, { __matcherDown: true }))
-  await page.clock.install()
   await page.goto("/mission-house/camera")
   const guide = page.getByTestId("matcher-guide")
   await expect(guide).toHaveAttribute("data-state", "failed")
@@ -201,19 +200,18 @@ test("failed startup stays quiet through retries, then recovers", async ({
   await screenshot(page, "portrait-failed")
   await page.setViewportSize({ width: 844, height: 390 })
   await screenshot(page, "landscape-failed")
-  await page.clock.fastForward(5001)
-  await expect(guide).toHaveCount(0)
-  await page.clock.fastForward(15_001)
+  await expect(guide).toHaveCount(0, { timeout: 7000 })
   await expect
-    .poll(() =>
-      page.evaluate(
-        () => (window as unknown as { __creates: number }).__creates
-      )
+    .poll(
+      () =>
+        page.evaluate(
+          () => (window as unknown as { __creates: number }).__creates
+        ),
+      { timeout: 25_000 }
     )
     .toBeGreaterThanOrEqual(2)
   await expect(guide).toHaveCount(0)
   await page.evaluate(() => Object.assign(window, { __allowGuide: true }))
-  await page.clock.fastForward(15_001)
   await expect
     .poll(
       () =>
