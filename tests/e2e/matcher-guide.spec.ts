@@ -56,9 +56,10 @@ async function runtime(page: Page, body = ort) {
 
 for (const [orientation, viewport] of Object.entries({
   portrait: { width: 390, height: 844 },
+  narrow: { width: 320, height: 568 },
   landscape: { width: 844, height: 390 },
 })) {
-  test(`${orientation}: guide reports real startup, searching and alignment without blocking framing`, async ({
+  test(`${orientation}: loading is visible, then the camera stays clear during searching and alignment`, async ({
     page,
   }) => {
     test.setTimeout(60_000)
@@ -87,20 +88,24 @@ for (const [orientation, viewport] of Object.entries({
     const guide = page.getByTestId("matcher-guide")
     await expect(guide).toHaveAttribute("data-state", "loading")
     await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    await expect(
+      page.getByTestId("rephoto-camera").getByRole("button")
+    ).toHaveCount(1)
+    const pill = await guide.locator("div").boundingBox()
+    const close = await page
+      .getByRole("link", { name: "Close camera" })
+      .boundingBox()
+    expect(pill!.height).toBeLessThanOrEqual(close!.height)
+    expect(pill!.x).toBeGreaterThanOrEqual(close!.x + close!.width)
     await screenshot(page, `${orientation}-loading`)
-    await guide.getByRole("button", { name: "Guide", exact: true }).click()
-    await expect(guide.getByText(/Move slowly/)).toBeVisible()
-    await screenshot(page, `${orientation}-help`)
     release()
     await expect(guide).toHaveAttribute("data-state", "starting")
     await screenshot(page, `${orientation}-starting`)
     await page.evaluate(() => Object.assign(window, { __runGuide: true }))
-    await expect(guide).toHaveAttribute("data-state", "ready")
+    await expect(guide).toHaveCount(0)
     await expect(
-      guide.getByRole("button", { name: "Guide", exact: true })
-    ).toHaveAttribute("aria-expanded", "false")
-    await expect(guide).toContainText("Looking for the scene")
-    await expect(guide).not.toContainText("Loading live guide")
+      page.getByRole("button", { name: "Guide", exact: true })
+    ).toHaveCount(0)
     await screenshot(page, `${orientation}-searching`)
     await page.evaluate(() => Object.assign(window, { __matcherDown: false }))
     await expect(page.getByTestId("rephoto-stage")).toHaveAttribute(
@@ -108,7 +113,7 @@ for (const [orientation, viewport] of Object.entries({
       "steady",
       { timeout: 30_000 }
     )
-    await expect(guide).toContainText("Lined up")
+    await expect(guide).toHaveCount(0)
     await screenshot(page, `${orientation}-lined-up`)
     // Loss of alignment must not leave a misleading shoot cue.
     await page.evaluate(() => Object.assign(window, { __matcherDown: true }))
@@ -117,25 +122,25 @@ for (const [orientation, viewport] of Object.entries({
       "none",
       { timeout: 15_000 }
     )
-    await expect(guide).toContainText("Looking for the scene")
+    await expect(guide).toHaveCount(0)
   })
 }
 
 for (const capability of ["none", "no-f16"] as const) {
-  test(`${capability}: unsupported guide explains post-shot alignment and Chrome`, async ({
+  test(`${capability}: unavailable notice is brief and capture remains usable`, async ({
     page,
   }) => {
     await gpu(page, capability)
     await page.goto("/mission-house/camera")
     const guide = page.getByTestId("matcher-guide")
     await expect(guide).toHaveAttribute("data-state", "unsupported")
-    await expect(guide).toContainText("line it up afterwards")
+    await expect(guide).toContainText("Live guide unavailable")
     await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
-    await guide.getByRole("button", { name: "Guide", exact: true }).click()
-    await expect(guide).toContainText("Chrome on a supported phone")
     await screenshot(page, `portrait-unsupported-${capability}`)
     await page.setViewportSize({ width: 844, height: 390 })
     await screenshot(page, `landscape-unsupported-${capability}`)
+    await expect(guide).toHaveCount(0, { timeout: 7000 })
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
   })
 }
 
@@ -153,7 +158,7 @@ test("a photo can be taken while the guide downloads", async ({ page }) => {
   await expect(page.getByTestId("rephoto-review")).toBeVisible()
 })
 
-test("failed startup explains fallback, and a later retry restores live guidance", async ({
+test("failed startup stays quiet through retries, then recovers", async ({
   page,
 }) => {
   test.setTimeout(60_000)
@@ -163,25 +168,44 @@ test("failed startup explains fallback, and a later retry restores live guidance
     ort.replace(
       "create: async () => ({ run })",
       `create: async () => {
+    window.__creates = (window.__creates ?? 0) + 1;
     if (!window.__allowGuide) throw new Error("Test device failure");
     return { run };
   }`
     )
   )
   await page.addInitScript(() => Object.assign(window, { __matcherDown: true }))
+  await page.clock.install()
   await page.goto("/mission-house/camera")
   const guide = page.getByTestId("matcher-guide")
   await expect(guide).toHaveAttribute("data-state", "failed")
   await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
-  await guide.getByRole("button", { name: "Guide", exact: true }).click()
-  await expect(guide).toContainText("try again while you frame")
   await screenshot(page, "portrait-failed")
   await page.setViewportSize({ width: 844, height: 390 })
   await screenshot(page, "landscape-failed")
+  await page.clock.fastForward(5001)
+  await expect(guide).toHaveCount(0)
+  await page.clock.fastForward(15_001)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as unknown as { __creates: number }).__creates
+      )
+    )
+    .toBeGreaterThanOrEqual(2)
+  await expect(guide).toHaveCount(0)
   await page.evaluate(() => Object.assign(window, { __allowGuide: true }))
-  await expect(guide).toHaveAttribute("data-state", "ready", {
-    timeout: 25_000,
-  })
+  await page.clock.fastForward(15_001)
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => (window as unknown as { __localRuns: number }).__localRuns ?? 0
+        ),
+      { timeout: 25_000 }
+    )
+    .toBeGreaterThan(0)
+  await expect(guide).toHaveCount(0)
 })
 
 // The existing camera tests own matching/capture geometry, not loading feedback. A streamed
@@ -212,11 +236,12 @@ test("downloaded bytes are measured and a stalled startup falls back", async ({
   })
   await page.clock.install()
   await page.goto("/mission-house/camera")
-  await expect(page.getByTestId("matcher-progress")).toHaveText(
-    "Model downloaded: 0.5 MB"
-  )
+  await expect(page.getByTestId("matcher-progress")).toHaveText("0.5 MB")
   await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
-  await screenshot(page, "portrait-progress")
+  await expect(page.getByTestId("matcher-progress")).toBeHidden()
+  await page.setViewportSize({ width: 844, height: 390 })
+  await expect(page.getByTestId("matcher-progress")).toBeVisible()
+  await screenshot(page, "landscape-progress")
   await page.clock.fastForward(90_001)
   await expect
     .poll(() =>
@@ -232,7 +257,7 @@ test("downloaded bytes are measured and a stalled startup falls back", async ({
     "failed"
   )
   await expect(page.getByTestId("matcher-guide")).toContainText(
-    "line it up afterwards"
+    "Live guide unavailable"
   )
 })
 
@@ -275,9 +300,16 @@ test("a late session cannot overwrite failure or a newer guide session", async (
     .toBe(true)
   await expect(guide).toHaveAttribute("data-state", "failed")
   await page.clock.fastForward(15_001)
-  await expect(guide).toHaveAttribute("data-state", "ready", {
-    timeout: 10_000,
-  })
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => (window as unknown as { __localRuns: number }).__localRuns ?? 0
+        ),
+      { timeout: 10_000 }
+    )
+    .toBeGreaterThan(0)
+  await expect(guide).toHaveCount(0)
 })
 
 // Only a delayed run exposes the shader-warmup wait and its deadline; creation tests do not.
@@ -317,7 +349,14 @@ test("a hung first inference leaves starting and recovers without disabling capt
   await expect(guide).toHaveAttribute("data-state", "failed")
   await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
   await page.clock.fastForward(15_001)
-  await expect(guide).toHaveAttribute("data-state", "ready", {
-    timeout: 10_000,
-  })
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => (window as unknown as { __localRuns: number }).__localRuns ?? 0
+        ),
+      { timeout: 10_000 }
+    )
+    .toBeGreaterThan(0)
+  await expect(guide).toHaveCount(0)
 })
