@@ -1266,7 +1266,7 @@ export function RephotoCamera({
                   opacity: trace
                     ? showArchive
                       ? 1
-                      : 0
+                      : 0.16
                     : !lock && lastPlacement
                       ? 0
                       : 1,

@@ -2,7 +2,9 @@
 
 Bradley Lane and the former Tamaki Road Board offices have an editorial tracing
 pilot. A few structural lines from the archive sit over the clear live camera.
-The target stays fixed while the photographer aims. This follows Boris's manual
+A faint full archive underneath supplies context beyond the selected lines,
+including lower features and any visible horizon. The target stays fixed while
+the photographer aims. This follows Boris's manual
 tracing-paper technique; it is not automatic feature detection or an accuracy score.
 
 `lib/rephoto/reference-lines.ts` binds normalized vertices to the archive image

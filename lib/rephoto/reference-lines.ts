@@ -16,6 +16,13 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
+        name: "Foot of mural wall",
+        points: [
+          [0.01, 0.787],
+          [0.391, 0.825],
+        ],
+      },
+      {
         name: "Front canopy underside",
         points: [
           [0.416, 0.311],
