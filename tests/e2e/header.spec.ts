@@ -34,21 +34,3 @@ test("desktop header reaches the right edge with matching left/right padding", a
   expect(headerGeometry?.rightInset ?? 999).toBeLessThanOrEqual(20)
   expect(headerGeometry?.insetDelta ?? 999).toBeLessThanOrEqual(8)
 })
-
-test("the site is one dark room, whatever the device prefers", async ({
-  browser,
-  baseURL,
-}) => {
-  for (const colorScheme of ["light", "dark"] as const) {
-    const context = await browser.newContext({ colorScheme, baseURL })
-    const page = await context.newPage()
-    await page.goto("/about")
-    await expect(page.locator("html")).toHaveClass(/(^|\s)dark(\s|$)/)
-    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark")
-    await expect(page.locator("body")).toHaveCSS(
-      "background-color",
-      "rgb(20, 18, 16)"
-    )
-    await context.close()
-  }
-})

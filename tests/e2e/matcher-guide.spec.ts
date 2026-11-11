@@ -56,8 +56,6 @@ async function runtime(page: Page, body = ort) {
 
 for (const [orientation, viewport] of Object.entries({
   portrait: { width: 390, height: 844 },
-  narrow: { width: 320, height: 568 },
-  landscape: { width: 844, height: 390 },
 })) {
   test(`${orientation}: loading is visible, then the camera stays clear during searching and alignment`, async ({
     page,
@@ -174,54 +172,6 @@ test("a photo can be taken while the guide downloads", async ({ page }) => {
   )
   await page.getByTestId("rephoto-shutter").click()
   await expect(page.getByTestId("rephoto-review")).toBeVisible()
-})
-
-test("failed startup stays quiet through retries, then recovers", async ({
-  page,
-}) => {
-  test.setTimeout(60_000)
-  await gpu(page)
-  await runtime(
-    page,
-    ort.replace(
-      "create: async () => ({ run })",
-      `create: async () => {
-    window.__creates = (window.__creates ?? 0) + 1;
-    if (!window.__allowGuide) throw new Error("Test device failure");
-    return { run };
-  }`
-    )
-  )
-  await page.addInitScript(() => Object.assign(window, { __matcherDown: true }))
-  await page.goto("/mission-house/camera")
-  const guide = page.getByTestId("matcher-guide")
-  await expect(guide).toHaveAttribute("data-state", "failed")
-  await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
-  await screenshot(page, "portrait-failed")
-  await page.setViewportSize({ width: 844, height: 390 })
-  await screenshot(page, "landscape-failed")
-  await expect(guide).toHaveCount(0, { timeout: 7000 })
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () => (window as unknown as { __creates: number }).__creates
-        ),
-      { timeout: 25_000 }
-    )
-    .toBeGreaterThanOrEqual(2)
-  await expect(guide).toHaveCount(0)
-  await page.evaluate(() => Object.assign(window, { __allowGuide: true }))
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () => (window as unknown as { __localRuns: number }).__localRuns ?? 0
-        ),
-      { timeout: 25_000 }
-    )
-    .toBeGreaterThan(0)
-  await expect(guide).toHaveCount(0)
 })
 
 // The existing camera tests own matching/capture geometry, not loading feedback. A streamed

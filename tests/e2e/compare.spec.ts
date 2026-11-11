@@ -20,19 +20,19 @@ async function dragSliderToPercent(page: Page, percent: number) {
 }
 
 test.describe("compare view", () => {
-  test("loads default compare state without a query param", async ({
+  test("default and explicit URL positions survive navigation and normalize the middle", async ({
     page,
   }) => {
     await page.goto(comparePath)
 
     await expect(page).toHaveURL(new RegExp(`${comparePath}$`))
     await expect(page.getByTestId("compare-slider-input")).toHaveValue("50")
-  })
-
-  test("reads compare state from the URL", async ({ page }) => {
+    await page.goto(`${comparePath}?p=50`)
+    await expect(page).toHaveURL(new RegExp(`${comparePath}$`))
     await page.goto(`${comparePath}?p=30`)
-
-    await expect(page).toHaveURL(new RegExp(`${comparePath}\\?p=30$`))
+    await expect(page.getByTestId("compare-slider-input")).toHaveValue("30")
+    await page.reload()
+    await expect(page).toHaveURL(/\?p=30$/)
     await expect(page.getByTestId("compare-slider-input")).toHaveValue("30")
   })
 

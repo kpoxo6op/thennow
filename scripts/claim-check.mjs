@@ -10,7 +10,7 @@ let r = await fetch(`${base}/api/me`)
 const A = cookieOf(r)
 const setA = r.headers.get("set-cookie")
 ok(r.status === 200 && /^[A-Za-z0-9_-]{32}$/.test(A ?? ""), "GET /api/me gives a cookie")
-ok(/Secure/.test(setA) && /HttpOnly/.test(setA) && /Max-Age=34560000/.test(setA), `cookie is Secure HttpOnly 400d: ${setA}`)
+ok(/Secure/.test(setA) && /HttpOnly/.test(setA) && /Max-Age=34560000/.test(setA), "cookie is Secure HttpOnly 400d")
 r = await fetch(`${base}/api/me`, { headers: H(A) })
 ok(cookieOf(r) === A, "GET with cookie renews the same one")
 

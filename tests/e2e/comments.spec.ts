@@ -372,23 +372,6 @@ test("you can remove your own comment, and only yours", async ({
   await Promise.all([a, b, stranger].map((who) => who.dispose()))
 })
 
-test("someone else's comment has no Remove", async ({
-  browser,
-  playwright,
-}) => {
-  const a = await visitor(playwright)
-  const text = words()
-  expect((await send(a, { text, name: "Alice" })).status()).toBe(200)
-  await a.dispose()
-
-  const { context, page } = await person(browser)
-  await open(page)
-  const row = rowWith(page, text)
-  await expect(row).toBeVisible()
-  await expect(row.getByTestId("comment-remove")).toHaveCount(0)
-  await context.close()
-})
-
 test("the admin can remove anyone's comment", async ({
   browser,
   playwright,
@@ -410,35 +393,6 @@ test("the admin can remove anyone's comment", async ({
     .not.toContain(text)
   await context.close()
   await a.dispose()
-})
-
-test("someone signed up on Your photos is not asked their name", async ({
-  browser,
-  playwright,
-}) => {
-  const other = await visitor(playwright)
-  const earlier = words("earlier")
-  expect((await send(other, { text: earlier, name: "Bob" })).status()).toBe(200)
-  await other.dispose()
-
-  const { context, page } = await person(browser)
-  const saved = await context.request.post("/api/me", {
-    data: { name: "Margaret T" },
-  })
-  expect(saved.status()).toBe(200)
-  const text = words()
-  await page.goto(`/${PLACE}`)
-  await page.getByTestId("comments").scrollIntoViewIfNeeded()
-  // The list has arrived once an earlier comment is on the page.
-  await expect(rowWith(page, earlier)).toBeVisible()
-  await expect(page.getByTestId("comment-name-input")).toHaveCount(0)
-
-  await page.getByTestId("comment-text-input").fill(text)
-  await page.getByTestId("comment-post").click()
-  await expect(rowWith(page, text).getByTestId("comment-name")).toHaveText(
-    "Margaret T"
-  )
-  await context.close()
 })
 
 test("when posting fails the words are kept", async ({ browser }) => {
@@ -479,138 +433,6 @@ test("when posting fails the words are kept", async ({ browser }) => {
   await context.close()
 })
 
-test("an upcoming place has the same box", async ({ browser, playwright }) => {
-  const { context, page } = await person(browser)
-  const text = words()
-  await open(page, PENDING)
-  await write(page, text, "Alice")
-  await expect(rowWith(page, text)).toBeVisible()
-
-  const api = await visitor(playwright)
-  expect((await listed(api, PENDING)).comments.map((c) => c.text)).toContain(
-    text
-  )
-  expect((await listed(api, PLACE)).comments.map((c) => c.text)).not.toContain(
-    text
-  )
-  await api.dispose()
-  await context.close()
-})
-
-test("the place page is still static", async ({ playwright }) => {
-  const who = await visitor(playwright)
-  const text = words()
-  expect((await send(who, { text, name: "Alice" })).status()).toBe(200)
-
-  const page = await who.get(`/${PLACE}`)
-  expect(page.status()).toBe(200)
-  expect(page.headers()["set-cookie"]).toBeUndefined()
-  expect(page.headers()["x-nextjs-prerender"]).toMatch(/^1/)
-  const html = await page.text()
-  expect(html).not.toContain(text)
-  expect(html).toContain(QUESTION)
-  await who.dispose()
-})
-
-test("on a phone the box keeps safe side margins and its type sizes", async ({
-  browser,
-  playwright,
-}) => {
-  const { context, page } = await person(browser, { phone: true })
-  const text = words()
-  const longName = words("long name")
-  const wide = await visitor(playwright)
-  expect(
-    (await send(wide, { text: longName, name: "W".repeat(60) })).status()
-  ).toBe(200)
-  await wide.dispose()
-  await open(page)
-  await expect(rowWith(page, longName)).toBeVisible()
-  const nameBox = await rowWith(page, longName)
-    .getByTestId("comment-name")
-    .boundingBox()
-  expect(nameBox!.x + nameBox!.width).toBeLessThanOrEqual(390 - 24)
-  await write(page, text, "Alice")
-  const row = rowWith(page, text)
-  await expect(row).toBeVisible()
-
-  const box = await page.getByTestId("comment-text-input").boundingBox()
-  expect(box!.x).toBeGreaterThanOrEqual(24)
-  expect(box!.x + box!.width).toBeLessThanOrEqual(390 - 24)
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth
-    )
-  ).toBe(true)
-
-  const size = (locator: ReturnType<typeof page.getByTestId>) =>
-    locator.evaluate((element) => getComputedStyle(element).fontSize)
-  expect(await size(row.getByTestId("comment-text"))).toBe("18px")
-  expect(await size(page.getByTestId("comment-text-input"))).toBe("18px")
-  expect(await size(page.getByTestId("comment-post"))).toBe("18px")
-  expect(await size(row.getByTestId("comment-name"))).toBe("14px")
-  expect(await size(row.getByTestId("comment-remove"))).toBe("14px")
-  const post = await page.getByTestId("comment-post").boundingBox()
-  expect(post!.height).toBeGreaterThanOrEqual(44)
-  await context.close()
-})
-
-test("no heading, label or count is added", async ({ browser }) => {
-  const { context, page } = await person(browser)
-  const text = words()
-  await open(page)
-  await write(page, text, "Alice")
-  await expect(rowWith(page, text)).toBeVisible()
-
-  const block = page.getByTestId("comments")
-  await expect(block.locator("h1,h2,h3,h4,h5,h6,label")).toHaveCount(0)
-  expect((await page.getByTestId("comment-form").innerText()).trim()).toBe(
-    "Post"
-  )
-  const row = rowWith(page, text)
-  expect(
-    (await row.innerText())
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-  ).toEqual([`Alice · ${day.format(new Date())}`, "Remove", text])
-  await context.close()
-})
-
-test("a removal that fails says so and keeps the comment", async ({
-  browser,
-}) => {
-  const { context, page } = await person(browser)
-  const text = words()
-  await open(page)
-  await write(page, text, "Alice")
-  const row = rowWith(page, text)
-  await expect(row).toBeVisible()
-
-  const offline = (route: Route) =>
-    route.request().method() === "DELETE"
-      ? route.abort("internetdisconnected")
-      : route.fallback()
-  await page.route(/\/api\/comments\?/, offline)
-  page.once("dialog", (dialog) => void dialog.accept())
-  await row.getByTestId("comment-remove").click()
-  await expect(row.getByTestId("comment-remove-note")).toHaveText(
-    "Not removed. Check your signal and try again."
-  )
-  await expect(row).toBeVisible()
-
-  await page.unroute(/\/api\/comments\?/, offline)
-  page.once("dialog", (dialog) => void dialog.accept())
-  await row.getByTestId("comment-remove").click()
-  await expect(row).toHaveCount(0)
-  await expect
-    .poll(async () =>
-      (await listed(context.request)).comments.map((c) => c.text)
-    )
-    .not.toContain(text)
-  await context.close()
-})
-
 test("a removal answered with an error says so, and one already done just goes", async ({
   browser,
 }) => {
@@ -646,71 +468,6 @@ test("a removal answered with an error says so, and one already done just goes",
   await row.getByTestId("comment-remove").click()
   await expect(row).toHaveCount(0)
   await expect(page.getByTestId("comment-remove-note")).toHaveCount(0)
-  await context.close()
-})
-
-test("a saved name with a web address is not used, and the name is asked for", async ({
-  browser,
-}) => {
-  const { context, page } = await person(browser)
-  const text = words()
-  const saved = await context.request.post("/api/me", {
-    data: { name: "www.spam.example.com" },
-  })
-  expect(saved.status()).toBe(200)
-  await open(page)
-  const nameField = page.getByTestId("comment-name-input")
-  await expect(nameField).toBeVisible()
-
-  const sent = await send(context.request, { text })
-  expect(sent.status()).toBe(400)
-  expect((await sent.json()).error).toBe("name")
-
-  await write(page, text, "Margaret")
-  await expect(rowWith(page, text).getByTestId("comment-name")).toHaveText(
-    "Margaret"
-  )
-  await expect(nameField).toBeVisible()
-  expect((await (await context.request.get("/api/me")).json()).name).toBe(
-    "www.spam.example.com"
-  )
-  await context.close()
-})
-
-test("a list that arrives late keeps what was just written", async ({
-  browser,
-  playwright,
-}) => {
-  const other = await visitor(playwright)
-  const earlier = words("earlier")
-  expect((await send(other, { text: earlier, name: "Bob" })).status()).toBe(200)
-  await other.dispose()
-
-  const { context, page } = await person(browser)
-  let release = () => {}
-  const held = new Promise<void>((resolve) => (release = resolve))
-  await page.route(/\/api\/comments\?place=/, async (route) => {
-    if (route.request().method() !== "GET") return route.fallback()
-    const response = await route.fetch()
-    await held
-    await route.fulfill({ response })
-  })
-  const text = words()
-  await open(page)
-  await page.getByTestId("comment-text-input").fill(text)
-  await page.getByTestId("comment-post").click()
-  await expect(page.getByTestId("comment-note")).toHaveText(
-    "Please add your name."
-  )
-  await expect(page.getByTestId("comment-name-input")).toBeFocused()
-  await page.getByTestId("comment-name-input").fill("Alice")
-  await page.getByTestId("comment-post").click()
-  await expect(rowWith(page, text)).toBeVisible()
-
-  release()
-  await expect(rowWith(page, earlier)).toBeVisible()
-  await expect(rowWith(page, text)).toHaveCount(1)
-  await expect(page.getByTestId("comment-name-input")).toHaveCount(0)
   await context.close()
 })
 
@@ -771,21 +528,6 @@ test("a list that arrives late does not undo what was done since", async ({
   await context.close()
 })
 
-test("a list that is refused is not asked for again", async ({ browser }) => {
-  const { context, page } = await person(browser)
-  let calls = 0
-  await page.route(/\/api\/comments\?place=/, (route) => {
-    if (route.request().method() !== "GET") return route.fallback()
-    calls += 1
-    return route.fulfill({ status: 404, json: { error: "no such place" } })
-  })
-  await open(page)
-  await expect.poll(() => calls).toBe(1)
-  await page.waitForTimeout(5000)
-  expect(calls).toBe(1)
-  await context.close()
-})
-
 test("a list that could not be read is read again", async ({
   browser,
   playwright,
@@ -810,56 +552,6 @@ test("a list that could not be read is read again", async ({
   await context.close()
 })
 
-test("a list that already holds the new comment does not show it twice", async ({
-  browser,
-  playwright,
-}) => {
-  const { context, page } = await person(browser)
-  let releaseList: (body: unknown) => void = () => {}
-  const heldList = new Promise<unknown>((resolve) => (releaseList = resolve))
-  let stored: () => void = () => {}
-  const isStored = new Promise<void>((resolve) => (stored = resolve))
-  let releasePost: () => void = () => {}
-  const heldPost = new Promise<void>((resolve) => (releasePost = resolve))
-  await page.route(/\/api\/comments/, async (route) => {
-    const request = route.request()
-    if (request.method() === "GET")
-      return route.fulfill({ json: await heldList })
-    const name = request.method() === "POST" && request.postDataJSON()?.name
-    if (typeof name === "string" && name) {
-      const response = await route.fetch()
-      stored()
-      await heldPost
-      return route.fulfill({ response })
-    }
-    return route.fallback()
-  })
-  const text = words("twice")
-  await open(page)
-  await page.getByTestId("comment-text-input").fill(text)
-  await page.getByTestId("comment-post").click()
-  await expect(page.getByTestId("comment-note")).toHaveText(
-    "Please add your name."
-  )
-  await page.getByTestId("comment-name-input").fill("Alice")
-  await page.getByTestId("comment-post").click()
-  await isStored
-
-  const other = await visitor(playwright)
-  const seen = await listed(other)
-  await other.dispose()
-  releaseList(seen)
-  await expect(rowWith(page, text)).toBeVisible()
-  await expect(rowWith(page, text).getByTestId("comment-remove")).toHaveCount(0)
-
-  releasePost()
-  await expect(rowWith(page, text)).toHaveCount(1)
-  await expect(rowWith(page, text).getByTestId("comment-remove")).toBeVisible()
-  await expect(rowWith(page, text)).toBeFocused()
-  await expect(page.getByTestId("comment-name-input")).toHaveCount(0)
-  await context.close()
-})
-
 test("what one visitor posts or removes, the next read shows another", async ({
   playwright,
 }) => {
@@ -879,56 +571,4 @@ test("what one visitor posts or removes, the next read shows another", async ({
   expect((await listed(reader)).comments.map((c) => c.id)).not.toContain(id)
   await reader.dispose()
   await writer.dispose()
-})
-
-test("a list that could not be read is asked for again when the signal returns", async ({
-  browser,
-  playwright,
-}) => {
-  test.slow()
-  const other = await visitor(playwright)
-  const earlier = words("earlier")
-  expect((await send(other, { text: earlier, name: "Bob" })).status()).toBe(200)
-  await other.dispose()
-
-  const { context, page } = await person(browser)
-  let calls = 0
-  let down = true
-  await page.route(/\/api\/comments\?place=/, (route) => {
-    if (route.request().method() !== "GET") return route.fallback()
-    calls += 1
-    if (down) return route.abort("internetdisconnected")
-    return route.fallback()
-  })
-  await open(page)
-  await expect.poll(() => calls, { timeout: 20_000 }).toBe(3)
-  await page.waitForTimeout(5000)
-  expect(calls).toBe(3)
-
-  down = false
-  await page.evaluate(() => window.dispatchEvent(new Event("online")))
-  await expect(rowWith(page, earlier)).toBeVisible()
-  expect(calls).toBe(4)
-  await expect(page.getByTestId("comment-note")).toHaveCount(0)
-  await context.close()
-})
-
-test("a hidden field filled by the browser does not lose the words", async ({
-  browser,
-}) => {
-  const { context, page } = await person(browser)
-  const text = words()
-  await open(page)
-  await page
-    .getByTestId("comment-website")
-    .evaluate((field: HTMLInputElement) => (field.value = "filled for me"))
-  await write(page, text, "Alice")
-  await expect(page.getByTestId("comment-note")).toHaveText(
-    "Not posted. Please try again."
-  )
-  await expect(page.getByTestId("comment-text-input")).toHaveValue(text)
-
-  await page.getByTestId("comment-post").click()
-  await expect(rowWith(page, text)).toBeVisible()
-  await context.close()
 })

@@ -43,6 +43,13 @@ corepack pnpm test:e2e
 
 The e2e tests (`tests/e2e`) run against a production build on port 3100. Playwright reuses a server that is already listening there, so stop a stale one first: `lsof -ti :3100 | xargs -r kill`.
 
+The compact suite protects named browser/API contracts. It does not certify the
+phone camera: the synthetic matcher calls the server and cannot test WebGPU.
+See [Testing and real-device acceptance](docs/testing.md) for the retained-test
+rationale, Android emulator/Pixel workflow and required evidence. For camera or
+mobile interaction changes, record actual device results and explicitly mark
+any unrun physical/field checks; a green desktop run is not phone-ready proof.
+
 ## Content
 
 Each place has a folder under `public/posts/NNNN-slug/` holding its photographs and `NNNN-slug.json`. The file has `name`, `slug`, `description`, `location` (`lat`, `lng`), `w` and `h` (the photographs' pixel size) and `b_imageUrl` (the old photograph). A finished story also has `a_imageUrl` (the modern photograph) and `ba_imageUrl` (the pair, for previews). An upcoming place has `"status": "pending"` and an `archive` record (`date`, `photographer`, `credit`, `rights`, `sourceUrl`, `sourceId`). `lib/api.ts` reads these files at build time.

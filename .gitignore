@@ -49,3 +49,6 @@ test-results
 
 # typescript incremental output
 *.tsbuildinfo
+
+# Private Android camera acceptance evidence
+/device-evidence/

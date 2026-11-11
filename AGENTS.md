@@ -49,19 +49,31 @@ Playwright e2e tests are part of the expected workflow.
 - Specs: `tests/e2e`
 - CI runs e2e tests on pull requests and pushes to protected branches.
 
-Current e2e coverage includes:
+The retained contracts and device workflow are in [docs/testing.md](docs/testing.md).
 
-- `compare.spec.ts`, `compare-endpoints.spec.ts`, `compare-pointer.spec.ts` — the compare line: default and URL-driven position, dragging, keyboard, both ends, knob/border alignment, mobile safe margins, the before image staying fixed
-- `header.spec.ts` — desktop header edge spacing
-- `story.spec.ts` — a place's page: layout and the line on touch screens, turning the screen, its own map
-- `collection.spec.ts`, `home-map.spec.ts` — the homepage, Places (list, search, the map and its markers) and upcoming places
-- `camera.spec.ts`, `camera-zoom.spec.ts` — the rephotography camera, its review, sending, and the routes behind it
-- `track.spec.ts`, `zoom.spec.ts` — the camera's following between matches and its zoom, as plain calculations
-- `me.spec.ts` — Your photos: what a new visitor sees and what the routes refuse
-- `preview.spec.ts` — what a shared link looks like, and the sitemap
-- `identity.spec.ts` — names, sent photos and passkeys end to end, against the in-memory store
-- `comments.spec.ts` — comments on a place's page: posting, what is refused, removing your own, the admin, and the page staying static
-- `posts.spec.ts` — every place file is well formed
+### Keep the suite small and independent
+
+- Do not add unit tests by default. Prefer an existing end-to-end journey at the
+  real user/API boundary. Small math or security checks need an independent
+  failure that those journeys cannot safely or reliably exercise.
+- For every new or retained test, name its observable contract, credible failure,
+  and why another test does not already own it. Record this in the test or the
+  contract table in docs/testing.md. Extend/replace before adding; justify any
+  increase in discovered test count. There is no coverage/count target.
+- No source-text assertions, implementation-derived expected results, prose
+  counts, incidental CSS values, or viewport/content matrices without a distinct
+  failure. Explicit protected geometry contracts above remain valuable.
+- Use a known regression, independent specification or observed device behaviour
+  as the oracle. When practical, show the original bug or a credible fault fails
+  the test. Do not write a test merely because a function exists.
+- Never claim synthetic camera/ORT, virtual-authenticator or in-memory-store
+  results prove real camera/GPU, native passkey UX or deployed persistence.
+- Camera/runtime and mobile interaction changes require the documented Android
+  emulator run and an available Pixel run before claiming phone-ready. Keep
+  physical field alignment separate from emulator/desktop evidence. Report
+  missing device, scene or observations as blocked/not run, not as passed.
+- Keep device screenshots/video private and ignored. No personal photo fixtures,
+  no raw ADB around the Errands guards, no secret/cookie output in test logs.
 
 Playwright reuses a server that is already listening on port 3100. After changing
 code, stop it first (`lsof -ti :3100 | xargs -r kill`), or the tests run against the old build.

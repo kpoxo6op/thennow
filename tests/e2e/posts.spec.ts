@@ -13,8 +13,8 @@ const KNOWN_ODD = new Set([
   "/posts/0002-historic-helensville-post-office/post1-then-2003x1241.jpg",
 ])
 
-for (const name of readdirSync(folder).sort()) {
-  test(`${name} describes its own photographs`, async () => {
+test("all place records describe their decoded photographs", async () => {
+  for (const name of readdirSync(folder).sort()) {
     const place = JSON.parse(
       readFileSync(path.join(folder, name, `${name}.json`), "utf8")
     )
@@ -39,5 +39,5 @@ for (const name of readdirSync(folder).sort()) {
         h: place.h,
       })
     }
-  })
-}
+  }
+})
