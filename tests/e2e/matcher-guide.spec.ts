@@ -141,6 +141,24 @@ for (const capability of ["none", "no-f16"] as const) {
     await screenshot(page, `landscape-unsupported-${capability}`)
     await expect(guide).toHaveCount(0, { timeout: 7000 })
     await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    // An interrupted camera must not revive an already-dismissed notice.
+    await page
+      .getByTestId("rephoto-video")
+      .evaluate((video: HTMLVideoElement) => {
+        ;(video.srcObject as MediaStream)
+          .getVideoTracks()[0]
+          .dispatchEvent(new Event("mute"))
+      })
+    await expect(page.getByTestId("rephoto-shutter")).toBeDisabled()
+    await page
+      .getByTestId("rephoto-video")
+      .evaluate((video: HTMLVideoElement) => {
+        ;(video.srcObject as MediaStream)
+          .getVideoTracks()[0]
+          .dispatchEvent(new Event("unmute"))
+      })
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    await expect(guide).toHaveCount(0)
   })
 }
 
