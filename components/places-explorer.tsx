@@ -122,11 +122,13 @@ function StoryRow({
   chosen,
   onChoose,
   onHighlight,
+  onNavigate,
 }: {
   story: Place
   chosen?: boolean
   onChoose: (story: Place) => void
   onHighlight?: (slug: string | null) => void
+  onNavigate?: () => void
 }) {
   const picture = (
     <Image
@@ -149,6 +151,7 @@ function StoryRow({
         <Link
           href={`/${story.slug}`}
           data-testid="map-selection"
+          onNavigate={onNavigate}
           className={cn(ROW_CLASS, "group bg-muted ring-1 ring-accent")}
         >
           {picture}
@@ -233,6 +236,7 @@ export function PlacesExplorer({ stories }: Props) {
   const [mapFailed, setMapFailed] = useState(false)
   const highlightRef = useRef<MapHighlight | null>(null)
   const focusRef = useRef<((story: Place) => void) | null>(null)
+  const leaving = useRef(false)
   const fitAllRef = useRef<(() => void) | null>(null)
   const [visibleCount, setVisibleCount] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -319,8 +323,8 @@ export function PlacesExplorer({ stories }: Props) {
 
   const handleViewportChange = useCallback(
     (next: MapViewport) => {
-      // A map settling after navigation must not rewrite another page's URL.
-      if (window.location.pathname !== pathname) {
+      // A map settling must not cancel a story navigation that is still loading.
+      if (leaving.current || window.location.pathname !== pathname) {
         return
       }
 
@@ -345,6 +349,7 @@ export function PlacesExplorer({ stories }: Props) {
 
   // A row chooses its place on the map; the card that opens is the way into the story.
   const handleChoose = useCallback((story: Place) => {
+    leaving.current = false
     setSelected([story])
     focusRef.current?.(story)
 
@@ -659,6 +664,9 @@ export function PlacesExplorer({ stories }: Props) {
                       )}
                       onChoose={handleChoose}
                       onHighlight={handleHighlight}
+                      onNavigate={() => {
+                        leaving.current = true
+                      }}
                     />
                   </li>
                 ))}
