@@ -50,10 +50,11 @@ async function run({ image0, image1 }) {
   }
   for (const [u0, v0, u1, v1] of answers.get(key)) {
     const i = cellOf(u0, v0)
-    match[i] = BigInt(cellOf(u1, v1))
+    match[i] = BigInt(cellOf(u1 + (window.__matchShift ?? 0), v1))
     confidence[i] = 1
     mutual[i] = 1
   }
+  if (window.__matchShift) window.__shiftedRuns = (window.__shiftedRuns ?? 0) + 1
   return {
     match: { data: match },
     confidence: { data: confidence },

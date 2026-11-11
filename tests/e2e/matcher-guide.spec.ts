@@ -57,7 +57,7 @@ async function runtime(page: Page, body = ort) {
 for (const [orientation, viewport] of Object.entries({
   portrait: { width: 390, height: 844 },
 })) {
-  test(`${orientation}: loading is visible, then the camera stays clear during searching and alignment`, async ({
+  test(`${orientation}: loading, rejected jumps, loss and automatic capture form one camera journey`, async ({
     page,
   }) => {
     test.setTimeout(60_000)
@@ -105,6 +105,9 @@ for (const [orientation, viewport] of Object.entries({
       page.getByRole("button", { name: "Guide", exact: true })
     ).toHaveCount(0)
     await screenshot(page, `${orientation}-searching`)
+    // Hold-to-peek deliberately suspends automatic capture while investigating loss.
+    const stage = page.getByTestId("rephoto-stage")
+    await stage.dispatchEvent("pointerdown")
     await page.evaluate(() => Object.assign(window, { __matcherDown: false }))
     await expect(page.getByTestId("rephoto-stage")).toHaveAttribute(
       "data-lock",
@@ -113,6 +116,23 @@ for (const [orientation, viewport] of Object.entries({
     )
     await expect(guide).toHaveCount(0)
     await screenshot(page, `${orientation}-lined-up`)
+    // A single wildly shifted model answer must not move an accepted guide.
+    // This reproduces the field jump at the model/browser boundary, not source text.
+    const frame = page.getByTestId("rephoto-frame")
+    const before = await frame.boundingBox()
+    await page.evaluate(() => Object.assign(window, { __matchShift: 0.15 }))
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as unknown as { __shiftedRuns: number }).__shiftedRuns ?? 0
+        )
+      )
+      .toBeGreaterThan(0)
+    await page.evaluate(() => Object.assign(window, { __matchShift: 0 }))
+    const after = await frame.boundingBox()
+    expect(Math.abs(after!.x - before!.x)).toBeLessThan(8)
+    expect(Math.abs(after!.width - before!.width)).toBeLessThan(8)
     // Loss of alignment must not leave a misleading shoot cue.
     await page.evaluate(() => Object.assign(window, { __matcherDown: true }))
     await expect(page.getByTestId("rephoto-stage")).toHaveAttribute(
@@ -121,6 +141,58 @@ for (const [orientation, viewport] of Object.entries({
       { timeout: 15_000 }
     )
     await expect(guide).toHaveCount(0)
+    await expect(page.getByTestId("rephoto-ghost")).toHaveCSS("opacity", "0")
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    let uploads = 0
+    let captures = 0
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/submit")) uploads++
+      if (
+        request.url().endsWith("/api/camera-log") &&
+        request.postDataJSON()?.event === "shot"
+      )
+        captures++
+    })
+    await stage.dispatchEvent("pointerup")
+    // A resting reference returns after the lost placement fades out.
+    await expect(page.getByTestId("rephoto-ghost")).not.toHaveCSS(
+      "opacity",
+      "0"
+    )
+    await page.evaluate(() => Object.assign(window, { __matcherDown: false }))
+    await expect(page.getByTestId("capture-guide")).toContainText(
+      "Hold still…",
+      { timeout: 30_000 }
+    )
+    // Cancel a running countdown by stopping actual video frames. It must not
+    // capture the frozen frame after the original deadline.
+    await page
+      .getByTestId("rephoto-video")
+      .evaluate((video: HTMLVideoElement) => video.pause())
+    await page.waitForTimeout(1600)
+    await expect(page.getByTestId("rephoto-review")).toHaveCount(0)
+    expect(captures).toBe(0)
+    await page
+      .getByTestId("rephoto-video")
+      .evaluate((video: HTMLVideoElement) => video.play())
+    await expect(page.getByTestId("capture-guide")).toContainText(
+      "Hold still…",
+      { timeout: 30_000 }
+    )
+    await screenshot(page, "portrait-auto-capture")
+    await page.setViewportSize({ width: 844, height: 390 })
+    await screenshot(page, "landscape-auto-capture")
+    await expect(page.getByTestId("rephoto-review")).toBeVisible({
+      timeout: 30_000,
+    })
+    await expect(
+      page.getByRole("button", { name: "Send photo", exact: true })
+    ).toBeEnabled({ timeout: 30_000 })
+    expect(uploads).toBe(0)
+    expect(captures).toBe(1)
+    await page.getByRole("button", { name: "Retake", exact: true }).click()
+    await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+    await expect(page.getByTestId("rephoto-review")).toHaveCount(0)
   })
 }
 

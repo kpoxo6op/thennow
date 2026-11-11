@@ -4,12 +4,26 @@ import { useEffect, useState, useSyncExternalStore } from "react"
 
 import { matcherStatus, subscribeMatcher } from "@/lib/rephoto/local-matcher"
 
-export function MatcherGuide({ hidden }: { hidden: boolean }) {
+export function MatcherGuide({
+  hidden,
+  autoProgress = 0,
+  automatic = true,
+}: {
+  hidden: boolean
+  autoProgress?: number
+  automatic?: boolean
+}) {
   const status = useSyncExternalStore(
     subscribeMatcher,
     matcherStatus,
     matcherStatus
   )
+  const [introduced, setIntroduced] = useState(false)
+  useEffect(() => {
+    if (status.phase !== "ready" || hidden) return
+    const timer = setTimeout(() => setIntroduced(true), 4500)
+    return () => clearTimeout(timer)
+  }, [status.phase, hidden])
   const unavailable =
     status.phase === "unsupported" || status.phase === "failed"
   const [notice, setNotice] = useState({
@@ -34,21 +48,30 @@ export function MatcherGuide({ hidden }: { hidden: boolean }) {
     return () => clearTimeout(timer)
   }, [notice.failed])
 
-  if (status.phase === "ready" || notice.dismissed) return null
+  const ready = status.phase === "ready"
+  if (
+    (ready && (!automatic || introduced) && autoProgress === 0) ||
+    (!ready && notice.dismissed)
+  )
+    return null
   return (
     <div
       hidden={hidden}
-      data-testid="matcher-guide"
+      data-testid={ready ? "capture-guide" : "matcher-guide"}
       data-state={status.phase}
       className="pointer-events-none absolute left-[calc(max(0.75rem,env(safe-area-inset-left))+3.25rem)] right-[calc(max(0.75rem,env(safe-area-inset-right))+3.25rem)] top-[max(0.75rem,env(safe-area-inset-top))] text-center"
     >
       <div className="inline-flex max-w-full items-center gap-2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1.5 text-sm leading-5">
         <span role="status">
-          {notice.failed
-            ? "Live guide unavailable"
-            : status.phase === "starting"
-              ? "Starting guide…"
-              : "Loading guide…"}
+          {ready
+            ? autoProgress > 0
+              ? "Hold still…"
+              : "Hold still for auto photo"
+            : notice.failed
+              ? "Live guide unavailable"
+              : status.phase === "starting"
+                ? "Starting guide…"
+                : "Loading guide…"}
         </span>
         {!notice.failed &&
           status.phase === "loading" &&

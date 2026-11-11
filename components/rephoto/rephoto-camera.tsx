@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react"
 import Link from "next/link"
 import { X } from "lucide-react"
 
@@ -28,7 +28,6 @@ import { loadImage } from "@/lib/rephoto/pixels"
 import { browserName, report } from "@/lib/rephoto/telemetry"
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { slide, thumb, type Thumb } from "@/lib/rephoto/track"
-import { zoomed, zoomFor, type ZoomRange } from "@/lib/rephoto/zoom"
 import { releaseScreen } from "@/components/rephoto/camera-link"
 import { MatcherGuide } from "@/components/rephoto/matcher-guide"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
@@ -95,16 +94,6 @@ function timeLimit<T>(
       }, ms)
     }),
   ]).finally(() => clearTimeout(timer))
-}
-
-// The camera's zoom where the browser lets a page set it (Chrome on Android).
-function zoomRange(track: MediaStreamTrack | undefined): ZoomRange | null {
-  const zoom = (
-    track?.getCapabilities?.() as
-      | { zoom?: { min: number; max: number } }
-      | undefined
-  )?.zoom
-  return zoom && zoom.max > zoom.min ? { min: zoom.min, max: zoom.max } : null
 }
 
 const pageHidden = () => document.visibilityState === "hidden"
@@ -205,9 +194,8 @@ export function RephotoCamera({
   const lockLife = useRef(2500)
   const attempt = useRef(0)
   const plain = useRef(false)
-  // The camera's zoom now, and how far this camera can zoom (null: not at all).
+  // Report the camera's actual zoom; the guide never changes it.
   const zoomRef = useRef(1)
-  const rangeRef = useRef<ZoomRange | null>(null)
   const [status, setStatus] = useState<"starting" | "live" | "error">(
     "starting"
   )
@@ -229,6 +217,10 @@ export function RephotoCamera({
     }
   }, [])
   const [peek, setPeek] = useState(false)
+  const capturing = useRef(false)
+  const captureSince = useRef(0)
+  const lastFrameAt = useRef(0)
+  const [autoProgress, setAutoProgress] = useState(0)
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
     crop: Crop
@@ -239,7 +231,22 @@ export function RephotoCamera({
     at: number
     // Carried along by the follower between matches: the ghost moves in short, even steps.
     followed?: boolean
+    motion?: number
+    trackedAt?: number
+    confirmedAt?: number
+    settledAt?: number
   } | null>(null)
+
+  // A lost match fades at its last position instead of sweeping back to centre.
+  const [lastPlacement, setLastPlacement] = useState<typeof lock>(null)
+  if (lock && lastPlacement !== lock) setLastPlacement(lock)
+  useEffect(() => {
+    if (lock || !lastPlacement) return
+    // Fade out where it was, then mount the resting reference without travelling
+    // across the scene. Manual framing remains possible if matching never returns.
+    const timer = setTimeout(() => setLastPlacement(null), 400)
+    return () => clearTimeout(timer)
+  }, [lock, lastPlacement])
 
   useEffect(() => {
     const loading = performance.now()
@@ -332,7 +339,6 @@ export function RephotoCamera({
       }
       streamRef.current = stream
       const opened = stream.getVideoTracks()[0]
-      rangeRef.current = zoomRange(opened)
       zoomRef.current =
         (opened?.getSettings() as { zoom?: number } | undefined)?.zoom ?? 1
       video.srcObject = stream
@@ -457,9 +463,11 @@ export function RephotoCamera({
       | null
     if (shot || status !== "live" || !video?.requestVideoFrameCallback) return
     let last = performance.now()
+    lastFrameAt.current = 0
     let handle = 0
     const onFrame = () => {
       last = performance.now()
+      lastFrameAt.current = last
       handle = video.requestVideoFrameCallback!(onFrame)
     }
     handle = video.requestVideoFrameCallback(onFrame)
@@ -491,46 +499,50 @@ export function RephotoCamera({
     return () => observer.disconnect()
   }, [shot])
 
-  // Live: about once a second, the matcher looks for the archive view in the preview and the old
-  // photograph moves onto it. Phones without on-device matching keep the resting guide.
+  // Matching and following share immutable frames. Hardware zoom stays fixed: the review
+  // crops the full photo without moving the view while someone is composing it.
   useEffect(() => {
     if (shot || status !== "live" || !canMatchLocally()) return
     const controller = new AbortController()
     const began = performance.now()
-    let previous: Crop | null = null
-    let previousThumb: Thumb | null = null
-    let misses = 0
-    // How much of the picture's width the view is looked for in. A view too far away to be found
-    // in the whole picture is looked for in its middle, every other try, until found.
     let reach = 1
+    let misses = 0
     let buzzed = false
     const stats = {
       runs: 0,
       found: 0,
+      rejected: 0,
+      lost: 0,
       matchMs: 0,
       prepareMs: 0,
       modelMs: 0,
       firstFound: -1,
       firstSteady: -1,
     }
-    // Once the view is lost just after zooming in, the camera never zooms in that far again.
-    let ceiling = Infinity
-    let zoomedIn = -Infinity
-    // While the zoom moves, nothing else looks at the picture; each zoom starts a new count, so a
-    // look that began before it is thrown away.
-    let zooming = false
-    let zooms = 0
-    // The last placement and the tiny copy of the frame it was found in, which the follower
-    // slides it along from.
-    let anchor: {
+    type Placement = {
       crop: Crop
+      photoSize: Size
       thumb: Thumb
+      at: number
+      trackedAt: number
+      confirmedAt: number
+      settledAt: number
       held: boolean
-      steady: boolean
-      // When the matcher last vouched for it. Following only slides it; it doesn't make it any
-      // more certain, so the lock still runs out if the matcher stops answering.
+    }
+    let anchor: Placement | null = null
+    let candidate: {
+      crop: Crop
+      photoSize: Size
+      thumb: Thumb
       at: number
     } | null = null
+    let viewEpoch = 0
+    const sameSize = (a: Size, b: Size) =>
+      a.width === b.width && a.height === b.height
+    const currentSize = (video: HTMLVideoElement, photo: Size) =>
+      video.videoWidth === photo.width && video.videoHeight === photo.height
+    let following = false
+    let publishing = false
     const shifted = (
       crop: Crop,
       by: { x: number; y: number },
@@ -540,139 +552,102 @@ export function RephotoCamera({
       cx: crop.cx + by.x * photo.width,
       cy: crop.cy + by.y * photo.height,
     })
-    // The zoom moves in small steps, so the picture glides rather than jumps. Only the zoom the
-    // camera says it reached is believed; a camera that refuses is left alone from then on.
-    const zoomTo = async (
-      target: number,
-      // Told each zoom the camera confirms, so the old photograph can follow it.
-      reached?: (zoom: number) => void
-    ) => {
-      const track = streamRef.current?.getVideoTracks()[0]
-      if (!track) return
-      const current = () =>
-        !controller.signal.aborted &&
-        streamRef.current?.getVideoTracks()[0] === track
-      const from = zoomRef.current
-      zooming = true
-      zooms++
+    const agrees = (a: Crop, b: Crop) =>
+      Math.hypot(a.cx - b.cx, a.cy - b.cy) <
+        Math.min(a.width, b.width) * 0.05 &&
+      Math.abs(a.width / b.width - 1) < 0.05 &&
+      Math.abs(a.rotation - b.rotation) < (3 * Math.PI) / 180
+    const fresh = (at: number) => performance.now() - at < lockLife.current
+    const lose = () => {
+      if (anchor) stats.lost++
       anchor = null
-      report("zoom", {}, { from, to: target })
-      for (let step = 1; step <= 5; step++) {
-        const zoom =
-          Math.round((from + ((target - from) * step) / 5) * 100) / 100
-        const ok = await track
-          .applyConstraints({ advanced: [{ zoom } as MediaTrackConstraintSet] })
-          .then(
-            () => true,
-            () => false
-          )
-        if (!current()) return void (zooming = false)
-        if (!ok) {
-          zooming = false
-          rangeRef.current = null
-          report("zoom failed", { step, from, target })
-          return
-        }
-        // Some cameras report the new zoom a moment late: what they say is believed, if anything.
-        zoomRef.current =
-          (track.getSettings() as { zoom?: number }).zoom ?? zoom
-        reached?.(zoomRef.current)
-        await new Promise((resolve) => setTimeout(resolve, 60))
-        if (!current()) return void (zooming = false)
-      }
-      if (Math.abs(zoomRef.current - target) > 0.05)
-        report("zoom short", { reached: zoomRef.current, target })
-      if (target > from) zoomedIn = performance.now()
-      // Let a frame at the new zoom reach the preview before looking again.
-      await new Promise((resolve) => setTimeout(resolve, 150))
-      zooming = false
-    }
-    const lowestZoom = () => Math.max(1, rangeRef.current?.min ?? 1)
-    // Lost while zoomed in: back out so the old view can be found again.
-    const backOut = async (zoomLostIt = true) => {
-      // Lost soon after zooming in, the zoom itself lost it; later, the phone just moved.
-      if (zoomLostIt && performance.now() - zoomedIn < 10_000)
-        ceiling = Math.max(lowestZoom(), zoomRef.current - 0.2)
-      previous = null
       setLock(null)
-      await zoomTo(lowestZoom())
-      misses = 0
     }
-
-    // Between matches, the old photograph follows the picture as the hand moves, and a view
-    // sliding off the edge of a zoomed-in picture backs the zoom out at once.
-    let following = false
-    let follows = 0
-    let followMs = 0
-    let spills = 0
+    const invalidateView = () => {
+      viewEpoch++
+      candidate = null
+      lose()
+    }
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") invalidateView()
+    }
+    const liveVideo = videoRef.current
+    document.addEventListener("visibilitychange", onVisibility)
+    liveVideo?.addEventListener("resize", invalidateView)
     const follow = async () => {
       const video = videoRef.current
       const archive = archiveRef.current
-      if (
-        following ||
-        zooming ||
-        !anchor ||
-        !video?.videoWidth ||
-        !archive ||
-        document.visibilityState !== "visible"
-      )
+      if (following || publishing || !anchor || !video?.videoWidth || !archive)
         return
+      if (
+        document.visibilityState !== "visible" ||
+        !fresh(anchor.at) ||
+        !currentSize(video, anchor.photoSize)
+      ) {
+        lose()
+        return
+      }
       following = true
       try {
-        const photo = { width: video.videoWidth, height: video.videoHeight }
-        const t0 = performance.now()
         const from = anchor
+        const photo = from.photoSize
+        const epoch = viewEpoch
+        const sampled = performance.now()
         const now = await thumb(video, photo)
-        // A match or a zoom came in while the frame was being shrunk: it knows better.
-        if (anchor !== from || zooming || controller.signal.aborted) return
+        if (anchor !== from || publishing || controller.signal.aborted) return
         const by = now && slide(from.thumb, now)
-        followMs = followMs * 0.9 + (performance.now() - t0) * 0.1
-        if (++follows % 25 === 0)
-          debug(`follow ${followMs.toFixed(1)}ms ${by ? "ok" : "lost"}`)
-        if (!by) return
-        const crop = shifted(from.crop, by, photo)
-        const range = rangeRef.current
-        // A few frames running, so one bad comparison (a passing car, a flash of light) can't
-        // throw the zoom away. The hand moved it off, not the zoom: the ceiling stays.
         if (
-          range &&
-          zoomRef.current > lowestZoom() + 0.05 &&
-          !fits({ ...crop, width: crop.width * 0.8 }, archive.aspect, photo)
+          !by ||
+          !now ||
+          !fresh(from.at) ||
+          epoch !== viewEpoch ||
+          !currentSize(video, photo) ||
+          document.visibilityState !== "visible"
         ) {
-          if (++spills >= 3) {
-            spills = 0
-            void backOut(false)
-          }
+          lose()
           return
         }
-        spills = 0
+        const crop = shifted(from.crop, by, photo)
+        const elapsed = sampled - from.trackedAt
+        const motion =
+          (Math.hypot(by.x, (by.y * photo.height) / photo.width) * 250) /
+          Math.max(1, elapsed)
+        const quiet = elapsed <= 750 && motion <= 0.008
+        const settledAt = quiet ? from.settledAt || sampled : 0
+        const steady =
+          from.held &&
+          quiet &&
+          settledAt > 0 &&
+          sampled - settledAt >= 750 &&
+          sampled - from.confirmedAt <= 4000 &&
+          fits(crop, archive.aspect, photo)
+        anchor = { ...from, crop, thumb: now, trackedAt: sampled, settledAt }
+        if (steady && !buzzed) {
+          buzzed = true
+          stats.firstSteady = Math.round(performance.now() - began)
+          navigator.vibrate?.(10)
+        }
         setLock({
           crop,
           held: from.held,
-          steady: from.steady && fits(crop, archive.aspect, photo),
+          steady,
           at: from.at,
           followed: true,
+          motion,
+          trackedAt: sampled,
+          confirmedAt: from.confirmedAt,
+          settledAt,
         })
       } finally {
         following = false
       }
     }
-    // Four looks a second: each look waits its turn on the graphics chip, and at a dozen a second
-    // they slowed the matcher by 40% on the Pixel; at four, by nothing measurable. The ghost
-    // glides between looks, so it still moves smoothly.
     const follower = setInterval(() => void follow(), FOLLOW_MS)
     const loop = async () => {
       while (!controller.signal.aborted) {
         const started = performance.now()
-        // A matcher that failed to load or lost its graphics device is tried again, gently.
-        if (!localMatcherReady() && canMatchLocally()) {
+        if (!localMatcherReady() && canMatchLocally())
           prepareLocalMatcher()?.catch(() => {})
-        }
-        // Nothing is looked at while the zoom moves.
-        if (zooming) {
-          await new Promise((resolve) => setTimeout(resolve, 100))
-          continue
-        }
         const video = videoRef.current
         const archive = archiveRef.current
         if (
@@ -681,146 +656,197 @@ export function RephotoCamera({
           localMatcherReady() &&
           document.visibilityState === "visible"
         ) {
-          const photo = { width: video.videoWidth, height: video.videoHeight }
-          // The placement is as old as the frame it was found in, not the answer.
+          let photo = { width: video.videoWidth, height: video.videoHeight }
+          const epoch = viewEpoch
           const sampled = performance.now()
-          const look = zooms
-          const seen = await thumb(video, photo)
-          const found = await align(archive, video, photo, controller.signal, {
-            server: false,
-            reach,
-          }).catch(() => null)
+          let frame: ImageBitmap | null = null
+          let seen: Thumb | null = null
+          let found: Awaited<ReturnType<typeof align>> = null
+          try {
+            frame = await createImageBitmap(video)
+            photo = { width: frame.width, height: frame.height }
+            if (epoch === viewEpoch && currentSize(video, photo))
+              seen = await thumb(frame, photo)
+            if (
+              !controller.signal.aborted &&
+              seen &&
+              epoch === viewEpoch &&
+              currentSize(video, photo)
+            )
+              found = await align(archive, frame, photo, controller.signal, {
+                server: false,
+                reach,
+              })
+          } catch {
+            // A stopped stream or unavailable matcher is a miss, never a usable placement.
+          } finally {
+            frame?.close()
+          }
           if (controller.signal.aborted) return
-          // The zoom moved while this look was under way: its answer is for a picture gone.
-          if (look !== zooms) continue
           stats.runs++
           stats.matchMs += performance.now() - sampled
           stats.prepareMs += timing.prepareMs
           stats.modelMs += timing.modelMs
           debug(
-            `match ${Math.round(timing.prepareMs)}+${Math.round(timing.modelMs)}ms ${
-              found
-                ? `w${Math.round(found.crop.width)} n${found.inliers}`
-                : "miss"
-            } x${zoomRef.current.toFixed(1)}`
+            `match ${Math.round(timing.prepareMs)}+${Math.round(timing.modelMs)}ms ${found ? `w${Math.round(found.crop.width)} n${found.inliers}` : "miss"}`
           )
-          if (found) {
+          if (
+            document.visibilityState !== "visible" ||
+            epoch !== viewEpoch ||
+            !currentSize(video, photo)
+          ) {
+            candidate = null
+            lose()
+          } else if (found && seen && fresh(sampled)) {
             stats.found++
             if (stats.firstFound < 0)
               stats.firstFound = Math.round(performance.now() - began)
             misses = 0
-            // Where the last placement would be in this frame, after the hand's movement since.
-            if (previous && previousThumb && seen) {
-              const by = slide(previousThumb, seen)
-              if (by) previous = shifted(previous, by, photo)
-            }
-            previousThumb = seen
-            const near =
-              previous != null &&
-              Math.hypot(
-                found.crop.cx - previous.cx,
-                found.crop.cy - previous.cy
-              ) <
-                found.crop.width * 0.05 &&
-              Math.abs(found.crop.width / previous.width - 1) < 0.05
-            previous = found.crop
-            // Held in one place, the camera zooms so the old view fills the picture.
-            const range = rangeRef.current
-            // The zoom the camera is at now, in case anything else moved it.
-            const reported = (
-              streamRef.current?.getVideoTracks()[0]?.getSettings() as
-                | { zoom?: number }
-                | undefined
-            )?.zoom
-            if (range && reported != null) zoomRef.current = reported
-            const zoom =
-              near && range
-                ? zoomFor(found.crop, archive.aspect, photo, zoomRef.current, {
-                    min: range.min,
-                    max: Math.min(range.max, ceiling),
-                  })
-                : null
-            if (zoom != null) {
-              previous = null
-              // The match is as old as its frame: carry it to where the hand has since taken
-              // the picture, then let it grow with the picture, step by confirmed step.
-              const latest = seen && (await thumb(video, photo))
+            // Correct inference latency before publishing. Never show the sampled placement
+            // first and then jump it forward when the follower catches up.
+            publishing = true
+            try {
+              const nowAt = performance.now()
+              const latest = await thumb(video, photo)
+              if (controller.signal.aborted) return
               const drift = latest && slide(seen, latest)
-              const start = drift
-                ? shifted(found.crop, drift, photo)
-                : found.crop
-              const base = zoomRef.current
-              await zoomTo(zoom, (now) =>
-                setLock({
-                  crop: zoomed(start, photo, now / base),
-                  held: false,
-                  steady: false,
-                  at: performance.now(),
-                })
-              )
-              // Where the old view should now be: the next match that agrees with it holds at
-              // once, instead of waiting for two more.
-              // It was held before the zoom, so it stays held, and ready to shoot at once if
-              // it fits; the next match only has to not disagree.
-              if (zoomRef.current !== base) {
-                previous = zoomed(start, photo, zoomRef.current / base)
-                previousThumb = await thumb(video, photo)
-                if (previousThumb)
-                  anchor = {
-                    crop: previous,
-                    thumb: previousThumb,
-                    held: true,
-                    steady: fits(previous, archive.aspect, photo),
-                    at: performance.now(),
+              if (
+                !latest ||
+                !drift ||
+                !fresh(sampled) ||
+                epoch !== viewEpoch ||
+                !currentSize(video, photo) ||
+                document.visibilityState !== "visible"
+              ) {
+                candidate = null
+                lose()
+              } else {
+                const crop = shifted(found.crop, drift, photo)
+                if (
+                  anchor &&
+                  (!fresh(anchor.at) || !sameSize(anchor.photoSize, photo))
+                )
+                  lose()
+                if (candidate && !sameSize(candidate.photoSize, photo))
+                  candidate = null
+                const previous = anchor
+                const movement = previous && slide(previous.thumb, latest)
+                const predicted =
+                  previous && movement
+                    ? shifted(previous.crop, movement, photo)
+                    : null
+                const near = predicted != null && agrees(crop, predicted)
+                const pendingMovement =
+                  candidate &&
+                  fresh(candidate.at) &&
+                  slide(candidate.thumb, latest)
+                const repeated =
+                  candidate &&
+                  pendingMovement &&
+                  agrees(crop, shifted(candidate.crop, pendingMovement, photo))
+                if (!near && !repeated) {
+                  if (previous) stats.rejected++
+                  // Retain the accepted position, but a disagreement cancels readiness now.
+                  anchor = previous
+                    ? {
+                        ...previous,
+                        held: false,
+                        settledAt: 0,
+                        confirmedAt: 0,
+                      }
+                    : null
+                  setLock((current) =>
+                    current
+                      ? {
+                          ...current,
+                          held: false,
+                          steady: false,
+                          settledAt: 0,
+                          confirmedAt: 0,
+                        }
+                      : null
+                  )
+                  candidate = {
+                    crop,
+                    photoSize: photo,
+                    thumb: latest,
+                    at: sampled,
                   }
-                void follow()
-              }
-              continue
-            }
-            const steady = near && fits(found.crop, archive.aspect, photo)
-            if (steady && !buzzed) {
-              buzzed = true
-              stats.firstSteady = Math.round(performance.now() - began)
-              navigator.vibrate?.(10)
-            }
-            setLock({
-              crop: found.crop,
-              held: near,
-              steady,
-              at: sampled,
-            })
-            // The follower carries it on from the frame it was found in, so the delay of the
-            // match itself is made up at once.
-            anchor = seen
-              ? {
-                  crop: found.crop,
-                  thumb: seen,
-                  held: near,
-                  steady,
-                  at: sampled,
+                } else {
+                  const held = near || !!repeated
+                  const completed = performance.now()
+                  const elapsed = previous
+                    ? nowAt - previous.trackedAt
+                    : Infinity
+                  const motion = movement
+                    ? (Math.hypot(
+                        movement.x,
+                        (movement.y * photo.height) / photo.width
+                      ) *
+                        250) /
+                      Math.max(1, elapsed)
+                    : Infinity
+                  const quiet = near && elapsed <= 750 && motion <= 0.008
+                  const settledAt = quiet ? previous!.settledAt : 0
+                  anchor = {
+                    crop,
+                    photoSize: photo,
+                    thumb: latest,
+                    at: sampled,
+                    trackedAt: nowAt,
+                    confirmedAt: held ? completed : 0,
+                    settledAt,
+                    held,
+                  }
+                  candidate = held
+                    ? null
+                    : { crop, photoSize: photo, thumb: latest, at: sampled }
+                  // Preserve readiness only when nearby-frame following had already
+                  // established stillness; an independent match alone cannot establish it.
+                  const steady =
+                    held &&
+                    quiet &&
+                    settledAt > 0 &&
+                    nowAt - settledAt >= 750 &&
+                    fits(crop, archive.aspect, photo)
+                  setLock({
+                    crop,
+                    held,
+                    steady,
+                    at: sampled,
+                    trackedAt: nowAt,
+                    motion,
+                    confirmedAt: anchor.confirmedAt,
+                    settledAt,
+                  })
                 }
-              : null
-            void follow()
+              }
+            } finally {
+              publishing = false
+            }
           } else {
             reach = reach < 1 ? 1 : NEAR_REACH
-            if (++misses >= 2) {
-              previous = null
-              anchor = null
-              setLock(null)
-              if (rangeRef.current && zoomRef.current > lowestZoom())
-                await backOut()
+            candidate = null
+            if (anchor) {
+              anchor = { ...anchor, held: false, settledAt: 0, confirmedAt: 0 }
+              setLock((current) =>
+                current
+                  ? {
+                      ...current,
+                      held: false,
+                      steady: false,
+                      settledAt: 0,
+                      confirmedAt: 0,
+                    }
+                  : null
+              )
             }
+            if (++misses >= 2) lose()
           }
         }
-        // Gentler on the battery after the first minute.
         const pace = performance.now() - began > 60_000 ? 2000 : 700
-        // A warm phone matches slower than the pace, and matching back to back only warms it
-        // further (a Pixel went from 1.3s a match to 3.2s). So every match is followed by a rest
-        // of half its own length; the follower keeps the old view in place meanwhile.
         const took = performance.now() - started
         const rest = Math.max(pace - took, Math.min(took / 2, 1500))
-        // A placement lives until the next one is due: that's two matches and a rest away from
-        // its frame on a phone whose matching takes longer than the pace.
         lockLife.current = Math.max(pace * 1.5 + 1500, took * 2 + rest + 500)
         await new Promise((resolve) => setTimeout(resolve, rest))
       }
@@ -829,12 +855,16 @@ export function RephotoCamera({
     return () => {
       controller.abort()
       clearInterval(follower)
+      document.removeEventListener("visibilitychange", onVisibility)
+      liveVideo?.removeEventListener("resize", invalidateView)
       setLock(null)
       report(
         "live matching",
         {
           runs: stats.runs,
           found: stats.found,
+          rejected: stats.rejected,
+          lost: stats.lost,
           matchMs: stats.runs ? Math.round(stats.matchMs / stats.runs) : null,
           prepareMs: stats.runs
             ? Math.round(stats.prepareMs / stats.runs)
@@ -880,14 +910,15 @@ export function RephotoCamera({
       top: (stage.height - shown.height) / 2,
     }
     const scale = view.width / videoSize.width
-    if (lock) {
-      const width = lock.crop.width * scale
+    const placement = lock ?? lastPlacement
+    if (placement) {
+      const width = placement.crop.width * scale
       ghost = {
         width,
         height: width * aspect,
-        left: view.left + lock.crop.cx * scale - width / 2,
-        top: view.top + lock.crop.cy * scale - (width * aspect) / 2,
-        rotation: lock.crop.rotation,
+        left: view.left + placement.crop.cx * scale - width / 2,
+        top: view.top + placement.crop.cy * scale - (width * aspect) / 2,
+        rotation: placement.crop.rotation,
       }
     } else {
       const target = fit(aspect, view.width, view.height, GHOST_FILL)
@@ -900,15 +931,39 @@ export function RephotoCamera({
     }
   }
 
-  const capture = () => {
+  const capture = (how: "manual" | "auto" = "manual") => {
     const video = videoRef.current
-    if (!video?.videoWidth || video.readyState < 2 || interrupted) return
+    if (
+      !video?.videoWidth ||
+      video.readyState < 2 ||
+      interrupted ||
+      capturing.current ||
+      document.visibilityState !== "visible"
+    )
+      return
+    capturing.current = true
     const lean = tiltRef.current
     const canvas = grabFrame(video)
     const photo = { width: canvas.width, height: canvas.height }
     // The shot starts where the old photograph sat on screen: where the matcher had just put it
     // and still shows it held, or else the resting guide, levelled. The review refines it from the full picture.
-    const held = lock?.held ? lock.crop : null
+    const now = performance.now()
+    const held =
+      lock?.held &&
+      now - lock.at < lockLife.current &&
+      lock.trackedAt != null &&
+      now - lock.trackedAt < 600 &&
+      fits(lock.crop, aspect, photo)
+        ? lock.crop
+        : null
+    if (
+      how === "auto" &&
+      (!held || video.paused || video.ended || now - lastFrameAt.current >= 600)
+    ) {
+      capturing.current = false
+      releaseCanvas(canvas)
+      return
+    }
     const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
     const crop =
       held ??
@@ -931,7 +986,7 @@ export function RephotoCamera({
         zoom: zoomRef.current,
         steady: !!lock?.steady,
       },
-      { framing: held ? "live" : "levelled" }
+      { framing: held ? "live" : "levelled", how }
     )
     attempt.current++
     stop()
@@ -943,6 +998,47 @@ export function RephotoCamera({
       takenAt: new Date(),
     })
   }
+
+  const takeAutomatically = useEffectEvent(() => capture("auto"))
+  useEffect(() => {
+    const check = () => {
+      const now = performance.now()
+      const eligible =
+        !shot &&
+        status === "live" &&
+        videoRef.current != null &&
+        !videoRef.current.paused &&
+        !videoRef.current.ended &&
+        !interrupted &&
+        !peek &&
+        document.visibilityState === "visible" &&
+        lock?.steady &&
+        lock.trackedAt != null &&
+        now - lock.trackedAt < 600 &&
+        now - lastFrameAt.current < 600 &&
+        fits(
+          { ...lock.crop, width: lock.crop.width * 1.02 },
+          aspect,
+          videoSize
+        ) &&
+        !!lock.confirmedAt &&
+        now - lock.confirmedAt < Math.min(lockLife.current, 5000) &&
+        lock.motion != null &&
+        lock.motion <= 0.008
+      if (!eligible) {
+        captureSince.current = 0
+        setAutoProgress(0)
+        return
+      }
+      captureSince.current ||= now
+      const progress = Math.min(1, (now - captureSince.current) / 1200)
+      setAutoProgress(progress)
+      if (progress === 1) takeAutomatically()
+    }
+    check()
+    const timer = setInterval(check, 100)
+    return () => clearInterval(timer)
+  }, [lock, shot, status, interrupted, peek, aspect, videoSize])
 
   if (shot) {
     return (
@@ -956,6 +1052,10 @@ export function RephotoCamera({
           // iPhone frees canvas memory late; hand it back now.
           releaseCanvas(shot.canvas)
           report("retake")
+          capturing.current = false
+          captureSince.current = 0
+          setLastPlacement(null)
+          setAutoProgress(0)
           setShot(null)
         }}
       />
@@ -998,8 +1098,9 @@ export function RephotoCamera({
         />
         {ghost && (
           <div
+            key={lock || lastPlacement ? "tracked" : "resting"}
             data-testid="rephoto-frame"
-            className={`pointer-events-none absolute transition-[left,top,width,height,transform] motion-reduce:transition-none ${
+            className={`tn-enter pointer-events-none absolute transition-[left,top,width,height,transform] motion-reduce:transition-none ${
               // The follower's small steps run into each other; a new match's jump eases in.
               lock?.followed
                 ? "duration-[250ms] ease-linear"
@@ -1021,7 +1122,9 @@ export function RephotoCamera({
               draggable={false}
               data-testid="rephoto-ghost"
               className="size-full transition-opacity duration-150"
-              style={{ opacity: peek ? 0 : GHOST_OPACITY }}
+              style={{
+                opacity: peek || (!lock && lastPlacement) ? 0 : GHOST_OPACITY,
+              }}
             />
           </div>
         )}
@@ -1044,7 +1147,14 @@ export function RephotoCamera({
           </div>
         )}
 
-        <MatcherGuide hidden={status !== "live" || interrupted || peek} />
+        <MatcherGuide
+          hidden={status !== "live" || interrupted || peek}
+          autoProgress={autoProgress}
+          automatic={
+            typeof HTMLVideoElement !== "undefined" &&
+            "requestVideoFrameCallback" in HTMLVideoElement.prototype
+          }
+        />
 
         {debugText && (
           <pre className="pointer-events-none absolute inset-x-2 top-16 whitespace-pre-wrap break-all text-[10px] text-lime-300">
@@ -1067,11 +1177,29 @@ export function RephotoCamera({
           data-testid="rephoto-shutter"
           aria-label="Take photo"
           disabled={status !== "live" || interrupted}
-          onClick={capture}
-          className={`grid size-[4.5rem] place-items-center rounded-full border-4 transition-[transform,border-color] duration-300 active:scale-95 disabled:opacity-40 ${
+          onClick={() => capture()}
+          className={`relative grid size-[4.5rem] place-items-center rounded-full border-4 transition-[transform,border-color] duration-300 active:scale-95 disabled:opacity-40 ${
             lock?.steady ? "border-accent" : "border-white"
           }`}
         >
+          {autoProgress > 0 && (
+            <svg
+              aria-hidden
+              viewBox="0 0 80 80"
+              className="pointer-events-none absolute -inset-2 size-20 -rotate-90 text-accent"
+            >
+              <circle
+                cx="40"
+                cy="40"
+                r="37"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                pathLength="1"
+                strokeDasharray={`${autoProgress} 1`}
+              />
+            </svg>
+          )}
           <span className="size-14 rounded-full bg-white" />
         </button>
       </div>

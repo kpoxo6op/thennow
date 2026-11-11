@@ -26,7 +26,7 @@ let canvas: HTMLCanvasElement | null = null
 // page never waits on the graphics chip, which is busy with the matcher: reading pixels straight
 // back from a drawn video frame stalled the phone for half a second each time.
 export async function thumb(
-  source: HTMLVideoElement,
+  source: HTMLVideoElement | ImageBitmap,
   photo: Size
 ): Promise<Thumb | null> {
   const width = WIDTH
