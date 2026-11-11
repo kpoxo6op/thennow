@@ -72,3 +72,13 @@ comparison: the mural is reasonably registered, but the receding canopy and
 shopfront diverge. A good fit on that front wall does not validate the rest of
 the principal scene. Its archive also returns to pending, with the source
 submission kept private.
+
+## Current camera mitigation
+
+The guide continues to help framing, but a stable coarse placement no longer fires
+the shutter or turns its ring orange. Short scene-state instructions replace the
+automatic-shot promise. A successful coarse still-frame fit is `framed`, not
+verified; submissions carry `checked=false`. A failed still match offers Retake,
+even after a held live placement. A runtime failure remains unchecked and retains
+the photograph for manual review. These changes remove false assurance; they do
+not establish automatic photographic accuracy.
