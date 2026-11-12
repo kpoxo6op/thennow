@@ -4,13 +4,14 @@ import { useEffect, useRef, useState, type RefObject } from "react"
 
 import { align, prepareArchive } from "@/lib/rephoto/align"
 import { fits, releaseCanvas, type Crop, type Size } from "@/lib/rephoto/crop"
-import { assessHandheld } from "@/lib/rephoto/handheld"
+import type { HandheldAssessment } from "@/lib/rephoto/handheld"
+import { HandheldEvaluator } from "@/lib/rephoto/handheld-client"
 import { canMatchLocally, localMatcherReady } from "@/lib/rephoto/local-matcher"
 import { loadImage } from "@/lib/rephoto/pixels"
 import type { ReferenceLines } from "@/lib/rephoto/reference-lines"
 import { diagnostic } from "@/lib/rephoto/telemetry"
 
-type Assessment = ReturnType<typeof assessHandheld>
+type Assessment = HandheldAssessment
 type Seed = { crop: Crop; size: Size; at: number }
 type View = {
   state: "searching" | "conflict" | "adjusted" | "unavailable"
@@ -43,21 +44,13 @@ function resizeCrop(crop: Crop, from: Size, to: Size): Crop {
     rotation: crop.rotation,
   }
 }
-function sharpness(data: ImageData) {
-  let sum = 0
-  for (let y = 2; y < data.height - 2; y += 2) {
-    for (let x = 2; x < data.width - 2; x += 2) {
-      const i = (y * data.width + x) * 4
-      sum += Math.abs(
-        4 * data.data[i] -
-          data.data[i - 4] -
-          data.data[i + 4] -
-          data.data[i - data.width * 4] -
-          data.data[i + data.width * 4]
-      )
-    }
+function fixedTarget(size: Size, aspect: number): Crop {
+  return {
+    cx: size.width / 2,
+    cy: size.height / 2,
+    width: Math.min(size.width, size.height / aspect) * 0.9,
+    rotation: 0,
   }
-  return sum / (data.width * data.height)
 }
 
 // Identity acquisition is separate from edge refinement: straight lines in an
@@ -81,16 +74,29 @@ export function useHandheldGuide({
     setView(empty)
   }
   const seed = useRef<Seed | null>(null)
-  const archive = useRef<ImageData | null>(null)
+  const evaluator = useRef<HandheldEvaluator | null>(null)
   const taking = useRef(false)
   const generation = useRef(0)
   const revision = useRef(0)
   useEffect(() => {
     const epoch = ++generation.current
     seed.current = null
-    archive.current = null
+    evaluator.current = null
     if (!guide || !active) return
     const controller = new AbortController()
+    let worker: HandheldEvaluator
+    try {
+      worker = new HandheldEvaluator()
+    } catch {
+      void Promise.resolve().then(() => {
+        if (generation.current === epoch)
+          setView({ ...empty, state: "unavailable" })
+      })
+      return () => {
+        generation.current = epoch + 1
+      }
+    }
+    evaluator.current = worker
     let timer: ReturnType<typeof setTimeout>
     let expiry: ReturnType<typeof setTimeout>
     let lastState = ""
@@ -110,15 +116,20 @@ export function useHandheldGuide({
     const element = video.current
     element?.addEventListener("resize", clear)
     void loadImage(thenSrc)
-      .then((image) => {
+      .then(async (image) => {
         if (!valid()) return
         const prepared = prepareArchive(image)
         const original = pixels(image, {
           width: image.naturalWidth,
           height: image.naturalHeight,
         })
-        archive.current = original.data
+        const ready = await worker.prepare(original.data, guide)
         releaseCanvas(original.canvas)
+        if (!valid()) return
+        if (!ready) {
+          setView({ ...empty, state: "unavailable" })
+          return
+        }
         const loop = async () => {
           const started = performance.now()
           const viewRevision = revision.current
@@ -130,6 +141,8 @@ export function useHandheldGuide({
               taking.current ||
               document.visibilityState !== "visible" ||
               !live?.videoWidth ||
+              live.paused ||
+              live.ended ||
               live.readyState < 2
             )
               return
@@ -142,7 +155,10 @@ export function useHandheldGuide({
               setView(empty)
               return
             }
+            let sampledAt = performance.now()
             frame = pixels(live, size)
+            let sampleMs = performance.now() - sampledAt
+            let modelMs = 0
             let identity = seed.current
             if (
               !identity ||
@@ -150,6 +166,7 @@ export function useHandheldGuide({
               identity.size.width !== size.width ||
               identity.size.height !== size.height
             ) {
+              const modelStarted = performance.now()
               const found = await align(
                 prepared,
                 frame.canvas,
@@ -163,49 +180,101 @@ export function useHandheldGuide({
                 revision.current !== viewRevision ||
                 document.visibilityState !== "visible" ||
                 live.videoWidth !== size.width ||
-                live.videoHeight !== size.height
+                live.videoHeight !== size.height ||
+                live.paused ||
+                live.ended
               )
                 return
+              modelMs = performance.now() - modelStarted
               if (!found) {
+                if (
+                  lastState !== "identity_not_found" ||
+                  started - lastLog > 5000
+                ) {
+                  diagnostic("assistance", {
+                    state: "searching",
+                    reason: "identity_not_found",
+                    frameAge: performance.now() - sampledAt,
+                    ms: performance.now() - started,
+                    sampleMs,
+                    modelMs,
+                  })
+                  lastState = "identity_not_found"
+                  lastLog = started
+                }
                 clear()
                 return
               }
               identity = {
                 crop: resizeCrop(found.crop, frame.data, size),
                 size,
-                at: performance.now(),
+                at: sampledAt,
               }
               // Inference may have been slow. Always refine a new frame before displaying anything.
               releaseCanvas(frame.canvas)
+              const sampleStarted = performance.now()
+              sampledAt = sampleStarted
               frame = pixels(live, size)
+              sampleMs += performance.now() - sampleStarted
             }
-            let result = assessHandheld(
-              archive.current!,
+            if (performance.now() - identity.at > LIFE) {
+              clear()
+              diagnostic("assistance", {
+                state: "searching",
+                reason: "stale_frame",
+                frameAge: performance.now() - sampledAt,
+                identityAge: performance.now() - identity.at,
+                ms: performance.now() - started,
+                sampleMs,
+                modelMs,
+              })
+              return
+            }
+            const refineStarted = performance.now()
+            const reply = await worker.assess(
               frame.data,
-              guide,
-              resizeCrop(identity.crop, size, frame.data)
+              resizeCrop(identity.crop, size, frame.data),
+              fixedTarget(frame.data, prepared.aspect),
+              prepared.aspect
             )
-            // A global coarse fit may prefer one face. Inspect the user's fixed
-            // target as well, but only after independently recognising the place.
-            if (result.state === "searching") {
-              const target = assessHandheld(
-                archive.current!,
-                frame.data,
-                guide,
-                {
-                  cx: frame.data.width / 2,
-                  cy: frame.data.height / 2,
-                  width:
-                    Math.min(
-                      frame.data.width,
-                      frame.data.height / prepared.aspect
-                    ) * 0.9,
-                  rotation: 0,
-                }
-              )
-              if (target.state !== "searching") result = target
+            const refineMs = performance.now() - refineStarted
+            if (
+              !valid() ||
+              taking.current ||
+              revision.current !== viewRevision ||
+              document.visibilityState !== "visible" ||
+              live.videoWidth !== size.width ||
+              live.videoHeight !== size.height ||
+              live.paused ||
+              live.ended
+            )
+              return
+            if (
+              !reply ||
+              performance.now() - sampledAt >= 800 ||
+              performance.now() - identity.at > LIFE
+            ) {
+              clear()
+              diagnostic("assistance", {
+                state: "searching",
+                reason: reply ? "stale_frame" : "worker_failed",
+                frameAge: performance.now() - sampledAt,
+                identityAge: performance.now() - identity.at,
+                ms: performance.now() - started,
+                sampleMs,
+                modelMs,
+                refineMs,
+              })
+              if (!reply) {
+                // A terminated worker cannot recover inside this camera lifecycle.
+                // Stop acquisition too; retake/reopen creates a fresh evaluator.
+                setView({ ...empty, state: "unavailable" })
+                controller.abort()
+                worker.dispose()
+              }
+              return
             }
-            if (!valid() || taking.current) return
+            const result = reply.assessment
             const correction =
               result.state === "adjusted" && result.crop
                 ? resizeCrop(result.crop, frame.data, size)
@@ -230,9 +299,18 @@ export function useHandheldGuide({
             })
             clearTimeout(expiry)
             // Do not leave a correction or instruction on screen during a stalled matcher.
-            expiry = setTimeout(() => {
-              if (valid() && !taking.current) setView(empty)
-            }, 800)
+            expiry = setTimeout(
+              () => {
+                if (valid() && !taking.current) setView(empty)
+              },
+              Math.max(
+                0,
+                Math.min(
+                  800 - (performance.now() - sampledAt),
+                  LIFE - (performance.now() - identity.at)
+                )
+              )
+            )
             if (result.state !== lastState || started - lastLog > 5000) {
               diagnostic("assistance", {
                 state: result.state,
@@ -247,7 +325,12 @@ export function useHandheldGuide({
                       )
                     )
                   : null,
-                frameAge: performance.now() - started,
+                reason: result.reason,
+                sampleMs,
+                modelMs,
+                refineMs,
+                identityAge: performance.now() - identity.at,
+                frameAge: performance.now() - sampledAt,
                 ms: performance.now() - started,
               })
               lastState = result.state
@@ -272,6 +355,8 @@ export function useHandheldGuide({
     return () => {
       generation.current = epoch + 1
       controller.abort()
+      worker.dispose()
+      if (evaluator.current === worker) evaluator.current = null
       clearTimeout(timer)
       clearTimeout(expiry)
       seed.current = null
@@ -282,12 +367,13 @@ export function useHandheldGuide({
 
   const capture = async (fallback: Crop, aspect: number) => {
     const live = video.current
-    if (!live?.videoWidth) return null
+    if (!live?.videoWidth || taking.current) return null
     taking.current = true
     const epoch = generation.current
     const captureRevision = revision.current
     const started = performance.now()
     const identity = seed.current
+    const worker = evaluator.current
     let best: {
       canvas: HTMLCanvasElement
       crop: Crop
@@ -295,6 +381,7 @@ export function useHandheldGuide({
       assessment: Assessment | null
       selected: number
       mediaTime: number
+      sampledAt: number
     } | null = null
     let count = 0
     let pending: HTMLCanvasElement | null = null
@@ -306,6 +393,8 @@ export function useHandheldGuide({
           epoch !== generation.current ||
           captureRevision !== revision.current ||
           document.visibilityState !== "visible" ||
+          live.paused ||
+          live.ended ||
           live.readyState < 2
         )
           break
@@ -313,25 +402,49 @@ export function useHandheldGuide({
         pending = canvas
         canvas.width = live.videoWidth
         canvas.height = live.videoHeight
+        const sampledAt = performance.now()
         canvas.getContext("2d")!.drawImage(live, 0, 0)
+        const mediaTime = live.currentTime * 1000
         const small = pixels(canvas, canvas)
         smallFrame = small.canvas
         let assessment: Assessment | null = null
+        let score = 0
         if (
           guide &&
-          archive.current &&
+          worker &&
           identity &&
-          started - identity.at <= LIFE &&
+          sampledAt - identity.at <= LIFE &&
           identity.size.width === canvas.width &&
           identity.size.height === canvas.height
         ) {
-          assessment = assessHandheld(
-            archive.current,
-            small.data,
-            guide,
-            resizeCrop(identity.crop, identity.size, small.data)
+          await worker.idle()
+          if (
+            epoch !== generation.current ||
+            captureRevision !== revision.current ||
+            document.visibilityState !== "visible"
           )
+            break
+          if (
+            performance.now() - sampledAt < 800 &&
+            performance.now() - identity.at <= LIFE
+          ) {
+            const reply = await worker.assess(
+              small.data,
+              resizeCrop(identity.crop, identity.size, small.data),
+              fixedTarget(small.data, aspect),
+              aspect
+            )
+            if (
+              reply &&
+              performance.now() - sampledAt < 800 &&
+              performance.now() - identity.at <= LIFE
+            ) {
+              assessment = reply.assessment
+              score = reply.sharpness
+            }
+          }
         }
+
         const refined =
           assessment?.state === "adjusted" && assessment.crop
             ? resizeCrop(assessment.crop, small.data, canvas)
@@ -342,7 +455,6 @@ export function useHandheldGuide({
           refined.width >= canvas.width * 0.55 &&
           Math.abs(refined.rotation) <= Math.PI / 12
         if (!validCrop) assessment = null
-        const score = sharpness(small.data)
         releaseCanvas(small.canvas)
         smallFrame = null
         count++
@@ -367,12 +479,21 @@ export function useHandheldGuide({
             assessment,
             score,
             selected: i,
-            mediaTime: live.currentTime * 1000,
+            mediaTime,
+            sampledAt,
           }
         } else releaseCanvas(canvas)
         pending = null
         // Without a fresh identity, preserve the pressed frame immediately.
-        if (!identity || started - identity.at > LIFE) break
+        if (!identity || performance.now() - identity.at > LIFE) break
+      }
+      if (pending) {
+        releaseCanvas(pending)
+        pending = null
+      }
+      if (smallFrame) {
+        releaseCanvas(smallFrame)
+        smallFrame = null
       }
       if (
         epoch !== generation.current ||
@@ -386,6 +507,13 @@ export function useHandheldGuide({
         frames: count,
         selected: best?.selected ?? 0,
         assisted: !!best?.assessment,
+        reason: best?.assessment
+          ? "assisted"
+          : !identity
+            ? "no_identity"
+            : performance.now() - identity.at > LIFE
+              ? "expired_identity"
+              : "rejected_geometry",
         ms: performance.now() - started,
       }
       return (
@@ -394,6 +522,7 @@ export function useHandheldGuide({
           crop: best.crop,
           assisted: !!best.assessment,
           mediaTime: best.mediaTime,
+          frameAge: performance.now() - best.sampledAt,
           burst,
         }
       )

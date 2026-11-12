@@ -1196,6 +1196,9 @@ export function RephotoCamera({
       assisted: boolean
       ms: number
     } | null = null
+    let frameAge = telemetry.current.frameAt
+      ? now - telemetry.current.frameAt
+      : null
     let mediaTime = video.currentTime * 1000
     if (trace) {
       try {
@@ -1210,6 +1213,7 @@ export function RephotoCamera({
         assisted = selected.assisted
         burst = selected.burst
         mediaTime = selected.mediaTime
+        frameAge = selected.frameAge
       } catch {
         capturing.current = false
         setCaptureBusy(false)
@@ -1229,9 +1233,7 @@ export function RephotoCamera({
         cropWidth: crop.width / photo.width,
         cropRotation: crop.rotation,
         aspect,
-        frameAge: telemetry.current.frameAt
-          ? now - telemetry.current.frameAt
-          : null,
+        frameAge,
         mediaTime,
         reveal: trace ? 100 : Math.round(reveal),
         overlay: trace ? TRACE_OVERLAY_OPACITY : 1,
@@ -1253,6 +1255,10 @@ export function RephotoCamera({
     })
   }
 
+  const highlightedLandmark =
+    assistance.state === "conflict" && assistance.worstFeatureIndex !== null
+      ? trace?.features[assistance.worstFeatureIndex]?.name
+      : null
   // A stable coarse match is framing assistance, not geometric verification.
   // Automatic capture returns only after real-image quality acceptance is proven.
 
@@ -1370,9 +1376,6 @@ export function RephotoCamera({
                           ? assistance.worstFeatureIndex
                           : null
                     }
-                    supported={
-                      showArchive ? undefined : assistance.supportedIndices
-                    }
                   />
                 </>
               )}
@@ -1427,12 +1430,10 @@ export function RephotoCamera({
                       : assistance.state === "adjusted"
                         ? "Framing adjusted"
                         : assistance.state === "conflict"
-                          ? assistance.worstFeatureIndex !== null
-                            ? "Check highlighted edge"
-                            : "Parts don’t line up yet"
-                          : assistance.state === "unavailable"
-                            ? "Match the view to the lines"
-                            : "Point at the old scene"
+                          ? highlightedLandmark
+                            ? `Line up the ${highlightedLandmark.toLowerCase()}`
+                            : "Line up both sides with the guides"
+                          : "Line up both sides with the guides"
                   }
                 />
               </div>

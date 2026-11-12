@@ -24,8 +24,20 @@ const fields: Record<string, string[]> = {
     "viewportWidth",
     "viewportHeight",
   ],
-  assistance: ["state", "supported", "regions", "residual", "frameAge", "ms"],
-  burst: ["frames", "selected", "assisted", "ms"],
+  assistance: [
+    "state",
+    "supported",
+    "regions",
+    "residual",
+    "frameAge",
+    "ms",
+    "reason",
+    "sampleMs",
+    "modelMs",
+    "refineMs",
+    "identityAge",
+  ],
+  burst: ["frames", "selected", "assisted", "ms", "reason"],
   framing: ["phase", "cropX", "cropY", "cropWidth", "cropRotation", "aspect"],
   open: ["gpu", "saveData", "browser", "matcher"],
   stream: ["ask", "allowed", "width", "height", "fps"],
@@ -269,7 +281,31 @@ export function sanitizeDetails(
   for (const key of fields[event]) {
     const value = input[key]
     if (event === "assistance" || event === "burst") {
-      if (key === "state") {
+      if (key === "reason") {
+        const allowed =
+          event === "burst"
+            ? [
+                "no_identity",
+                "expired_identity",
+                "rejected_geometry",
+                "assisted",
+              ]
+            : [
+                "identity_not_found",
+                "invalid_seed",
+                "insufficient_archive_edges",
+                "insufficient_unique_edges",
+                "unconstrained_geometry",
+                "outside_local_search",
+                "regional_disagreement",
+                "local_edges_supported_unverified",
+                "missing_or_changed_edges",
+                "worker_failed",
+                "stale_frame",
+              ]
+        if (typeof value === "string" && allowed.includes(value))
+          output[key] = value
+      } else if (key === "state") {
         if (
           typeof value === "string" &&
           ["searching", "conflict", "adjusted", "unavailable"].includes(value)
