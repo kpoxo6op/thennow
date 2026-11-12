@@ -92,32 +92,20 @@ function solve(rows: Observation[]) {
   return a.map((row) => row[4])
 }
 
-// Both inputs must be downsampled consistently (recommended max dimension 640).
-// Output crop is in photo pixels. Only explicitly region-labelled strokes vote;
-// decorative traces, changed pavement and mural content remain visual guides.
-export function assessHandheld(
+// Reference preparation is immutable and reused across live/capture assessments.
+export type HandheldReference = {
+  guide: ReferenceLines
+  samples: Sample[]
+  fitting: Sample[]
+  held: Sample[]
+  regions: { name: string; expected: number }[]
+  featureExpected: number[]
+}
+export function prepareHandheldReference(
   archive: ImageData,
-  photo: ImageData,
-  guide: ReferenceLines,
-  seedCrop: Crop
-): HandheldAssessment {
-  const empty = (reason: string): HandheldAssessment => ({
-    state: "searching",
-    crop: null,
-    regions: [],
-    supportedIndices: [],
-    worstFeatureIndex: null,
-    reason,
-  })
-  if (
-    ![seedCrop.cx, seedCrop.cy, seedCrop.width, seedCrop.rotation].every(
-      Number.isFinite
-    ) ||
-    seedCrop.width <= 16
-  )
-    return empty("invalid_seed")
-  const then = raster(archive),
-    now = raster(photo)
+  guide: ReferenceLines
+): HandheldReference {
+  const then = raster(archive)
   const aspect = archive.height / archive.width
   const samples: Sample[] = []
   guide.features.forEach((feature, fi) => {
@@ -174,13 +162,96 @@ export function assessHandheld(
       }
     }
   })
+  const held = samples.filter((sample) => sample.held)
+  return {
+    guide,
+    samples,
+    fitting: samples.filter((sample) => !sample.held),
+    held,
+    regions: [
+      ...new Set(
+        guide.features.flatMap((feature) =>
+          feature.region ? [feature.region] : []
+        )
+      ),
+    ].map((name) => ({
+      name,
+      expected: held.filter((sample) => sample.region === name).length,
+    })),
+    featureExpected: guide.features.map(
+      (_, index) => held.filter((sample) => sample.feature === index).length
+    ),
+  }
+}
+
+const referenceCache = new WeakMap<
+  ImageData,
+  WeakMap<ReferenceLines, HandheldReference>
+>()
+function cachedReference(archive: ImageData, guide: ReferenceLines) {
+  let guides = referenceCache.get(archive)
+  if (!guides) {
+    guides = new WeakMap()
+    referenceCache.set(archive, guides)
+  }
+  let reference = guides.get(guide)
+  if (!reference) {
+    reference = prepareHandheldReference(archive, guide)
+    guides.set(guide, reference)
+  }
+  return reference
+}
+
+// Both inputs must be downsampled consistently (recommended max dimension 640).
+// Output crop is in photo pixels. Reference inputs must remain immutable.
+export function assessHandheld(
+  archive: ImageData,
+  photo: ImageData,
+  guide: ReferenceLines,
+  seedCrop: Crop,
+  reference: HandheldReference = cachedReference(archive, guide)
+): HandheldAssessment {
+  return assessPreparedHandheld(
+    reference,
+    prepareHandheldPhoto(photo),
+    seedCrop
+  )
+}
+
+export function prepareHandheldPhoto(photo: ImageData): Raster {
+  return raster(photo)
+}
+
+export function assessPreparedHandheld(
+  reference: HandheldReference,
+  photo: Raster,
+  seedCrop: Crop
+): HandheldAssessment {
+  const { guide } = reference
+  const empty = (reason: string): HandheldAssessment => ({
+    state: "searching",
+    crop: null,
+    regions: [],
+    supportedIndices: [],
+    worstFeatureIndex: null,
+    reason,
+  })
+  if (
+    ![seedCrop.cx, seedCrop.cy, seedCrop.width, seedCrop.rotation].every(
+      Number.isFinite
+    ) ||
+    seedCrop.width <= 16
+  )
+    return empty("invalid_seed")
+  const now = photo
+  const { samples } = reference
   if (samples.length < 18) return empty("insufficient_archive_edges")
   const radius = Math.max(3, Math.min(10, photo.width * 0.018))
-  const observe = (crop: Crop): Observation[] => {
+  const observe = (crop: Crop, selected: Sample[]): Observation[] => {
     const cos = Math.cos(crop.rotation),
       sin = Math.sin(crop.rotation)
     const rows: Observation[] = []
-    for (const sample of samples) {
+    for (const sample of selected) {
       const qx = crop.width * (cos * sample.x - sin * sample.y),
         qy = crop.width * (sin * sample.x + cos * sample.y)
       const nx = cos * sample.nx - sin * sample.ny,
@@ -192,16 +263,24 @@ export function assessHandheld(
           edge(now, crop.cx + qx + nx * d, crop.cy + qy + ny * d, nx, ny)
         if (Number.isFinite(strength)) scores.push({ d, strength })
       }
-      scores.sort((a, b) => b.strength - a.strength)
-      const best = scores[0]
+      // Strict greater-than keeps the original stable-sort tie choice.
+      let best: { d: number; strength: number } | undefined
+      for (const score of scores)
+        if (!best || score.strength > best.strength) best = score
       if (
         !best ||
         best.strength < 0.055 ||
         Math.abs(best.d) >= Math.floor(radius)
       )
         continue
-      const competitor = scores.find((s) => Math.abs(s.d - best.d) > 3)
-      if (competitor && competitor.strength > best.strength * 0.8) continue
+      if (
+        scores.some(
+          (score) =>
+            Math.abs(score.d - best.d) > 3 &&
+            score.strength > best.strength * 0.8
+        )
+      )
+        continue
       rows.push({
         sample,
         offset: best.d,
@@ -212,7 +291,7 @@ export function assessHandheld(
   }
   let crop = { ...seedCrop }
   for (let iteration = 0; iteration < 4; iteration++) {
-    const rows = observe(crop).filter((row) => !row.sample.held)
+    const rows = observe(crop, reference.fitting)
     if (rows.length < 10) return empty("insufficient_unique_edges")
     const delta = solve(rows)
     if (!delta) return empty("unconstrained_geometry")
@@ -230,16 +309,8 @@ export function assessHandheld(
     )
       return empty("outside_local_search")
   }
-  const held = observe(crop).filter((row) => row.sample.held)
-  const names = [
-    ...new Set(
-      guide.features.flatMap((feature) =>
-        feature.region ? [feature.region] : []
-      )
-    ),
-  ]
-  const regions = names.map((name) => {
-    const expected = samples.filter((s) => s.held && s.region === name).length
+  const held = observe(crop, reference.held)
+  const regions = reference.regions.map(({ name, expected }) => {
     const found = held.filter((row) => row.sample.region === name)
     return {
       name,
@@ -251,7 +322,7 @@ export function assessHandheld(
     }
   })
   const supportedIndices = guide.features.flatMap((_, fi) => {
-    const expected = samples.filter((s) => s.held && s.feature === fi).length
+    const expected = reference.featureExpected[fi]
     const found = held.filter((row) => row.sample.feature === fi)
     return expected >= 3 &&
       found.length >= Math.max(3, expected * 0.55) &&

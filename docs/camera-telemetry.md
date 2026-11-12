@@ -63,3 +63,16 @@ it normally. Include the review and any retake/send outcome. No special experime
 button or technical overlay is needed. The recording and exported photograph are
 still required to judge visual quality: these diagnostics do not measure regional
 landmark errors, blur or the quality of hypothetical buffered frames.
+
+## Handheld assistance
+
+`assistance` records bounded refusal reasons alongside supported-feature and region
+counts. `sampleMs`, `modelMs` and `refineMs` separate camera readback, coarse
+recognition and edge assessment. `ms` is the whole iteration; `frameAge` measures
+time since the most recently sampled frame, including worker transfer/processing.
+`identityAge` measures the coarse seed age. Do not interpret the old tracing
+heartbeat's legacy matcher counters as counts of this separate edge pipeline.
+
+`burst.reason` distinguishes absent/expired identity, rejected geometry and an
+assisted selection. An assisted result is still not a publication-quality verdict.
+No new pixel data, coordinates or free-form diagnostic strings enter these events.

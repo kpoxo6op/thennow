@@ -479,6 +479,12 @@ for (const [orientation, viewport] of Object.entries({
         .slice(eventStart)
         .find((e) => e.event === "burst")!
       expect(burst.assisted).toBe(false)
+      // The failed assistance must explain why capture preserved the pressed frame.
+      expect([
+        "no_identity",
+        "expired_identity",
+        "rejected_geometry",
+      ]).toContain(burst.reason)
       expect(burst.selected).toBe(0)
       expect(burst.frames).toBeGreaterThanOrEqual(1)
       expect(burst.frames).toBeLessThanOrEqual(3)
