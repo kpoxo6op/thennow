@@ -40,13 +40,16 @@ import {
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { slide, thumb, type Thumb } from "@/lib/rephoto/track"
 import { releaseScreen } from "@/components/rephoto/camera-link"
+import { DecisionCue } from "@/components/rephoto/decision-cue"
 import { LiveDivider } from "@/components/rephoto/live-divider"
 import { MatcherGuide } from "@/components/rephoto/matcher-guide"
 import { ReferenceTrace } from "@/components/rephoto/reference-trace"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
+import { useDecisionGuide } from "@/components/rephoto/use-decision-guide"
 import { useHandheldGuide } from "@/components/rephoto/use-handheld-guide"
 
 interface Props {
+  decisions?: boolean
   name: string
   slug: string
   thenSrc: string
@@ -196,6 +199,7 @@ export function RephotoCamera({
   slug,
   thenSrc,
   aspect: listedAspect,
+  decisions = false,
 }: Props) {
   const trace = referenceLines(slug, thenSrc)
   const [aspect, setAspect] = useState(listedAspect)
@@ -269,7 +273,19 @@ export function RephotoCamera({
     guide: trace,
     thenSrc,
     video: videoRef,
-    active: status === "live" && !shot && !interrupted,
+    active: !decisions && status === "live" && !shot && !interrupted,
+  })
+  const decision = useDecisionGuide({
+    video: videoRef,
+    slug,
+    aspect,
+    active:
+      decisions &&
+      status === "live" &&
+      !shot &&
+      !interrupted &&
+      !showArchive &&
+      !captureBusy,
   })
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
@@ -329,20 +345,21 @@ export function RephotoCamera({
         matcher: canMatchLocally() ? "phone" : "server",
       }
     )
-    prepareLocalMatcher()
-      ?.then(() => {
-        debug("matcher ready")
-        report("matcher ready", {
-          ms: Math.round(performance.now() - loading),
+    if (!decisions)
+      prepareLocalMatcher()
+        ?.then(() => {
+          debug("matcher ready")
+          report("matcher ready", {
+            ms: Math.round(performance.now() - loading),
+          })
         })
-      })
-      .catch((error) =>
-        report(
-          "matcher failed",
-          { message: String(error).slice(0, 200) },
-          { ms: Math.round(performance.now() - loading) }
+        .catch((error) =>
+          report(
+            "matcher failed",
+            { message: String(error).slice(0, 200) },
+            { ms: Math.round(performance.now() - loading) }
+          )
         )
-      )
     // Leaving the camera hands the shot's memory and the screen back.
     return () => {
       clearInterval(pulse)
@@ -352,7 +369,7 @@ export function RephotoCamera({
       releaseScreen()
       if (shotRef.current) releaseCanvas(shotRef.current.canvas)
     }
-  }, [trace, thenSrc])
+  }, [trace, thenSrc, decisions])
 
   useEffect(() => {
     let cancelled = false
@@ -772,7 +789,7 @@ export function RephotoCamera({
       while (!controller.signal.aborted) {
         const started = performance.now()
         if (!localMatcherReady() && canMatchLocally())
-          prepareLocalMatcher()?.catch(() => {})
+          if (!decisions) prepareLocalMatcher()?.catch(() => {})
         const video = videoRef.current
         const archive = archiveRef.current
         if (
@@ -1093,7 +1110,7 @@ export function RephotoCamera({
         { steady: stats.firstSteady >= 0 }
       )
     }
-  }, [shot, status, trace])
+  }, [shot, status, trace, decisions])
 
   // A placement that has gone stale leaves the screen too, so what is shown is what is shot.
   useEffect(() => {
@@ -1422,20 +1439,30 @@ export function RephotoCamera({
           <>
             {status === "live" && !interrupted && (
               <div data-testid="handheld-guide" data-state={assistance.state}>
-                <MatcherGuide
-                  hidden={false}
-                  message={
-                    captureBusy
-                      ? "Taking photo…"
-                      : assistance.state === "adjusted"
-                        ? "Framing adjusted"
-                        : assistance.state === "conflict"
-                          ? highlightedLandmark
-                            ? `Line up the ${highlightedLandmark.toLowerCase()}`
+                {decisions ? (
+                  <div className="pointer-events-none absolute left-1/2 top-[max(0.5rem,env(safe-area-inset-top))] -translate-x-1/2">
+                    <DecisionCue
+                      action={decision.action}
+                      loading={decision.loading}
+                      unavailable={decision.unavailable}
+                    />
+                  </div>
+                ) : (
+                  <MatcherGuide
+                    hidden={false}
+                    message={
+                      captureBusy
+                        ? "Taking photo…"
+                        : assistance.state === "adjusted"
+                          ? "Framing adjusted"
+                          : assistance.state === "conflict"
+                            ? highlightedLandmark
+                              ? `Line up the ${highlightedLandmark.toLowerCase()}`
+                              : "Line up both sides with the guides"
                             : "Line up both sides with the guides"
-                          : "Line up both sides with the guides"
-                  }
-                />
+                    }
+                  />
+                )}
               </div>
             )}
             <button

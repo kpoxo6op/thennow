@@ -19,6 +19,10 @@ export default defineConfig({
     // admin: the id of the cookie comments.spec.ts signs in with.
     env: {
       TN_FAKE_STORE: "1",
+      // No real provider key in browser checks. The experiment journey intercepts
+      // its own endpoint; API rejection cases never reach the provider.
+      TN_DECISIONS_EXPERIMENT: "1",
+      OPENAI_API_KEY: "not-a-provider-key",
       TN_ADMIN_IDS: "aad678f1b278cf5e00e24f7de5747e05",
     },
     reuseExistingServer: true,

@@ -758,3 +758,78 @@ test("a hung first inference leaves starting and recovers without disabling capt
     .toBeGreaterThan(0)
   await expect(guide).toHaveCount(0)
 })
+
+// New external coaching boundary: no frame leaves before opt-in, stale/failed
+// advice cannot steer the user, and capture remains manual. Existing matcher
+// journeys do not exercise Decisions or its consent/lifecycle contract.
+test("animated experiment requires consent, fresh agreement and leaves capture usable", async ({
+  page,
+}) => {
+  const requests: {
+    current: { jpeg: string; at: number }
+    previous?: { at: number }
+  }[] = []
+  let action = "aim_left"
+  let delay = 0
+  let unavailable = false
+  await page.route("**/api/camera-decision", async (route) => {
+    requests.push(route.request().postDataJSON())
+    const chosen = action
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
+    await route
+      .fulfill({
+        status: unavailable ? 503 : 200,
+        json: {
+          action: chosen,
+          progress: "unknown",
+          confidence: 0.95,
+          ms: 20,
+          outcome: unavailable ? "unavailable" : "ok",
+        },
+      })
+      .catch(() => {})
+  })
+  await page.route("**/api/camera-log", (route) =>
+    route.fulfill({ status: 204 })
+  )
+  await page.goto("/bradley-lane-line-road/camera/experiment")
+  await expect(
+    page.getByRole("button", { name: "Start experiment" })
+  ).toBeVisible()
+  expect(requests).toHaveLength(0)
+  await page.getByRole("button", { name: "Start experiment" }).click()
+  const cue = page.getByTestId("decision-cue")
+  await expect(cue).toHaveAttribute("data-action", "aim_left", {
+    timeout: 15000,
+  })
+  expect(requests.length).toBeGreaterThanOrEqual(2)
+  expect(requests[1].previous!.at).toBeLessThan(requests[1].current.at)
+  expect(requests[0].current.jpeg).toMatch(/^data:image\/jpeg;base64,/)
+  await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+  await expect(page.getByTestId("rephoto-review")).toHaveCount(0)
+  await screenshot(page, "decisions-left-portrait")
+  await page.setViewportSize({ width: 844, height: 390 })
+  await expect(cue).toHaveAttribute("data-action", "aim_left", {
+    timeout: 10000,
+  })
+  await screenshot(page, "decisions-left-landscape")
+  // Delayed advice must disappear even though the endpoint eventually answers.
+  delay = 2100
+  action = "aim_right"
+  await expect(cue).not.toHaveAttribute("data-action", "aim_left", {
+    timeout: 7000,
+  })
+  await page.waitForTimeout(2500)
+  await expect(cue).not.toHaveAttribute("data-action", "aim_right")
+  await page.getByTestId("rephoto-shutter").click()
+  await expect(page.getByTestId("rephoto-review")).toBeVisible()
+  await expect(cue).toHaveCount(0)
+  delay = 0
+  unavailable = true
+  await page.getByRole("button", { name: "Retake", exact: true }).click()
+  await expect(cue).toHaveAttribute("data-action", "unavailable", {
+    timeout: 10000,
+  })
+  await page.getByTestId("rephoto-shutter").click()
+  await expect(page.getByTestId("rephoto-review")).toBeVisible()
+})

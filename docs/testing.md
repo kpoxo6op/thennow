@@ -223,3 +223,15 @@ These existing journeys protect control flow with simulated inference. The manua
 photo baseline in [alignment-quality.md](alignment-quality.md) and real field
 captures determine photographic quality. Automatic capture remains disabled until
 that separate quality evidence exists. Live hardware autozoom remains disabled.
+
+## Decisions camera experiment
+
+One additional browser journey owns the new opt-in image-request boundary: no
+request before Start, two fresh agreeing suggestions before a directional icon,
+late answers discarded, manual capture during waiting, and failed service still
+allowing a photograph. API intake rejection cases extend the existing camera
+boundary check. This adds one case (96 total), not a model accuracy suite.
+
+Responses in that journey are simulated. Real Decisions API controls and latency
+must be evaluated separately; passing UI checks cannot authorize live directions.
+See [the experiment notes](decisions-experiment.md).

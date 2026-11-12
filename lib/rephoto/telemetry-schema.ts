@@ -16,6 +16,7 @@ export const BROWSERS = [
   "other",
 ]
 const fields: Record<string, string[]> = {
+  decision: ["action", "progress", "confidence", "shown", "ms", "outcome"],
   experiment: ["reference", "mode", "overlay", "features"],
   "guide view": [
     "view",
@@ -280,7 +281,41 @@ export function sanitizeDetails(
   const output: Record<string, TelemetryValue> = {}
   for (const key of fields[event]) {
     const value = input[key]
-    if (event === "assistance" || event === "burst") {
+    if (event === "decision") {
+      const values: Record<string, string[]> = {
+        action: [
+          "aim_left",
+          "aim_right",
+          "aim_up",
+          "aim_down",
+          "roll_left",
+          "roll_right",
+          "farther",
+          "closer",
+          "hold",
+          "unknown",
+        ],
+        progress: ["better", "same", "worse", "unknown"],
+        outcome: [
+          "ok",
+          "uncertain",
+          "disabled",
+          "invalid",
+          "limited",
+          "unavailable",
+          "timeout",
+          "stale",
+        ],
+      }
+      if (values[key]) {
+        if (typeof value === "string" && values[key].includes(value))
+          output[key] = value
+      } else if (key === "shown") {
+        if (typeof value === "boolean") output[key] = value
+      } else if (key === "confidence" && value === null) output[key] = null
+      else if (boundedNumber(value, 0, key === "confidence" ? 1 : 86400000))
+        output[key] = Math.round(value * 1000) / 1000
+    } else if (event === "assistance" || event === "burst") {
       if (key === "reason") {
         const allowed =
           event === "burst"
