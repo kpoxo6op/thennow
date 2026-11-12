@@ -214,7 +214,7 @@ test.describe("simulated camera application and API boundaries", () => {
     expect(response.status()).toBe(403)
   })
 
-  test("the camera's reports are taken only from this site", async ({
+  test("camera reports and paid image guidance reject foreign or malformed requests", async ({
     request,
   }) => {
     const send = (headers: Record<string, string>, data: string) =>
@@ -224,6 +224,33 @@ test.describe("simulated camera application and API boundaries", () => {
         await send({ "sec-fetch-site": "cross-site" }, '{"event":"open"}')
       ).status()
     ).toBe(403)
+    // Paid image experiment: reject cross-origin and malformed inputs before
+    // any provider request. The fixture key is intentionally unusable.
+    expect(
+      (
+        await request.post("/api/camera-decision", {
+          headers: {
+            origin: "https://elsewhere.invalid",
+            "sec-fetch-site": "cross-site",
+          },
+          data: {},
+        })
+      ).status()
+    ).toBe(403)
+    expect(
+      (
+        await request.post("/api/camera-decision", {
+          headers: {
+            origin: "http://127.0.0.1:3100",
+            "sec-fetch-site": "same-origin",
+          },
+          data: {
+            slug: "bradley-lane-line-road",
+            current: { jpeg: "data:image/jpeg;base64,AAAA", at: 1 },
+          },
+        })
+      ).status()
+    ).toBe(400)
     expect((await send({}, "not json")).status()).toBe(400)
     expect((await send({}, "x".repeat(13000))).status()).toBe(413)
     expect((await send({}, '{"event":"open"}')).status()).toBe(204)

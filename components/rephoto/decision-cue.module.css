@@ -1,0 +1,155 @@
+.root {
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+}
+.badge {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(12 16 19 / 78%);
+  border: 1px solid rgb(255 255 255 / 25%);
+  box-shadow: 0 1px 8px rgb(0 0 0 / 15%);
+}
+.badge svg {
+  width: 64px;
+  height: 64px;
+  overflow: visible;
+}
+.badge[data-progress="better"] {
+  border-color: rgb(255 255 255 / 85%);
+  animation: improve 800ms ease-out;
+}
+.badge[data-progress="worse"] {
+  border-style: dashed;
+}
+.ghost {
+  opacity: 0.2;
+}
+.phone {
+  transform-origin: 36px 36px;
+  --direction: 1;
+}
+.phone[data-reverse="true"] {
+  --direction: -1;
+}
+.phone[data-motion="yaw"] {
+  animation: yaw 1.7s ease-in-out infinite;
+}
+.phone[data-motion="pitch"] {
+  animation: pitch 1.7s ease-in-out infinite;
+}
+.phone[data-motion="roll"] {
+  animation: roll 1.7s ease-in-out infinite;
+}
+.steps {
+  animation: step 1.7s ease-in-out infinite;
+}
+.dots {
+  display: flex;
+  gap: 5px;
+}
+.dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dot 1.4s ease-in-out infinite;
+}
+.dots i:nth-child(2) {
+  animation-delay: 150ms;
+}
+.dots i:nth-child(3) {
+  animation-delay: 300ms;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+@keyframes yaw {
+  0%,
+  100% {
+    transform: perspective(100px) rotateY(0deg);
+  }
+  65% {
+    transform: perspective(100px) rotateY(calc(var(--direction) * -42deg));
+  }
+}
+@keyframes pitch {
+  0%,
+  100% {
+    transform: perspective(100px) rotateX(0deg);
+  }
+  65% {
+    transform: perspective(100px) rotateX(calc(var(--direction) * -38deg));
+  }
+}
+@keyframes roll {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  65% {
+    transform: rotate(calc(var(--direction) * 22deg));
+  }
+}
+@keyframes step {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  65% {
+    opacity: 1;
+  }
+}
+@keyframes dot {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes improve {
+  50% {
+    box-shadow: 0 0 0 3px rgb(255 255 255 / 15%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .badge,
+  .phone,
+  .steps,
+  .dots i {
+    animation: none !important;
+  }
+  .phone[data-motion="yaw"] {
+    transform: perspective(100px) rotateY(calc(var(--direction) * -32deg));
+  }
+  .phone[data-motion="pitch"] {
+    transform: perspective(100px) rotateX(calc(var(--direction) * -30deg));
+  }
+  .phone[data-motion="roll"] {
+    transform: rotate(calc(var(--direction) * 18deg));
+  }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .badge {
+    width: 56px;
+    height: 56px;
+  }
+  .badge svg {
+    width: 54px;
+    height: 54px;
+  }
+}
