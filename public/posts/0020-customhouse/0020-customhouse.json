@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Customhouse, Customs Street West",
+  "slug": "customhouse",
+  "description": "The Customhouse in September 1907. From the opposite footpath of Customs Street West, near Albert Street, face the building. Fit both steep corner roofs and the centre tower in the frame, with the Albert Street corner near the right edge.",
+  "b_imageUrl": "/posts/0020-customhouse/then-customhouse.jpg",
+  "w": 2000,
+  "h": 1532,
+  "location": {
+    "lat": -36.8451,
+    "lng": 174.7639
+  },
+  "archive": {
+    "date": "13 September 1907",
+    "photographer": "Henry Winkelmann",
+    "credit": "Auckland Libraries Heritage Collections 1-W1014",
+    "rights": "No known copyright restrictions",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/97979",
+    "sourceId": "1-W1014"
+  },
+  "area": "Auckland"
+}
