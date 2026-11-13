@@ -223,3 +223,15 @@ These existing journeys protect control flow with simulated inference. The manua
 photo baseline in [alignment-quality.md](alignment-quality.md) and real field
 captures determine photographic quality. Automatic capture remains disabled until
 that separate quality evidence exists. Live hardware autozoom remains disabled.
+
+## Position map and compact comments
+
+The existing comment posting journey now owns disclosure focus and draft retention
+when collapsed; a hidden editor must not consume the page or discard writing.
+Existing server validation, ownership and error recovery checks remain.
+
+A map journey checks a suggested starting point versus a visitor-selected point,
+changed walking destination, reset, and failure fallback. These are public browser
+contracts that the old fixed-pin story checks cannot cover. Existing touch scroll
+and compare checks continue to protect page interaction. Browser fixtures do not
+prove GPS precision, pedestrian access, or the historical camera position.

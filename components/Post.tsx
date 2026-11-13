@@ -536,7 +536,11 @@ export default function Post({ post, nearby }: PostProps) {
               ) : (
                 <Words lines={undated.flatMap((section) => section.lines)} />
               )}
-              <StoryMap name={post.name} location={post.location} />
+              <StoryMap
+                name={post.name}
+                location={post.location}
+                viewpoint={post.viewpoint}
+              />
               <Comments place={post.slug} />
             </>
           )}

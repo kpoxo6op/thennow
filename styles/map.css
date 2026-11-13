@@ -5,7 +5,8 @@
 
 /* The tiles are light; the room is not. */
 .tn-map .maplibregl-canvas {
-  filter: invert(1) hue-rotate(180deg) grayscale(0.85) sepia(0.14) brightness(1.3) contrast(0.82);
+  filter: invert(1) hue-rotate(180deg) grayscale(0.85) sepia(0.14)
+    brightness(1.3) contrast(0.82);
 }
 
 .tn-map .maplibregl-map {
@@ -55,4 +56,68 @@
 .tn-story-map .maplibregl-canvas,
 .tn-story-map .maplibregl-canvas-container {
   touch-action: pan-y !important;
+}
+
+.tn-viewpoint {
+  width: 32px;
+  height: 32px;
+}
+
+.tn-viewpoint-camera {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid white;
+  border-radius: 50%;
+  color: white;
+  background: #356f8b;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.45);
+}
+
+/* This is approximate facing guidance, not the photograph's measured field of view. */
+.tn-viewpoint-cone {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  left: -24px;
+  bottom: 16px;
+  transform-origin: 50% 100%;
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+  background: linear-gradient(
+    to top,
+    rgb(112 203 242 / 0.6),
+    rgb(112 203 242 / 0.06)
+  );
+  pointer-events: none;
+}
+
+.tn-map-crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 30px;
+  line-height: 1;
+  text-shadow: 0 1px 3px black;
+  pointer-events: none;
+}
+
+.tn-story-place-label {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 140px;
+  width: max-content;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: hsl(var(--background) / 0.9);
+  color: hsl(var(--foreground));
+  font: 12px/1.3 var(--font-sans), sans-serif;
+  text-align: center;
+  pointer-events: none;
 }
