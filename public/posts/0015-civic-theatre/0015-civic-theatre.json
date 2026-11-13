@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Civic Theatre, Auckland Central",
+  "slug": "civic-theatre",
+  "description": "The Civic in the 1950s, showing Seven Brides for Seven Brothers. From the footpath diagonally opposite at Queen and Wellesley Streets, face the corner entrance. Keep the tall lattice panels upright on both sides of the corner and step back until both wings fill the frame.",
+  "b_imageUrl": "/posts/0015-civic-theatre/then-civic-theatre.jpg",
+  "w": 2000,
+  "h": 1558,
+  "location": {
+    "lat": -36.8516,
+    "lng": 174.7641
+  },
+  "archive": {
+    "date": "1950s",
+    "photographer": "Unknown",
+    "credit": "Auckland Libraries Heritage Collections 1890-003",
+    "rights": "No known copyright restrictions",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/353728",
+    "sourceId": "1890-003"
+  },
+  "area": "Auckland"
+}
