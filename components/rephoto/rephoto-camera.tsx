@@ -1312,11 +1312,11 @@ export function RephotoCamera({
     // The shot starts where the old photograph sat on screen: where the matcher had just put it
     // and still shows it held, or else the resting guide, levelled. The review refines it from the full picture.
     const now = performance.now()
+    // What the screen shows is what is shot: a snapped view keeps its crop.
     const held =
       lock?.held &&
       now - lock.at < Math.max(lockLife.current, TRACKED_LIFE) &&
-      lock.trackedAt != null &&
-      now - lock.trackedAt < 600 &&
+      (snapped || (lock.trackedAt != null && now - lock.trackedAt < 600)) &&
       fits(lock.crop, aspect, photo)
         ? lock.crop
         : null
