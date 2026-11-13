@@ -116,6 +116,7 @@ const fields: Record<string, string[]> = {
     "scaleDelta",
     "rotationDelta",
   ],
+  cue: ["kind", "x", "y", "scale", "roll", "snapped", "age"],
   guide: [
     "state",
     "reason",
@@ -159,7 +160,19 @@ const enums: Record<string, string[]> = {
     "SecurityError",
     "other",
   ],
-  framing: ["live", "levelled", "traced"],
+  framing: ["live", "levelled", "traced", "snapped"],
+  kind: [
+    "left",
+    "right",
+    "up",
+    "down",
+    "closer",
+    "back",
+    "clockwise",
+    "anticlockwise",
+    "hold",
+    "none",
+  ],
   how: ["manual", "auto", "share", "download"],
   phase: ["aligning", "framed", "aligned", "unchecked", "unmatched"],
   result: [
@@ -259,6 +272,7 @@ const booleans = new Set([
   "held",
   "eligible",
   "visible",
+  "snapped",
 ])
 export function boundedNumber(
   value: unknown,

@@ -360,9 +360,9 @@ for (const [orientation, viewport] of Object.entries({
       )
     ).toBe(true)
     expect(batches.length).toBeLessThan(events().length)
-    // Curated traces are fixed aiming targets. This unrelated camera fixture must
-    // retain the photographer's manual crop even if the model offers a positive
-    // identity match. A coarse positive is not independent regional edge evidence.
+    // Curated traces are fixed aiming targets. A match now drives the live sign (here the
+    // matched view is wider than the target, so: step back), but a framing that isn't close
+    // enough to snap keeps the photographer's manual crop.
     await runtime(
       page,
       ort
@@ -397,7 +397,7 @@ for (const [orientation, viewport] of Object.entries({
       const target = await page.getByTestId("rephoto-frame").boundingBox()
       await expect(page.getByTestId("handheld-guide")).toHaveAttribute(
         "data-state",
-        /searching|conflict|unavailable/
+        /searching|found/
       )
       await expect
         .poll(() =>
@@ -409,7 +409,15 @@ for (const [orientation, viewport] of Object.entries({
         .toBeGreaterThan(1)
       await expect(page.getByTestId("handheld-guide")).toHaveAttribute(
         "data-state",
-        /searching|conflict|unavailable/
+        "found"
+      )
+      await expect(page.getByTestId("handheld-guide")).toHaveAttribute(
+        "data-cue",
+        "back"
+      )
+      await expect(page.getByTestId("cue-icon")).toBeVisible()
+      await expect(page.getByTestId("handheld-guide")).toContainText(
+        "Step back"
       )
       await expect(page.getByTestId("rephoto-review")).toHaveCount(0)
       expect(
@@ -467,27 +475,13 @@ for (const [orientation, viewport] of Object.entries({
       expect(crop.cx).toBeCloseTo(size.width / 2, 0)
       expect(crop.cy).toBeCloseTo(size.height / 2, 0)
       expect(crop.rotation).toBe(0)
-      await expect
-        .poll(
-          () =>
-            events()
-              .slice(eventStart)
-              .filter((e) => e.event === "burst").length
-        )
-        .toBe(1)
-      const burst = events()
-        .slice(eventStart)
-        .find((e) => e.event === "burst")!
-      expect(burst.assisted).toBe(false)
-      // The failed assistance must explain why capture preserved the pressed frame.
-      expect([
-        "no_identity",
-        "expired_identity",
-        "rejected_geometry",
-      ]).toContain(burst.reason)
-      expect(burst.selected).toBe(0)
-      expect(burst.frames).toBeGreaterThanOrEqual(1)
-      expect(burst.frames).toBeLessThanOrEqual(3)
+      expect(
+        events()
+          .slice(eventStart)
+          .some(
+            (e) => e.event === "cue" && (e as { kind?: string }).kind === "back"
+          )
+      ).toBe(true)
       await expect
         .poll(() => events().filter((e) => e.event === "framing").length)
         .toBeGreaterThan(0)

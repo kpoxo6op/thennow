@@ -126,9 +126,11 @@ export async function align(
     server,
     reach = 1,
     diagnostic,
+    minCoverage,
   }: {
     server: boolean
     reach?: number
+    minCoverage?: number
     diagnostic?: (details: AlignDiagnostic) => void
   }
 ): Promise<Fit | null> {
@@ -226,7 +228,8 @@ export async function align(
       archive.aspect,
       photo,
       cellSize(part ?? photo, frame.placement),
-      (fit) => report(fit.reason, fit)
+      (fit) => report(fit.reason, fit),
+      minCoverage
     )
   } catch (error) {
     if (!modelBegun) prepareMs = performance.now() - begun

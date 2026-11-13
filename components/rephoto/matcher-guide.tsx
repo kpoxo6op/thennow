@@ -1,6 +1,11 @@
 "use client"
 
-import { useEffect, useState, useSyncExternalStore } from "react"
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react"
 
 import { matcherStatus, subscribeMatcher } from "@/lib/rephoto/local-matcher"
 
@@ -8,10 +13,13 @@ export function MatcherGuide({
   hidden,
   found = false,
   message,
+  icon,
 }: {
   hidden: boolean
   found?: boolean
   message?: string
+  // A small sign before the words: which way to move.
+  icon?: ReactNode
 }) {
   const status = useSyncExternalStore(
     subscribeMatcher,
@@ -57,6 +65,7 @@ export function MatcherGuide({
       className="pointer-events-none absolute left-[calc(max(0.75rem,env(safe-area-inset-left))+3.25rem)] right-[calc(max(0.75rem,env(safe-area-inset-right))+3.25rem)] top-[max(0.75rem,env(safe-area-inset-top))] text-center"
     >
       <div className="inline-flex max-w-full items-center gap-2 text-balance rounded-full bg-black/65 px-3 py-1.5 text-sm leading-5">
+        {ready && icon}
         <span role="status">
           {ready
             ? (message ??
