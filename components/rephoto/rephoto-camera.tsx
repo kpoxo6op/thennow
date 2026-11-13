@@ -172,6 +172,11 @@ const stopStream = (stream: MediaStream) =>
 // ?debug on the camera page lists each step of opening the camera, for phones without devtools.
 // How often the follower looks; the ghost glides for as long between looks.
 const FOLLOW_MS = 250
+// Matched spots that make a single match trustworthy enough to steer by. Unrelated pictures reach
+// about 10, and the shop fronts at Bradley Lane 150 to 350.
+const STRONG_INLIERS = 40
+// How long a match may be carried by the follower before a fresh match must confirm it.
+const TRACKED_LIFE = 6000
 // Width of the copy of the live picture the matcher looks at.
 const SAMPLE_WIDTH = 1280
 
@@ -398,8 +403,9 @@ export function RephotoCamera({
   // Close enough: the crop does the rest, and the live picture snaps onto the old photograph.
   const snapped = !!lock?.held && cue?.kind === "hold"
   useEffect(() => {
-    if (snapped) navigator.vibrate?.(15)
-  }, [snapped])
+    // Without lines the follower's own "steady" buzz already marks this.
+    if (snapped && trace) navigator.vibrate?.(15)
+  }, [snapped, trace])
 
   useEffect(() => {
     startCameraSession()
@@ -747,7 +753,8 @@ export function RephotoCamera({
         Math.min(a.width, b.width) * 0.05 &&
       Math.abs(a.width / b.width - 1) < 0.05 &&
       Math.abs(a.rotation - b.rotation) < (3 * Math.PI) / 180
-    const fresh = (at: number) => performance.now() - at < lockLife.current
+    const fresh = (at: number) =>
+      performance.now() - at < Math.max(lockLife.current, TRACKED_LIFE)
     const guide = (
       state: string,
       reason: string,
@@ -812,9 +819,11 @@ export function RephotoCamera({
         const sampled = performance.now()
         const now = await thumb(video, photo)
         if (anchor !== from || publishing || controller.signal.aborted) return
-        const by = now && slide(from.thumb, now)
+        const measured = now && slide(from.thumb, now)
+        // A turn or zoom the follower can't measure leaves the view where it was until the next
+        // match, instead of wiping the sign; a long gap still lets it expire.
+        const by = measured ?? { x: 0, y: 0 }
         if (
-          !by ||
           !now ||
           !fresh(from.at) ||
           epoch !== viewEpoch ||
@@ -822,7 +831,7 @@ export function RephotoCamera({
           document.visibilityState !== "visible"
         ) {
           lose(
-            !by || !now
+            !now
               ? "tracking-failed"
               : epoch !== viewEpoch
                 ? "view-changed"
@@ -835,7 +844,7 @@ export function RephotoCamera({
         const motion =
           (Math.hypot(by.x, (by.y * photo.height) / photo.width) * 250) /
           Math.max(1, elapsed)
-        const quiet = elapsed <= 750 && motion <= 0.008
+        const quiet = !!measured && elapsed <= 750 && motion <= 0.008
         const settledAt = quiet ? from.settledAt || sampled : 0
         const steady =
           from.held &&
@@ -844,7 +853,9 @@ export function RephotoCamera({
           sampled - settledAt >= 750 &&
           sampled - from.confirmedAt <= 4000 &&
           fits(crop, archive.aspect, photo)
-        anchor = { ...from, crop, thumb: now, trackedAt: sampled, settledAt }
+        anchor = measured
+          ? { ...from, crop, thumb: now, trackedAt: sampled, settledAt }
+          : { ...from, settledAt: 0 }
         if (steady && !buzzed) {
           buzzed = true
           stats.firstSteady = Math.round(performance.now() - began)
@@ -862,7 +873,7 @@ export function RephotoCamera({
           at: from.at,
           followed: true,
           motion,
-          trackedAt: sampled,
+          trackedAt: measured ? sampled : from.trackedAt,
           confirmedAt: from.confirmedAt,
           settledAt,
         })
@@ -998,7 +1009,9 @@ export function RephotoCamera({
               const nowAt = performance.now()
               const latest = await thumb(video, photo)
               if (controller.signal.aborted) return
-              const drift = latest && slide(seen, latest)
+              // The follower can't measure a turn or a zoom; then the match is shown where it
+              // was found rather than thrown away (a moving hand never got a sign before).
+              const drift = latest && (slide(seen, latest) ?? { x: 0, y: 0 })
               if (
                 !latest ||
                 !drift ||
@@ -1046,7 +1059,9 @@ export function RephotoCamera({
                   candidate &&
                   pendingMovement &&
                   agrees(crop, shifted(candidate.crop, pendingMovement, photo))
-                if (!near && !repeated) {
+                // A strong match is shown at once (a sign, not a snap); a weak one waits for a
+                // second that agrees.
+                if (!near && !repeated && found.inliers < STRONG_INLIERS) {
                   if (previous) stats.rejected++
                   outcome = previous ? "rejected" : "candidate"
                   reason = previous ? "disagreement" : "first"
@@ -1229,7 +1244,10 @@ export function RephotoCamera({
     if (!lock) return
     const timer = setTimeout(
       () => setLock((current) => (current === lock ? null : current)),
-      Math.max(0, lock.at + lockLife.current - performance.now())
+      Math.max(
+        0,
+        lock.at + Math.max(lockLife.current, TRACKED_LIFE) - performance.now()
+      )
     )
     return () => clearTimeout(timer)
   }, [lock])
@@ -1296,7 +1314,7 @@ export function RephotoCamera({
     const now = performance.now()
     const held =
       lock?.held &&
-      now - lock.at < lockLife.current &&
+      now - lock.at < Math.max(lockLife.current, TRACKED_LIFE) &&
       lock.trackedAt != null &&
       now - lock.trackedAt < 600 &&
       fits(lock.crop, aspect, photo)
