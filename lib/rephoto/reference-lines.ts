@@ -374,6 +374,233 @@ const guides: Record<string, ReferenceLines> = {
       },
     ],
   },
+  "ferry-building": {
+    image: "/posts/0018-ferry-building/then-ferry-building.jpg",
+    features: [
+      {
+        name: "Wharf-side corner",
+        region: "west",
+        points: [
+          [0.332, 0.5],
+          [0.332, 0.848],
+        ],
+      },
+      {
+        name: "Wharf-side roofline",
+        region: "west",
+        points: [
+          [0.336, 0.5],
+          [0.504, 0.477],
+        ],
+      },
+      {
+        name: "Wharf-side cornice",
+        region: "west",
+        points: [
+          [0.327, 0.579],
+          [0.509, 0.574],
+        ],
+      },
+      {
+        name: "Base of wharf-side wall",
+        region: "west",
+        points: [
+          [0.336, 0.848],
+          [0.509, 0.848],
+        ],
+      },
+      {
+        name: "Front corner",
+        region: "front",
+        points: [
+          [0.509, 0.477],
+          [0.509, 0.848],
+        ],
+      },
+      {
+        name: "East end of front",
+        region: "front",
+        points: [
+          [0.746, 0.63],
+          [0.746, 0.835],
+        ],
+      },
+      {
+        name: "Clock face",
+        region: "tower",
+        points: [
+          [0.624, 0.47],
+          [0.622, 0.479],
+          [0.617, 0.484],
+          [0.609, 0.484],
+          [0.604, 0.479],
+          [0.602, 0.47],
+          [0.604, 0.461],
+          [0.609, 0.456],
+          [0.617, 0.456],
+          [0.622, 0.461],
+          [0.624, 0.47],
+        ],
+      },
+      {
+        name: "Clock tower left edge",
+        region: "tower",
+        points: [
+          [0.597, 0.45],
+          [0.597, 0.55],
+        ],
+      },
+      {
+        name: "Clock tower right edge",
+        region: "tower",
+        points: [
+          [0.671, 0.45],
+          [0.671, 0.55],
+        ],
+      },
+      {
+        name: "Clock tower roof",
+        region: "tower",
+        points: [
+          [0.591, 0.348],
+          [0.626, 0.26],
+          [0.664, 0.348],
+        ],
+      },
+    ],
+  },
+  "chief-post-office": {
+    image: "/posts/0019-chief-post-office/then-chief-post-office.jpg",
+    features: [
+      {
+        name: "Large dome",
+        region: "pavilion",
+        points: [
+          [0.58, 0.103],
+          [0.593, 0.075],
+          [0.629, 0.058],
+          [0.664, 0.075],
+          [0.677, 0.103],
+        ],
+      },
+      {
+        name: "Corner pavilion left edge",
+        region: "pavilion",
+        points: [
+          [0.5, 0.31],
+          [0.5, 0.81],
+        ],
+      },
+      {
+        name: "Rusticated corner",
+        region: "pavilion",
+        points: [
+          [0.646, 0.5],
+          [0.646, 0.8],
+        ],
+      },
+      {
+        name: "Small dome",
+        region: "facade",
+        points: [
+          [0.249, 0.39],
+          [0.257, 0.362],
+          [0.281, 0.349],
+          [0.304, 0.362],
+          [0.313, 0.39],
+        ],
+      },
+      {
+        name: "Building base",
+        region: "facade",
+        points: [
+          [0.5, 0.815],
+          [0.207, 0.8],
+        ],
+      },
+      {
+        name: "Far end of facade",
+        region: "facade",
+        points: [
+          [0.202, 0.47],
+          [0.202, 0.8],
+        ],
+      },
+    ],
+  },
+  customhouse: {
+    image: "/posts/0020-customhouse/then-customhouse.jpg",
+    features: [
+      {
+        name: "Left pavilion roof",
+        region: "left",
+        points: [
+          [0.214, 0.326],
+          [0.254, 0.21],
+          [0.309, 0.21],
+          [0.361, 0.35],
+        ],
+      },
+      {
+        name: "Left pavilion edge",
+        region: "left",
+        points: [
+          [0.187, 0.33],
+          [0.187, 0.877],
+        ],
+      },
+      {
+        name: "Tower left edge",
+        region: "centre",
+        points: [
+          [0.524, 0.322],
+          [0.524, 0.44],
+        ],
+      },
+      {
+        name: "Tower right edge",
+        region: "centre",
+        points: [
+          [0.671, 0.322],
+          [0.671, 0.44],
+        ],
+      },
+      {
+        name: "String course above ground floor",
+        region: "centre",
+        points: [
+          [0.193, 0.658],
+          [0.918, 0.718],
+        ],
+      },
+      {
+        name: "Building base",
+        region: "centre",
+        points: [
+          [0.193, 0.877],
+          [0.921, 0.83],
+        ],
+      },
+      {
+        name: "Right pavilion roof",
+        region: "right",
+        points: [
+          [0.771, 0.452],
+          [0.799, 0.368],
+          [0.839, 0.368],
+          [0.877, 0.466],
+        ],
+      },
+      {
+        name: "Albert Street corner",
+        region: "right",
+        points: [
+          [0.921, 0.49],
+          [0.921, 0.83],
+        ],
+      },
+    ],
+  },
 }
 export function referenceLines(slug: string, image: string) {
   const guide = guides[slug]

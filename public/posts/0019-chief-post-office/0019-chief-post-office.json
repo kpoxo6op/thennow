@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Chief Post Office, Lower Queen Street",
+  "slug": "chief-post-office",
+  "description": "The Chief Post Office in February 1921, now the entrance to Britomart station. From the western footpath of lower Queen Street near Customs Street, look across at the big dome. Keep the dome near the top and the long front running away to the left.",
+  "b_imageUrl": "/posts/0019-chief-post-office/then-chief-post-office.jpg",
+  "w": 2000,
+  "h": 1522,
+  "location": {
+    "lat": -36.8449,
+    "lng": 174.767
+  },
+  "archive": {
+    "date": "February 1921",
+    "photographer": "Henry Winkelmann",
+    "credit": "Auckland Libraries Heritage Collections 1-W1754",
+    "rights": "No known copyright restrictions",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/97413",
+    "sourceId": "1-W1754"
+  },
+  "area": "Auckland"
+}
