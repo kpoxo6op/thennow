@@ -268,7 +268,10 @@ export function fitCrop(
   aspect: number,
   photo: Size,
   cell: number,
-  diagnostic?: (details: FitDiagnostic) => void
+  diagnostic?: (details: FitDiagnostic) => void,
+  // How much of the archive view must be inside the photograph. A shot needs most of it; live
+  // guidance needs only enough to say which way to move.
+  minCoverage = 0.75
 ): Fit | null {
   const report = (reason: FitDiagnostic["reason"], inliers = 0) => {
     // Observability must never change the matching decision.
@@ -339,7 +342,7 @@ export function fitCrop(
   const spanY = (Math.max(...ys) - Math.min(...ys)) / (1000 * aspect)
   if (spanX < 0.3 || spanY < 0.2) return report("spread", best.length)
   // Most of the archive view must be in the shot; a few black corners are fine.
-  if (coverage(crop, aspect, photo) < 0.75)
+  if (coverage(crop, aspect, photo) < minCoverage)
     return report("coverage", best.length)
 
   report("accepted", best.length)
