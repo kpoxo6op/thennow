@@ -2,9 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
 
-// What visitors have written about a place, and a box to add to it. The list is fetched only as
-// the reader nears it, so the place's page itself stays static. The box and button need no
-// caption: the placeholder asks the question, and the button says what it does.
+// Comments load near the viewport; the editor opens only when someone wants to write.
 
 type Shown = {
   id: string
@@ -34,6 +32,9 @@ function tooLong(text: string) {
 
 export function Comments({ place }: { place: string }) {
   const wrapper = useRef<HTMLDivElement>(null)
+  const [editing, setEditing] = useState(false)
+  const opener = useRef<HTMLButtonElement>(null)
+  const textField = useRef<HTMLTextAreaElement>(null)
   const trap = useRef<HTMLInputElement>(null)
   const nameField = useRef<HTMLInputElement>(null)
   const [comments, setComments] = useState<Shown[]>([])
@@ -123,6 +124,10 @@ export function Comments({ place }: { place: string }) {
   useEffect(() => {
     if (askName) nameField.current?.focus()
   }, [askName])
+
+  useEffect(() => {
+    if (editing) textField.current?.focus()
+  }, [editing])
 
   const ready = !!text.trim() && (!showName || !!name.trim())
 
@@ -259,7 +264,21 @@ export function Comments({ place }: { place: string }) {
         </ul>
       )}
 
+      <button
+        ref={opener}
+        type="button"
+        data-testid="comment-open"
+        aria-expanded={editing}
+        aria-controls="comment-editor"
+        onClick={() => setEditing(true)}
+        hidden={editing}
+        className="min-h-11 text-muted-foreground underline underline-offset-4 hover:text-foreground"
+      >
+        Add a comment
+      </button>
       <form
+        id="comment-editor"
+        hidden={!editing}
         data-testid="comment-form"
         onSubmit={(event) => void post(event)}
         className={`relative space-y-3${comments.length ? " mt-6" : ""}`}
@@ -282,18 +301,25 @@ export function Comments({ place }: { place: string }) {
             className="block min-h-12 w-full max-w-md rounded-md border border-input bg-background px-3 text-lg placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
           />
         )}
+        <label
+          htmlFor="comment-text"
+          className="block text-sm text-muted-foreground"
+        >
+          Comment
+        </label>
         <textarea
+          ref={textField}
+          id="comment-text"
           data-testid="comment-text-input"
-          aria-label="Do you remember this place?"
-          placeholder="Do you remember this place?"
-          rows={5}
+          placeholder="A memory, a detail, a question…"
+          rows={3}
           readOnly={busy}
           value={text}
           onChange={(event) => {
             setText(event.target.value)
             setNote("")
           }}
-          className="block min-h-40 w-full resize-y rounded-md border border-input bg-background px-3 py-3 text-lg leading-relaxed placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
+          className="block w-full resize-y rounded-md border border-input bg-background px-3 py-3 text-lg leading-relaxed placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
         />
         <input
           ref={trap}
@@ -312,7 +338,18 @@ export function Comments({ place }: { place: string }) {
             disabled={!ready || busy}
             className="min-h-12 rounded-md bg-foreground px-6 text-lg font-medium text-background disabled:opacity-50"
           >
-            Post
+            Post comment
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setEditing(false)
+              requestAnimationFrame(() => opener.current?.focus())
+            }}
+            className="min-h-11 px-2 text-muted-foreground underline underline-offset-4"
+          >
+            Cancel
           </button>
           {note && (
             <p role="status" data-testid="comment-note" className="text-lg">

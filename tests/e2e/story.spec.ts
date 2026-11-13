@@ -191,6 +191,73 @@ test.describe("a story's own map", () => {
     test.describe(`on ${device}`, () => {
       test.use(use)
 
+      test("a suggested viewpoint can be replaced by a personal spot and reset without losing directions", async ({
+        page,
+      }) => {
+        await page.goto("/ferry-building")
+        const map = page.getByTestId("story-map")
+        const spot = page.getByTestId("story-map-viewpoint")
+        const directions = page.getByTestId("story-map-directions")
+        await map.scrollIntoViewIfNeeded()
+        await expect(spot).toHaveAccessibleName("Suggested viewpoint")
+        await expect(page.getByTestId("story-map-context")).toContainText(
+          "Lower Albert Street"
+        )
+        const original = await directions.getAttribute("href")
+        expect(new URL(original!).searchParams.get("destination")).toBe(
+          "-36.84286,174.76594"
+        )
+        await page.getByTestId("story-map-pick").tap()
+        const box = (await map.boundingBox())!
+        await page.touchscreen.tap(box.x + 75, box.y + box.height - 45)
+        await expect(spot).toHaveAccessibleName("Your chosen spot")
+        await expect(directions).not.toHaveAttribute("href", original!)
+        await expect(page.getByTestId("story-map-context")).toContainText(
+          "Your spot"
+        )
+        // The direction wedge must point toward the subject in actual north-up map geometry.
+        const alignment = await page.evaluate(() => {
+          const camera = document
+            .querySelector(".tn-viewpoint")!
+            .getBoundingClientRect()
+          const subject = document
+            .querySelector('[data-testid="story-map-pin"]')!
+            .getBoundingClientRect()
+          const rotation = new DOMMatrix(
+            getComputedStyle(document.querySelector(".tn-viewpoint-cone")!)
+              .transform
+          )
+          const x = subject.x + subject.width / 2 - camera.x - camera.width / 2
+          const y =
+            subject.y + subject.height / 2 - camera.y - camera.height / 2
+          return (x * rotation.c * -1 + y * rotation.d * -1) / Math.hypot(x, y)
+        })
+        expect(alignment).toBeGreaterThan(0.98)
+        await page.getByRole("button", { name: "Reset map" }).tap()
+        await expect(spot).toHaveAccessibleName("Suggested viewpoint")
+        await expect(directions).toHaveAttribute("href", original!)
+        // A denied location request must not remove the chosen starting point or its route.
+        await page.context().clearPermissions()
+        await page.getByRole("button", { name: "Find my location" }).tap()
+        await expect(
+          page.getByText("Couldn’t find your location.", { exact: false })
+        ).toBeVisible()
+        await expect(directions).toHaveAttribute("href", original!)
+        await page.route("**/tiles.openfreemap.org/**", (route) =>
+          route.abort()
+        )
+        await page.reload()
+        await map.scrollIntoViewIfNeeded()
+        await expect(page.getByTestId("story-map-failure")).toBeVisible()
+        await expect(directions).toHaveAttribute("href", original!)
+        await page.goto("/mill-house")
+        await map.scrollIntoViewIfNeeded()
+        await expect(spot).toHaveCount(0)
+        await expect(directions).toHaveAccessibleName(
+          /Walking directions to Mill/
+        )
+      })
+
       test("a swipe over the map still scrolls the page and leaves the pin where it is", async ({
         page,
         context,

@@ -26,6 +26,32 @@ function check(file: string, json: Record<string, unknown>) {
   const location = json.location as { lat?: unknown; lng?: unknown } | undefined
   if (typeof location?.lat !== "number" || typeof location?.lng !== "number")
     fail(`"location" needs a numeric lat and lng`)
+  if (json.viewpoint !== undefined) {
+    const point = json.viewpoint as Record<string, unknown> | null
+    if (
+      !point ||
+      typeof point !== "object" ||
+      typeof point.lat !== "number" ||
+      !Number.isFinite(point.lat) ||
+      Math.abs(point.lat) > 90 ||
+      typeof point.lng !== "number" ||
+      !Number.isFinite(point.lng) ||
+      Math.abs(point.lng) > 180 ||
+      typeof point.label !== "string" ||
+      !point.label.trim() ||
+      typeof point.source !== "string" ||
+      !point.source.trim() ||
+      (point.bearing !== undefined &&
+        (typeof point.bearing !== "number" ||
+          !Number.isFinite(point.bearing) ||
+          point.bearing < 0 ||
+          point.bearing >= 360))
+    ) {
+      fail(
+        '"viewpoint" needs valid coordinates, label, source and an optional bearing from 0 to under 360'
+      )
+    }
+  }
   if (json.status === "pending" || !json.a_imageUrl) {
     const archive = (json.archive ?? {}) as Record<string, unknown>
     for (const field of [
@@ -64,6 +90,7 @@ function readAll() {
       h: jsonContent.h,
       slug: jsonContent.slug,
       location: jsonContent.location,
+      viewpoint: jsonContent.viewpoint,
       sample: jsonContent._preview_fixture === true,
       area: jsonContent.area ?? jsonContent._preview_area,
       imageSourceSlug: jsonContent._image_source_slug,

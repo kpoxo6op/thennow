@@ -76,7 +76,11 @@ export function PendingPost({ post, nearby }: Props) {
             </a>
           </p>
         </div>
-        <StoryMap name={post.name} location={post.location} />
+        <StoryMap
+          name={post.name}
+          location={post.location}
+          viewpoint={post.viewpoint}
+        />
         <Comments place={post.slug} />
       </article>
 

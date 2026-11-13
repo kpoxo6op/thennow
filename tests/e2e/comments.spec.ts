@@ -19,7 +19,6 @@ const BASE = "http://127.0.0.1:3100"
 const PLACE = "mission-house"
 const PENDING = "tamaki-road-board-offices"
 const ADMIN_COOKIE = "tn-test-admin-000000000000000001"
-const QUESTION = "Do you remember this place?"
 
 const address = () =>
   `test-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -70,6 +69,9 @@ async function open(
 ) {
   await page.goto(`/${slug}`)
   await page.getByTestId("comments").scrollIntoViewIfNeeded()
+  await expect(page.getByTestId("comment-form")).toBeHidden()
+  await page.getByTestId("comment-open").click()
+  await expect(page.getByTestId("comment-text-input")).toBeFocused()
 }
 
 const rowWith = (
@@ -127,6 +129,11 @@ test("a new visitor posts with a name and sees it listed", async ({
   await expect(nameField).toBeVisible()
   await expect(post).toBeDisabled()
   await page.getByTestId("comment-text-input").fill(text)
+  await page.getByRole("button", { name: "Cancel", exact: true }).click()
+  await expect(page.getByTestId("comment-open")).toBeFocused()
+  await expect(page.getByTestId("comment-form")).toBeHidden()
+  await page.getByTestId("comment-open").click()
+  await expect(page.getByTestId("comment-text-input")).toHaveValue(text)
   await expect(post).toBeDisabled()
   await nameField.fill("Margaret")
   await expect(post).toBeEnabled()
@@ -336,7 +343,7 @@ test("you can remove your own comment, and only yours", async ({
   expect(asked).toBe("Remove this?")
   await page.reload()
   await page.getByTestId("comments").scrollIntoViewIfNeeded()
-  await expect(page.getByTestId("comment-form")).toBeVisible()
+  await expect(page.getByTestId("comment-open")).toBeVisible()
   await expect
     .poll(async () =>
       (await listed(context.request)).comments.map((c) => c.text)

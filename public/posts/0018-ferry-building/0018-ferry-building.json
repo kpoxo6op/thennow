@@ -2,13 +2,13 @@
   "status": "pending",
   "name": "Ferry Building, Quay Street",
   "slug": "ferry-building",
-  "description": "Henry Winkelmann photographed the Ferry Building from the Queens Wharf side in December 1915. From the Quay Street footpath at the foot of Queen Street, look east. Keep the wharf-side corner upright on the left and the clock tower just right of centre.",
+  "description": "Henry Winkelmann photographed the Ferry Building looking east from the Albert Street corner in December 1915. Start on the waterfront footpath opposite Lower Albert Street and face east toward the building. Use the old photograph to refine your position.",
   "b_imageUrl": "/posts/0018-ferry-building/then-ferry-building.jpg",
   "w": 2000,
   "h": 1542,
   "location": {
-    "lat": -36.84305,
-    "lng": 174.76625
+    "lat": -36.843,
+    "lng": 174.76688
   },
   "archive": {
     "date": "29 December 1915",
@@ -18,5 +18,12 @@
     "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/98506",
     "sourceId": "1-W1360"
   },
-  "area": "Auckland"
+  "area": "Auckland",
+  "viewpoint": {
+    "lat": -36.84286,
+    "lng": 174.76594,
+    "bearing": 100,
+    "label": "Waterfront footpath opposite Lower Albert Street",
+    "source": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/98506"
+  }
 }

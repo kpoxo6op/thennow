@@ -3,6 +3,13 @@ export type PostLocation = {
   lng: number
 }
 
+// Editorial starting point, separate from the place itself. Approximate, never a surveyed camera pose.
+export type PostViewpoint = PostLocation & {
+  label: string
+  bearing?: number
+  source: string
+}
+
 type PostFields = {
   name: string
   description: string
@@ -11,6 +18,7 @@ type PostFields = {
   h: number
   slug: string
   location: PostLocation
+  viewpoint?: PostViewpoint
   sample?: boolean
   area?: string
   // Sample places only: the original story whose photographs they repeat.
