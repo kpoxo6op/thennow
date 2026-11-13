@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "St Matthew-in-the-City, Auckland Central",
+  "slug": "st-matthew-in-the-city",
+  "description": "Henry Winkelmann photographed the new church in March 1905, weeks after its consecration. From across the Hobson Street and Wellesley Street West corner, put the square tower on the left and the tall gable end with its four long windows on the right. Keep the tower's edges upright.",
+  "b_imageUrl": "/posts/0016-st-matthew-in-the-city/then-st-matthew-in-the-city.jpg",
+  "w": 2000,
+  "h": 1542,
+  "location": {
+    "lat": -36.85055,
+    "lng": 174.76085
+  },
+  "archive": {
+    "date": "27 March 1905",
+    "photographer": "Henry Winkelmann",
+    "credit": "Auckland Libraries Heritage Collections 1-W1184",
+    "rights": "No known copyright restrictions",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/98286",
+    "sourceId": "1-W1184"
+  },
+  "area": "Auckland"
+}

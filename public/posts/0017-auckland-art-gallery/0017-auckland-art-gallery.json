@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Auckland Art Gallery, Wellesley Street East",
+  "slug": "auckland-art-gallery",
+  "description": "The Public Library and Art Gallery in July 1920. From the Wellesley Street East footpath near Lorne Street, look across at the clock tower on the Kitchener Street corner. Put the clock just right of centre and let the Kitchener Street wing run to the right edge.",
+  "b_imageUrl": "/posts/0017-auckland-art-gallery/then-auckland-art-gallery.jpg",
+  "w": 2000,
+  "h": 1521,
+  "location": {
+    "lat": -36.85105,
+    "lng": 174.76545
+  },
+  "archive": {
+    "date": "July 1920",
+    "photographer": "Henry Winkelmann",
+    "credit": "Auckland Libraries Heritage Collections 1-W1689",
+    "rights": "No known copyright restrictions",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/98289",
+    "sourceId": "1-W1689"
+  },
+  "area": "Auckland"
+}
