@@ -1,6 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react"
 import Link from "next/link"
 import { X } from "lucide-react"
 
@@ -99,8 +105,9 @@ async function encode(source: HTMLCanvasElement, crop: Crop, aspect: number) {
   }
 }
 
-// The shot settles onto the archive view, then the archive fades away to leave the result.
+// The shot settles onto the archive view, then a line wipes the archive away to leave the result.
 const SETTLE_MS = 350
+const SWEEP_MS = 1100
 
 class NoMatch extends Error {}
 
@@ -141,6 +148,8 @@ export function RephotoReview({
   const [crop, setCrop] = useState<Crop>(shot.crop)
   const [phase, setPhase] = useState<Phase>("aligning")
   const [settled, setSettled] = useState(false)
+  // The wipe from the old photograph to the new one, played once when the shot is placed.
+  const [sweeping, setSweeping] = useState(false)
   const [peek, setPeek] = useState(false)
   const [note, setNote] = useState("")
   const [file, setFile] = useState<File | null>(null)
@@ -306,9 +315,32 @@ export function RephotoReview({
 
   useEffect(() => {
     if (phase === "aligning") return
-    const timer = setTimeout(() => setSettled(true), SETTLE_MS + 150)
-    return () => clearTimeout(timer)
+    // Without motion, or for a view that doesn't match, the old photograph simply fades.
+    const still =
+      phase === "unmatched" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    let end: ReturnType<typeof setTimeout> | undefined
+    const timer = setTimeout(
+      () => {
+        setSettled(true)
+        if (still) return
+        setSweeping(true)
+        // A hidden tab may never finish the animation; the wipe still ends.
+        end = setTimeout(() => setSweeping(false), SWEEP_MS + 300)
+      },
+      SETTLE_MS + (still ? 150 : 0)
+    )
+    return () => {
+      clearTimeout(timer)
+      clearTimeout(end)
+    }
   }, [phase])
+
+  // Holding the photo to compare takes over from the wipe.
+  const hold = () => {
+    setSweeping(false)
+    setPeek(true)
+  }
 
   // The file is ready before the tap, so sharing runs straight from it (Safari requires that).
   // It's made from the framing at hand at once, and again when the matcher refines it.
@@ -501,11 +533,11 @@ export function RephotoReview({
               width: box.width,
               height: box.height,
             }}
-            onPointerDown={() => setPeek(true)}
+            onPointerDown={hold}
             onPointerUp={() => setPeek(false)}
             onPointerCancel={() => setPeek(false)}
             onPointerLeave={() => setPeek(false)}
-            onKeyDown={(event) => event.key === " " && setPeek(true)}
+            onKeyDown={(event) => event.key === " " && hold()}
             onKeyUp={() => setPeek(false)}
             onContextMenu={(event) => event.preventDefault()}
           >
@@ -526,10 +558,30 @@ export function RephotoReview({
               aria-hidden
               draggable={false}
               data-testid="rephoto-review-ghost"
-              className="pointer-events-none absolute inset-0 size-full transition-opacity duration-500"
+              className={`pointer-events-none absolute inset-0 size-full ${sweeping ? "" : "transition-opacity duration-500"}`}
               style={{ opacity: ghostOpacity }}
             />
-            {trace && !peek && settled && <ReferenceTrace guide={trace} />}
+            {sweeping && (
+              <div
+                aria-hidden
+                data-testid="rephoto-sweep"
+                className="pointer-events-none absolute inset-0"
+                style={{ "--sweep-ms": `${SWEEP_MS}ms` } as CSSProperties}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={thenSrc}
+                  alt=""
+                  draggable={false}
+                  className="tn-sweep absolute inset-0 size-full"
+                  onAnimationEnd={() => setSweeping(false)}
+                />
+                <div className="tn-sweep-line absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white shadow-[0_0_12px_2px_rgba(255,255,255,0.7)]" />
+              </div>
+            )}
+            {trace && !peek && settled && !sweeping && (
+              <ReferenceTrace guide={trace} />
+            )}
           </div>
         )}
         {status && (

@@ -384,3 +384,47 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* After a shot, the old photograph is wiped away by a line, leaving the new one. */
+.tn-sweep {
+  animation: tn-sweep-photo var(--sweep-ms) cubic-bezier(0.65, 0, 0.35, 1)
+    forwards;
+}
+
+.tn-sweep-line {
+  animation: tn-sweep-line var(--sweep-ms) cubic-bezier(0.65, 0, 0.35, 1)
+    forwards;
+}
+
+@keyframes tn-sweep-photo {
+  0% {
+    opacity: 0.5;
+    clip-path: inset(0 0 0 0);
+  }
+  20% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+@keyframes tn-sweep-line {
+  0%,
+  20% {
+    left: 0%;
+    opacity: 0;
+  }
+  26% {
+    opacity: 1;
+  }
+  94% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}

@@ -131,6 +131,9 @@ test.describe("simulated camera application and API boundaries", () => {
       "unchecked",
       { timeout: 30_000 }
     )
+    // The old photograph is wiped away once, and the wipe never stays over the new photo.
+    await expect(page.getByTestId("rephoto-sweep")).toBeVisible()
+    await expect(page.getByTestId("rephoto-sweep")).toBeHidden()
     const send = page.getByTestId("rephoto-send")
     await expect(send).toHaveText("Send photo")
     await expect(send).toBeEnabled()
