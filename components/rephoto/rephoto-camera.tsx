@@ -36,6 +36,7 @@ import {
   type Cue,
   type CueKind,
 } from "@/lib/rephoto/cue"
+import { checkLines, type Gray, type LineCheck } from "@/lib/rephoto/line-check"
 import {
   canMatchLocally,
   localMatcherReady,
@@ -177,6 +178,36 @@ const FOLLOW_MS = 250
 const STRONG_INLIERS = 40
 // How long a match may be carried by the follower before a fresh match must confirm it.
 const TRACKED_LIFE = 6000
+// The view's width, in pixels, at which its lines are checked.
+const LINE_CHECK_WIDTH = 480
+
+// Grey pixels of a picture at a given size, made off to the side.
+async function grayOf(
+  source: HTMLVideoElement | HTMLImageElement,
+  width: number,
+  height: number
+): Promise<Gray | null> {
+  if (width < 16 || height < 16) return null
+  const bitmap = await createImageBitmap(source, {
+    resizeWidth: width,
+    resizeHeight: height,
+    resizeQuality: "medium",
+  })
+  const canvas = document.createElement("canvas")
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext("2d", { willReadFrequently: true })
+  if (!context) return null
+  context.drawImage(bitmap, 0, 0)
+  bitmap.close()
+  const { data } = context.getImageData(0, 0, width, height)
+  releaseCanvas(canvas)
+  const gray = new Float32Array(width * height)
+  for (let i = 0, j = 0; i < gray.length; i++, j += 4)
+    gray[i] =
+      (0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2]) / 255
+  return { width, height, data: gray }
+}
 // Width of the copy of the live picture the matcher looks at.
 const SAMPLE_WIDTH = 1280
 
@@ -401,7 +432,68 @@ export function RephotoCamera({
     }
   }, [lock, aspect])
   // Close enough: the crop does the rest, and the live picture snaps onto the old photograph.
-  const snapped = !!lock?.held && cue?.kind === "hold"
+  // Every reference line checked on its own edge before "Lined up": one rotation, zoom and
+  // shift can fit the wall and leave the canopy off when the viewpoint differs.
+  const [lines, setLines] = useState<(LineCheck & { lock: object }) | null>(
+    null
+  )
+  const checkingLines = useRef(false)
+  const archiveImage = useRef<HTMLImageElement | null>(null)
+  const linesLogged = useRef("")
+  const wantsLineCheck = !!trace && !!lock?.held && cue?.kind === "hold"
+  useEffect(() => {
+    const video = videoRef.current
+    const image = archiveImage.current
+    if (!wantsLineCheck || !lock || !trace || checkingLines.current) return
+    if (!video?.videoWidth || !image?.naturalWidth) return
+    checkingLines.current = true
+    const placed = lock
+    void (async () => {
+      try {
+        const k = Math.min(1, LINE_CHECK_WIDTH / placed.crop.width)
+        const live = await grayOf(
+          video,
+          Math.round(video.videoWidth * k),
+          Math.round(video.videoHeight * k)
+        )
+        const archive = await grayOf(
+          image,
+          Math.round(placed.crop.width * k),
+          Math.round(placed.crop.width * k * aspect)
+        )
+        if (!live || !archive) return
+        const result = checkLines(trace, archive, live, {
+          cx: placed.crop.cx * k,
+          cy: placed.crop.cy * k,
+          width: placed.crop.width * k,
+          rotation: placed.crop.rotation,
+        })
+        setLines({ ...result, lock: placed })
+        const summary = `${result.ok}:${result.worst}`
+        if (summary !== linesLogged.current) {
+          linesLogged.current = summary
+          diagnostic("lines", {
+            ok: result.ok,
+            worst: result.worst,
+            on: result.lines.filter((line) => line.state === "on").length,
+            off: result.lines.filter((line) => line.state === "off").length,
+            worstOffset:
+              result.worst == null ? null : result.lines[result.worst].offset,
+          })
+        }
+      } catch {
+        // A failed check never says "lined up".
+      } finally {
+        checkingLines.current = false
+      }
+    })()
+  }, [wantsLineCheck, lock, trace, aspect])
+  // The latest check is about the view now on screen: one follower step (250 ms) or two old.
+  const linesNow =
+    lines && lock && wantsLineCheck && lines.lock !== null ? lines : null
+  const linesOk = !trace || !!linesNow?.ok
+  const offLine = wantsLineCheck ? (linesNow?.worst ?? null) : null
+  const snapped = !!lock?.held && cue?.kind === "hold" && linesOk
   useEffect(() => {
     // Without lines the follower's own "steady" buzz already marks this.
     if (snapped && trace) navigator.vibrate?.(15)
@@ -470,6 +562,7 @@ export function RephotoCamera({
         if (cancelled || !image.naturalWidth) return
         setAspect(image.naturalHeight / image.naturalWidth)
         archiveRef.current = prepareArchive(image)
+        archiveImage.current = image
       })
       .catch(() => {})
     return () => {
@@ -1357,13 +1450,13 @@ export function RephotoCamera({
         overlay: trace ? TRACE_OVERLAY_OPACITY : 1,
       },
       {
-        framing: held
-          ? trace
-            ? "snapped"
-            : "live"
-          : trace
-            ? "traced"
-            : "levelled",
+        framing: snapped
+          ? "snapped"
+          : held
+            ? "live"
+            : trace
+              ? "traced"
+              : "levelled",
         how: "manual",
       }
     )
@@ -1487,7 +1580,17 @@ export function RephotoCamera({
               {trace && (
                 <>
                   <div className="absolute inset-0 border border-white/35" />
-                  <ReferenceTrace guide={trace} highlighted={null} />
+                  <ReferenceTrace
+                    guide={trace}
+                    highlighted={showArchive ? null : offLine}
+                    confirmed={
+                      !showArchive && linesNow
+                        ? linesNow.lines
+                            .filter((line) => line.state === "on")
+                            .map((line) => line.index)
+                        : []
+                    }
+                  />
                 </>
               )}
             </div>
@@ -1539,12 +1642,20 @@ export function RephotoCamera({
               >
                 <MatcherGuide
                   hidden={false}
-                  icon={captureBusy || !cue ? undefined : cueIcon(cue.kind)}
+                  icon={
+                    captureBusy || !cue || (cue.kind === "hold" && !snapped)
+                      ? undefined
+                      : cueIcon(cue.kind)
+                  }
                   message={
                     captureBusy
                       ? "Taking photo…"
                       : cue
-                        ? cueText(cue.kind, snapped)
+                        ? cue.kind === "hold" && offLine != null
+                          ? `Line up the ${trace.features[offLine].name.toLowerCase()}`
+                          : cue.kind === "hold" && !snapped && lock?.held
+                            ? "Checking the lines…"
+                            : cueText(cue.kind, snapped)
                         : "Point at the view in the old photo"
                   }
                 />
