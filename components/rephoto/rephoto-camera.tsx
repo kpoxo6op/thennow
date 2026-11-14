@@ -434,9 +434,12 @@ export function RephotoCamera({
   // Close enough: the crop does the rest, and the live picture snaps onto the old photograph.
   // Every reference line checked on its own edge before "Lined up": one rotation, zoom and
   // shift can fit the wall and leave the canopy off when the viewpoint differs.
-  const [lines, setLines] = useState<(LineCheck & { lock: object }) | null>(
-    null
-  )
+  const [lines, setLines] = useState<
+    (LineCheck & { lock: object; held: boolean }) | null
+  >(null)
+  // "Lined up" starts after two passing checks running and ends on a line found off or two
+  // failing checks running, so it doesn't flicker on one noisy frame.
+  const lineRun = useRef({ passes: 0, fails: 0, held: false })
   const checkingLines = useRef(false)
   const archiveImage = useRef<HTMLImageElement | null>(null)
   const linesLogged = useRef("")
@@ -444,6 +447,7 @@ export function RephotoCamera({
   useEffect(() => {
     const video = videoRef.current
     const image = archiveImage.current
+    if (!wantsLineCheck) lineRun.current = { passes: 0, fails: 0, held: false }
     if (!wantsLineCheck || !lock || !trace || checkingLines.current) return
     if (!video?.videoWidth || !image?.naturalWidth) return
     checkingLines.current = true
@@ -468,7 +472,13 @@ export function RephotoCamera({
           width: placed.crop.width * k,
           rotation: placed.crop.rotation,
         })
-        setLines({ ...result, lock: placed })
+        const run = lineRun.current
+        run.passes = result.ok ? run.passes + 1 : 0
+        run.fails = result.ok ? 0 : run.fails + 1
+        if (!run.held && run.passes >= 2) run.held = true
+        if (run.held && (result.worst != null || run.fails >= 2))
+          run.held = false
+        setLines({ ...result, lock: placed, held: run.held })
         const summary = `${result.ok}:${result.worst}`
         if (summary !== linesLogged.current) {
           linesLogged.current = summary
@@ -491,7 +501,7 @@ export function RephotoCamera({
   // The latest check is about the view now on screen: one follower step (250 ms) or two old.
   const linesNow =
     lines && lock && wantsLineCheck && lines.lock !== null ? lines : null
-  const linesOk = !trace || !!linesNow?.ok
+  const linesOk = !trace || !!linesNow?.held
   const offLine = wantsLineCheck ? (linesNow?.worst ?? null) : null
   const snapped = !!lock?.held && cue?.kind === "hold" && linesOk
   useEffect(() => {
