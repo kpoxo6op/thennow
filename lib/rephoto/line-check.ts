@@ -207,3 +207,17 @@ export function checkLines(
     worst: off[0]?.index ?? null,
   }
 }
+
+// One number for how well the shot lines up, from the lines that could be measured: a line on
+// its edge counts fully, one 5% of the view's width off or more counts nothing. Null when too
+// few lines could be measured to say.
+export function alignmentScore(check: LineCheck): number | null {
+  const measured = check.lines.filter((line) => line.offset != null)
+  if (measured.length < 2) return null
+  const total = measured.reduce(
+    (sum, line) =>
+      sum + Math.min(1, Math.max(0, 1 - (line.offset! - LINE_ON) / 0.04)),
+    0
+  )
+  return Math.round((100 * total) / measured.length)
+}

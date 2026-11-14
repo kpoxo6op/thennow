@@ -8,6 +8,10 @@ import {
   ArrowRight,
   ArrowUp,
   Check,
+  MoveDown,
+  MoveLeft,
+  MoveRight,
+  MoveUp,
   RotateCcw,
   RotateCw,
   X,
@@ -35,15 +39,17 @@ import {
   cueFor,
   type Cue,
   type CueKind,
+  type StepErrors,
 } from "@/lib/rephoto/cue"
-import { checkLines, type Gray, type LineCheck } from "@/lib/rephoto/line-check"
+import { checkLines, type LineCheck } from "@/lib/rephoto/line-check"
 import {
   canMatchLocally,
   localMatcherReady,
   prepareLocalMatcher,
   saveData,
 } from "@/lib/rephoto/local-matcher"
-import { loadImage } from "@/lib/rephoto/pixels"
+import { parallaxStep } from "@/lib/rephoto/parallax"
+import { grayOf, loadImage } from "@/lib/rephoto/pixels"
 import {
   referenceLines,
   TRACE_OVERLAY_OPACITY,
@@ -73,6 +79,10 @@ const CUE_TEXT: Record<CueKind, string> = {
   back: "Step back",
   clockwise: "Turn the phone clockwise",
   anticlockwise: "Turn the phone anticlockwise",
+  "step-left": "Step left",
+  "step-right": "Step right",
+  raise: "Hold the phone higher",
+  lower: "Hold the phone lower",
   hold: "Hold still",
 }
 function cueText(kind: CueKind, snapped: boolean) {
@@ -89,6 +99,10 @@ const CUE_ICON = {
   back: ZoomOut,
   clockwise: RotateCw,
   anticlockwise: RotateCcw,
+  "step-left": MoveLeft,
+  "step-right": MoveRight,
+  raise: MoveUp,
+  lower: MoveDown,
   hold: Check,
 }
 function cueIcon(kind: CueKind) {
@@ -181,33 +195,6 @@ const TRACKED_LIFE = 6000
 // The view's width, in pixels, at which its lines are checked.
 const LINE_CHECK_WIDTH = 480
 
-// Grey pixels of a picture at a given size, made off to the side.
-async function grayOf(
-  source: HTMLVideoElement | HTMLImageElement,
-  width: number,
-  height: number
-): Promise<Gray | null> {
-  if (width < 16 || height < 16) return null
-  const bitmap = await createImageBitmap(source, {
-    resizeWidth: width,
-    resizeHeight: height,
-    resizeQuality: "medium",
-  })
-  const canvas = document.createElement("canvas")
-  canvas.width = width
-  canvas.height = height
-  const context = canvas.getContext("2d", { willReadFrequently: true })
-  if (!context) return null
-  context.drawImage(bitmap, 0, 0)
-  bitmap.close()
-  const { data } = context.getImageData(0, 0, width, height)
-  releaseCanvas(canvas)
-  const gray = new Float32Array(width * height)
-  for (let i = 0, j = 0; i < gray.length; i++, j += 4)
-    gray[i] =
-      (0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2]) / 255
-  return { width, height, data: gray }
-}
 // Width of the copy of the live picture the matcher looks at.
 const SAMPLE_WIDTH = 1280
 
@@ -387,6 +374,8 @@ export function RephotoCamera({
 
   // One sign at a time telling which way to move, from where the view sits in the live picture.
   const cueFilter = useRef(new CueFilter())
+  const stepRef = useRef<(StepErrors & { at: number }) | null>(null)
+  const [step, setStep] = useState<(StepErrors & { at: number }) | null>(null)
   const [cue, setCue] = useState<Cue | null>(null)
   const cueLogged = useRef<{ kind: CueKind | "none"; at: number }>({
     kind: "none",
@@ -412,7 +401,11 @@ export function RephotoCamera({
         photo
       )
       next = cueFilter.current.update(
-        cueFor(errors, cueFilter.current.current?.kind ?? null),
+        cueFor(
+          errors,
+          cueFilter.current.current?.kind ?? null,
+          step && now - step.at < TRACKED_LIFE ? step : null
+        ),
         now
       )
     } else cueFilter.current.update(null, now)
@@ -427,10 +420,13 @@ export function RephotoCamera({
         roll: errors ? (errors.roll * 180) / Math.PI : null,
         snapped: kind === "hold" && !!lock?.held,
         age: cueLogged.current.at ? now - cueLogged.current.at : null,
+        side: step?.sideways ?? null,
+        height: step?.height ?? null,
+        depth: step?.depth ?? null,
       })
       cueLogged.current = { kind, at: now }
     }
-  }, [lock, aspect])
+  }, [lock, aspect, step])
   // Close enough: the crop does the rest, and the live picture snaps onto the old photograph.
   // Every reference line checked on its own edge before "Lined up": one rotation, zoom and
   // shift can fit the wall and leave the canopy off when the viewpoint differs.
@@ -1051,6 +1047,34 @@ export function RephotoCamera({
                   },
                 }
               )
+              // Where to stand, from how the near part moves against the far part.
+              if (inSmall && trace?.zones) {
+                const measuredStep = parallaxStep(
+                  inSmall.matches,
+                  trace.zones,
+                  small,
+                  inSmall.cell,
+                  archive.aspect
+                )
+                const at = performance.now()
+                const before = stepRef.current
+                const recent = before && at - before.at < TRACKED_LIFE
+                // Matches sit on a coarse grid; averaging two runs steadies the sign.
+                const next = measuredStep
+                  ? recent
+                    ? {
+                        sideways: (before.sideways + measuredStep.sideways) / 2,
+                        height: (before.height + measuredStep.height) / 2,
+                        depth: (before.depth + measuredStep.depth) / 2,
+                        at,
+                      }
+                    : { ...measuredStep, at }
+                  : recent
+                    ? before
+                    : null
+                stepRef.current = next
+                setStep(next)
+              }
               const up = photo.width / small.width
               found = inSmall && {
                 ...inSmall,

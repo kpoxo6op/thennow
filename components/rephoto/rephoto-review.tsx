@@ -23,7 +23,12 @@ import {
   renderCrop,
   type Crop,
 } from "@/lib/rephoto/crop"
-import { loadImage } from "@/lib/rephoto/pixels"
+import {
+  alignmentScore,
+  checkLines,
+  type LineCheck,
+} from "@/lib/rephoto/line-check"
+import { grayOf, loadImage } from "@/lib/rephoto/pixels"
 import { referenceLines } from "@/lib/rephoto/reference-lines"
 import { newKey, sendPhoto } from "@/lib/rephoto/submit"
 import { diagnostic, report, submissionTag } from "@/lib/rephoto/telemetry"
@@ -133,6 +138,9 @@ function stamp(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+// The view's width, in pixels, at which the shot's lines are checked.
+const SCORE_WIDTH = 900
+
 export function RephotoReview({
   name,
   slug,
@@ -147,6 +155,11 @@ export function RephotoReview({
   const [stage, setStage] = useState({ width: 0, height: 0 })
   const [crop, setCrop] = useState<Crop>(shot.crop)
   const [phase, setPhase] = useState<Phase>("aligning")
+  // How well the reference lines sit on their edges in this shot, line by line.
+  const [score, setScore] = useState<{
+    value: number | null
+    check: LineCheck
+  } | null>(null)
   const [settled, setSettled] = useState(false)
   // The wipe from the old photograph to the new one, played once when the shot is placed.
   const [sweeping, setSweeping] = useState(false)
@@ -229,7 +242,73 @@ export function RephotoReview({
         done("unmatched")
         return
       }
-      if (shot.traced) {
+      if (shot.traced && trace) {
+        // Checked line by line against the shot, at the framing that fits it best: the human
+        // eye sees a canopy off its line at once, so the score has to as well.
+        let placed = shot.crop
+        try {
+          const image = await loadImage(thenSrc)
+          controller.signal.throwIfAborted()
+          const archive = shot.archive ?? prepareArchive(image)
+          const found = await align(
+            archive,
+            shot.canvas,
+            photo,
+            controller.signal,
+            { server: true }
+          )
+          if (found && fits(found.crop, archive.aspect, photo)) {
+            placed = found.crop
+            setCrop(found.crop)
+          }
+          const k = Math.min(1, SCORE_WIDTH / placed.width)
+          const live = await grayOf(
+            shot.canvas,
+            photo.width * k,
+            photo.height * k
+          )
+          const old = await grayOf(
+            image,
+            placed.width * k,
+            placed.width * k * archive.aspect
+          )
+          controller.signal.throwIfAborted()
+          if (live && old) {
+            const check = checkLines(trace, old, live, {
+              cx: placed.cx * k,
+              cy: placed.cy * k,
+              width: placed.width * k,
+              rotation: placed.rotation,
+            })
+            const value = alignmentScore(check)
+            setScore({ value, check })
+            const worst =
+              check.worst != null ? trace.features[check.worst] : null
+            setNote(
+              value == null
+                ? "Couldn’t check the lines. Hold the photo to compare."
+                : check.ok
+                  ? "Every line sits on its edge. Hold to compare."
+                  : worst
+                    ? `${worst.name} is off. Retake from where it lines up.`
+                    : "Some lines couldn’t be checked. Hold to compare."
+            )
+            diagnostic("score", {
+              score: value,
+              ok: check.ok,
+              worst: check.worst,
+              on: check.lines.filter((line) => line.state === "on").length,
+              off: check.lines.filter((line) => line.state === "off").length,
+              worstOffset:
+                check.worst == null ? null : check.lines[check.worst].offset,
+            })
+            setPhase("unchecked")
+            done("unchecked", { moved: 0 })
+            return
+          }
+        } catch {
+          if (controller.signal.aborted) return
+        }
         setNote(
           shot.assisted
             ? "Framing adjusted. Hold to compare."
@@ -315,7 +394,7 @@ export function RephotoReview({
       clearTimeout(slow)
       controller.abort()
     }
-  }, [shot, thenSrc, listedAspect])
+  }, [shot, thenSrc, listedAspect, trace])
 
   useEffect(() => {
     if (phase === "aligning") return
@@ -594,8 +673,38 @@ export function RephotoReview({
               )}
             </div>
             {trace && !peek && settled && !sweeping && (
-              <ReferenceTrace guide={trace} />
+              <ReferenceTrace
+                guide={trace}
+                confirmed={
+                  score
+                    ? score.check.lines
+                        .filter((line) => line.state === "on")
+                        .map((line) => line.index)
+                    : []
+                }
+                off={
+                  score
+                    ? score.check.lines
+                        .filter((line) => line.state === "off")
+                        .map((line) => line.index)
+                    : []
+                }
+              />
             )}
+          </div>
+        )}
+        {score?.value != null && (
+          <div
+            data-testid="rephoto-score"
+            data-score={score.value}
+            className="pointer-events-none absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] rounded-2xl bg-black/65 px-3 py-1.5 text-center"
+          >
+            <div
+              className={`text-2xl font-semibold tabular-nums ${score.value >= 85 ? "text-lime-300" : score.value >= 60 ? "text-amber-300" : "text-red-400"}`}
+            >
+              {score.value}%
+            </div>
+            <div className="text-xs text-white/75">lined up</div>
           </div>
         )}
         {status && (

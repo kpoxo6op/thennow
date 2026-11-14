@@ -15,6 +15,7 @@ import {
   unplace,
   type Fit,
   type FitDiagnostic,
+  type Match,
 } from "@/lib/rephoto/match"
 
 export type Archive = ReturnType<typeof matchPixels> & { aspect: number }
@@ -133,7 +134,7 @@ export async function align(
     minCoverage?: number
     diagnostic?: (details: AlignDiagnostic) => void
   }
-): Promise<Fit | null> {
+): Promise<(Fit & { matches: Match[]; cell: number }) | null> {
   const begun = performance.now()
   let modelBegun = 0
   let backend: AlignDiagnostic["backend"] = "none"
@@ -223,14 +224,17 @@ export async function align(
             ]
           : [u0, v0, u1, v1]
     )
-    return fitCrop(
+    const cell = cellSize(part ?? photo, frame.placement)
+    const fit = fitCrop(
       matches,
       archive.aspect,
       photo,
-      cellSize(part ?? photo, frame.placement),
+      cell,
       (fit) => report(fit.reason, fit),
       minCoverage
     )
+    // The matches come along for the parallax check (where to stand).
+    return fit && { ...fit, matches, cell }
   } catch (error) {
     if (!modelBegun) prepareMs = performance.now() - begun
     report(signal.aborted ? "aborted" : outcome)
