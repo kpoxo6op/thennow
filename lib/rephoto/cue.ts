@@ -20,6 +20,10 @@ export type CueKind =
   | "back"
   | "clockwise"
   | "anticlockwise"
+  | "step-left"
+  | "step-right"
+  | "raise"
+  | "lower"
   | "hold"
 
 export type Cue = { kind: CueKind; amount: number }
@@ -83,7 +87,17 @@ export function cueErrors(
 }
 
 // The instruction for these errors, given the one showing now (for hysteresis).
-export function cueFor(e: CueErrors, showing: CueKind | null = null): Cue {
+// Where to stand, from parallax (lib/rephoto/parallax.ts): how far the near part of the view is off
+// once the far part is lined up, as fractions of the view's width, and its relative size.
+export type StepErrors = { sideways: number; height: number; depth: number }
+// Parallax of this much (about 25 cm at Bradley Lane) starts a step; half of it ends one.
+export const STEP_LIMIT = 0.02
+
+export function cueFor(
+  e: CueErrors,
+  showing: CueKind | null = null,
+  step: StepErrors | null = null
+): Cue {
   const keep = (kind: CueKind) => (showing === kind ? 0.5 : 1)
   // Too big to fit even when centred: only stepping back (or a wider lens) helps.
   if (e.scale > 1.08 / keep("back") || (e.scale > 1.04 && !e.fits))
@@ -113,7 +127,33 @@ export function cueFor(e: CueErrors, showing: CueKind | null = null): Cue {
       amount: Math.min(1, value / 0.4),
     }
   }
-  if (e.scale < CUE_LIMITS.smallest / (showing === "closer" ? 0.94 : 1))
+  if (step) {
+    // Turning can't fix these: they need the person to move. Near things shifted left mean
+    // standing too far right; shifted down, holding the phone too high; too big, too close.
+    const options: { kind: CueKind; value: number }[] = [
+      {
+        kind: step.sideways < 0 ? "step-left" : "step-right",
+        value: Math.abs(step.sideways),
+      },
+      {
+        kind: step.height > 0 ? "lower" : "raise",
+        value: Math.abs(step.height),
+      },
+      // Size is measured across the near part, about half the view: halve it to compare.
+      {
+        kind: step.depth > 0 ? "back" : "closer",
+        value: Math.abs(step.depth) / 2,
+      },
+    ]
+    const pick = options
+      .filter((o) => o.value > STEP_LIMIT * (showing === o.kind ? 0.5 : 1))
+      .sort(
+        (a, b) =>
+          b.value * (showing === b.kind ? 1.5 : 1) -
+          a.value * (showing === a.kind ? 1.5 : 1)
+      )[0]
+    if (pick) return { kind: pick.kind, amount: Math.min(1, pick.value / 0.1) }
+  } else if (e.scale < CUE_LIMITS.smallest / (showing === "closer" ? 0.94 : 1))
     return { kind: "closer", amount: Math.min(1, (1 - e.scale) * 2) }
   // Close: the crop can take the rest, provided it stays inside the picture.
   if (!e.fits)

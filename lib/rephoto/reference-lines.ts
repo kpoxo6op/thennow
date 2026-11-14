@@ -1,3 +1,5 @@
+import type { Zones } from "@/lib/rephoto/parallax"
+
 export const TRACE_OVERLAY_OPACITY = 0.16
 
 // Editorial traces, tied to the exact uncropped archive. Coordinates are fractions
@@ -5,10 +7,14 @@ export const TRACE_OVERLAY_OPACITY = 0.16
 export type ReferenceLines = {
   image: string
   features: { name: string; points: [number, number][]; region?: string }[]
+  // Which part of the old photo is near and which far, for telling where to stand (parallax).
+  zones?: Zones
 }
 const guides: Record<string, ReferenceLines> = {
   "bradley-lane-line-road": {
     image: "/posts/0014-bradley-lane-line-road/then-bradley-lane-line-road.jpg",
+    // The mural wall a few metres away; the shopfronts and awnings down the street.
+    zones: { near: [0, 0, 0.385, 0.83], far: [0.43, 0.05, 1, 0.75] },
     features: [
       {
         name: "Mural wall corner",

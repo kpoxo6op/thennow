@@ -4,11 +4,14 @@ export function ReferenceTrace({
   guide,
   highlighted = null,
   confirmed = [],
+  off = [],
 }: {
   guide: ReferenceLines
   highlighted?: number | null
   // Lines found sitting on their edge in the live picture.
   confirmed?: number[]
+  // Lines found off their edge in a taken shot.
+  off?: number[]
 }) {
   return (
     <svg
@@ -38,13 +41,15 @@ export function ReferenceTrace({
               .map(([x, y]) => `${x * 1000},${y * 1000}`)
               .join(" ")}
             stroke={
-              highlighted === index
-                ? "#ffb45b"
-                : confirmed.includes(index)
-                  ? "#a3e635"
-                  : "white"
+              off.includes(index)
+                ? "#f87171"
+                : highlighted === index
+                  ? "#ffb45b"
+                  : confirmed.includes(index)
+                    ? "#a3e635"
+                    : "white"
             }
-            strokeWidth="1.5"
+            strokeWidth={off.includes(index) ? "2.5" : "1.5"}
             vectorEffect="non-scaling-stroke"
           />
         </g>
