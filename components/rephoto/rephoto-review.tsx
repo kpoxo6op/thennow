@@ -152,6 +152,8 @@ export function RephotoReview({
   const [sweeping, setSweeping] = useState(false)
   // A hold that cut the wipe short shows the old photograph at once, without fading in.
   const [cut, setCut] = useState(false)
+  // Once the photo has been held to compare, the wipe has nothing left to show.
+  const heldRef = useRef(false)
   const [peek, setPeek] = useState(false)
   const [note, setNote] = useState("")
   const [file, setFile] = useState<File | null>(null)
@@ -325,7 +327,7 @@ export function RephotoReview({
     const timer = setTimeout(
       () => {
         setSettled(true)
-        if (still) return
+        if (still || heldRef.current) return
         setSweeping(true)
         // A hidden tab may never finish the animation; the wipe still ends.
         end = setTimeout(() => setSweeping(false), SWEEP_MS + 300)
@@ -340,6 +342,7 @@ export function RephotoReview({
 
   // Holding the photo to compare takes over from the wipe.
   const hold = () => {
+    heldRef.current = true
     if (sweeping) setCut(true)
     setSweeping(false)
     setPeek(true)
