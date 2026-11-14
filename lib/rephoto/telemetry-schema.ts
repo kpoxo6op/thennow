@@ -116,6 +116,7 @@ const fields: Record<string, string[]> = {
     "scaleDelta",
     "rotationDelta",
   ],
+  lines: ["ok", "worst", "on", "off", "worstOffset"],
   cue: ["kind", "x", "y", "scale", "roll", "snapped", "age"],
   guide: [
     "state",
@@ -273,6 +274,7 @@ const booleans = new Set([
   "eligible",
   "visible",
   "snapped",
+  "ok",
 ])
 export function boundedNumber(
   value: unknown,

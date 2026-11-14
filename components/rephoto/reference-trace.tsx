@@ -3,9 +3,12 @@ import type { ReferenceLines } from "@/lib/rephoto/reference-lines"
 export function ReferenceTrace({
   guide,
   highlighted = null,
+  confirmed = [],
 }: {
   guide: ReferenceLines
   highlighted?: number | null
+  // Lines found sitting on their edge in the live picture.
+  confirmed?: number[]
 }) {
   return (
     <svg
@@ -34,7 +37,13 @@ export function ReferenceTrace({
             points={feature.points
               .map(([x, y]) => `${x * 1000},${y * 1000}`)
               .join(" ")}
-            stroke={highlighted === index ? "#ffb45b" : "white"}
+            stroke={
+              highlighted === index
+                ? "#ffb45b"
+                : confirmed.includes(index)
+                  ? "#a3e635"
+                  : "white"
+            }
             strokeWidth="1.5"
             vectorEffect="non-scaling-stroke"
           />
