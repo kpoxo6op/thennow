@@ -150,6 +150,8 @@ export function RephotoReview({
   const [settled, setSettled] = useState(false)
   // The wipe from the old photograph to the new one, played once when the shot is placed.
   const [sweeping, setSweeping] = useState(false)
+  // A hold that cut the wipe short shows the old photograph at once, without fading in.
+  const [cut, setCut] = useState(false)
   const [peek, setPeek] = useState(false)
   const [note, setNote] = useState("")
   const [file, setFile] = useState<File | null>(null)
@@ -338,8 +340,13 @@ export function RephotoReview({
 
   // Holding the photo to compare takes over from the wipe.
   const hold = () => {
+    if (sweeping) setCut(true)
     setSweeping(false)
     setPeek(true)
+  }
+  const release = () => {
+    setCut(false)
+    setPeek(false)
   }
 
   // The file is ready before the tap, so sharing runs straight from it (Safari requires that).
@@ -534,11 +541,11 @@ export function RephotoReview({
               height: box.height,
             }}
             onPointerDown={hold}
-            onPointerUp={() => setPeek(false)}
-            onPointerCancel={() => setPeek(false)}
-            onPointerLeave={() => setPeek(false)}
+            onPointerUp={release}
+            onPointerCancel={release}
+            onPointerLeave={release}
             onKeyDown={(event) => event.key === " " && hold()}
-            onKeyUp={() => setPeek(false)}
+            onKeyUp={release}
             onContextMenu={(event) => event.preventDefault()}
           >
             <div
@@ -558,27 +565,31 @@ export function RephotoReview({
               aria-hidden
               draggable={false}
               data-testid="rephoto-review-ghost"
-              className={`pointer-events-none absolute inset-0 size-full ${sweeping ? "" : "transition-opacity duration-500"}`}
+              className={`pointer-events-none absolute inset-0 size-full ${sweeping || cut ? "" : "transition-opacity duration-500"}`}
               style={{ opacity: ghostOpacity }}
             />
-            {sweeping && (
-              <div
-                aria-hidden
-                data-testid="rephoto-sweep"
-                className="pointer-events-none absolute inset-0"
-                style={{ "--sweep-ms": `${SWEEP_MS}ms` } as CSSProperties}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={thenSrc}
-                  alt=""
-                  draggable={false}
-                  className="tn-sweep absolute inset-0 size-full"
-                  onAnimationEnd={() => setSweeping(false)}
-                />
-                <div className="tn-sweep-line absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white shadow-[0_0_12px_2px_rgba(255,255,255,0.7)]" />
-              </div>
-            )}
+            {/* Mounted ahead, so the wipe starts on an already decoded picture. */}
+            <div
+              aria-hidden
+              data-testid="rephoto-sweep"
+              data-sweeping={sweeping || undefined}
+              className="pointer-events-none absolute inset-0"
+              style={{ "--sweep-ms": `${SWEEP_MS}ms` } as CSSProperties}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={thenSrc}
+                alt=""
+                draggable={false}
+                className={`absolute inset-0 size-full ${sweeping ? "tn-sweep" : "opacity-0"}`}
+                onAnimationEnd={() => setSweeping(false)}
+              />
+              {sweeping && (
+                <div className="tn-sweep-line absolute inset-0">
+                  <div className="absolute inset-y-0 left-0 w-0.5 -translate-x-1/2 bg-white shadow-[0_0_1px_rgba(0,0,0,0.5),0_0_12px_2px_rgba(255,255,255,0.7)]" />
+                </div>
+              )}
+            </div>
             {trace && !peek && settled && !sweeping && (
               <ReferenceTrace guide={trace} />
             )}
