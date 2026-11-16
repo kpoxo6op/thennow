@@ -17,6 +17,8 @@ export type LineVerdict = {
   // Median distance off, as a fraction of the view's width (worst third of the line).
   offset: number | null
   support: number
+  // Whether the line takes part (has a region): decorative lines never count.
+  votes: boolean
 }
 export type LineCheck = {
   ok: boolean
@@ -202,7 +204,7 @@ export function checkLines(
   const anyRegion = guide.features.some((feature) => feature.region)
   const lines: LineVerdict[] = guide.features.map((feature, index) => {
     if (anyRegion && !feature.region)
-      return { index, state: "unknown", offset: null, support: 0 }
+      return { index, state: "unknown", offset: null, support: 0, votes: false }
     // Offsets in thirds of the line, so one matching stretch can't hide the rest.
     const sections: number[][] = [[], [], []]
     let total = 0
@@ -261,7 +263,7 @@ export function checkLines(
     const support = samples ? total / samples : 0
     const filled = sections.filter((section) => section.length >= 2)
     if (samples < 6 || support < MIN_SUPPORT || filled.length < 2)
-      return { index, state: "unknown", offset: null, support }
+      return { index, state: "unknown", offset: null, support, votes: true }
     const offset = Math.max(
       ...filled.map((section) => Math.abs(median(section)) / w)
     )
@@ -270,6 +272,7 @@ export function checkLines(
       state: offset <= LINE_ON ? "on" : offset > LINE_OFF ? "off" : "unknown",
       offset,
       support,
+      votes: true,
     }
   })
   const off = lines
@@ -296,16 +299,20 @@ export function checkLines(
   }
 }
 
-// One number for how well the shot lines up, from the lines that could be measured: a line on
-// its edge counts fully, one 5% of the view's width off or more counts nothing. Null when too
-// few lines could be measured to say.
+// One number for how well the shot lines up, over every line that takes part: a line on its edge
+// counts fully, one 5% of the view's width off or more counts nothing, and one that couldn't be
+// measured counts less than half, so a shot isn't scored high on the few lines it happens to
+// show. Null when not one line could be measured.
 export function alignmentScore(check: LineCheck): number | null {
-  const measured = check.lines.filter((line) => line.offset != null)
-  if (measured.length < 2) return null
-  const total = measured.reduce(
+  const voting = check.lines.filter((line) => line.votes)
+  if (!voting.some((line) => line.offset != null)) return null
+  const total = voting.reduce(
     (sum, line) =>
-      sum + Math.min(1, Math.max(0, 1 - (line.offset! - LINE_ON) / 0.04)),
+      sum +
+      (line.offset == null
+        ? 0.4
+        : Math.min(1, Math.max(0, 1 - (line.offset - LINE_ON) / 0.04))),
     0
   )
-  return Math.round((100 * total) / measured.length)
+  return Math.round((100 * total) / voting.length)
 }
