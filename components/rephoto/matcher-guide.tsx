@@ -14,12 +14,18 @@ export function MatcherGuide({
   found = false,
   message,
   icon,
+  badge,
+  lined = false,
 }: {
   hidden: boolean
   found?: boolean
   message?: string
   // A small sign before the words: which way to move.
   icon?: ReactNode
+  // How well the view lines up, out of 100, after the words.
+  badge?: number
+  // Green only when the camera says lined up: a high number over too few lines isn't.
+  lined?: boolean
 }) {
   const status = useSyncExternalStore(
     subscribeMatcher,
@@ -78,6 +84,14 @@ export function MatcherGuide({
                 ? "Starting guide…"
                 : "Loading guide…"}
         </span>
+        {ready && badge != null && (
+          <span
+            data-testid="live-score"
+            className={`rounded-full px-1.5 text-xs font-semibold tabular-nums ${lined ? "bg-lime-300 text-black" : badge >= 60 ? "bg-amber-300 text-black" : "bg-white/20 text-white"}`}
+          >
+            {badge}
+          </span>
+        )}
         {!notice.failed &&
           status.phase === "loading" &&
           status.downloaded != null && (

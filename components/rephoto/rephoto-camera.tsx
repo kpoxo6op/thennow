@@ -41,7 +41,14 @@ import {
   type CueKind,
   type StepErrors,
 } from "@/lib/rephoto/cue"
-import { checkLines, type LineCheck } from "@/lib/rephoto/line-check"
+import {
+  alignmentScore,
+  checkLines,
+  linedUp,
+  scoreUsable,
+  type LineCheck,
+  type Score,
+} from "@/lib/rephoto/line-check"
 import {
   canMatchLocally,
   localMatcherReady,
@@ -431,20 +438,30 @@ export function RephotoCamera({
   // Every reference line checked on its own edge before "Lined up": one rotation, zoom and
   // shift can fit the wall and leave the canopy off when the viewpoint differs.
   const [lines, setLines] = useState<
-    (LineCheck & { lock: object; held: boolean }) | null
+    (LineCheck & { lock: object; held: boolean; score: Score | null }) | null
   >(null)
+  // The last few scores, for a steady number (their median) instead of a jittery one.
+  const recentScores = useRef<number[]>([])
+  const lastLineCheck = useRef(0)
   // "Lined up" starts after two passing checks running and ends on a line found off or two
   // failing checks running, so it doesn't flicker on one noisy frame.
   const lineRun = useRef({ passes: 0, fails: 0, held: false })
   const checkingLines = useRef(false)
   const archiveImage = useRef<HTMLImageElement | null>(null)
   const linesLogged = useRef("")
-  const wantsLineCheck = !!trace && !!lock?.held && cue?.kind === "hold"
+  // Checked about twice a second once the view is held, whatever the sign says: the score is how
+  // the person sees whether a move helped.
+  const wantsLineCheck = !!trace && !!lock?.held
   useEffect(() => {
     const video = videoRef.current
     const image = archiveImage.current
-    if (!wantsLineCheck) lineRun.current = { passes: 0, fails: 0, held: false }
+    if (!wantsLineCheck) {
+      lineRun.current = { passes: 0, fails: 0, held: false }
+      recentScores.current = []
+    }
     if (!wantsLineCheck || !lock || !trace || checkingLines.current) return
+    if (performance.now() - lastLineCheck.current < 450) return
+    lastLineCheck.current = performance.now()
     if (!video?.videoWidth || !image?.naturalWidth) return
     checkingLines.current = true
     const placed = lock
@@ -468,18 +485,26 @@ export function RephotoCamera({
           width: placed.crop.width * k,
           rotation: placed.crop.rotation,
         })
+        const raw = alignmentScore(result, trace)
+        let score: Score | null = null
+        if (scoreUsable(raw)) {
+          recentScores.current = [...recentScores.current, raw.score].slice(-3)
+          const sorted = [...recentScores.current].sort((a, b) => a - b)
+          score = { ...raw, score: sorted[Math.floor(sorted.length / 2)] }
+        }
         const run = lineRun.current
-        run.passes = result.ok ? run.passes + 1 : 0
-        run.fails = result.ok ? 0 : run.fails + 1
+        const now = linedUp(score, run.held)
+        run.passes = now ? run.passes + 1 : 0
+        run.fails = now ? 0 : run.fails + 1
         if (!run.held && run.passes >= 2) run.held = true
-        if (run.held && (result.worst != null || run.fails >= 2))
-          run.held = false
-        setLines({ ...result, lock: placed, held: run.held })
-        const summary = `${result.ok}:${result.worst}`
+        if (run.held && run.fails >= 2) run.held = false
+        setLines({ ...result, lock: placed, held: run.held, score })
+        const summary = `${run.held}:${result.worst}:${Math.round((score?.score ?? -10) / 10)}`
         if (summary !== linesLogged.current) {
           linesLogged.current = summary
           diagnostic("lines", {
-            ok: result.ok,
+            ok: run.held,
+            score: score?.score ?? null,
             worst: result.worst,
             on: result.lines.filter((line) => line.state === "on").length,
             off: result.lines.filter((line) => line.state === "off").length,
@@ -497,9 +522,27 @@ export function RephotoCamera({
   // The latest check is about the view now on screen: one follower step (250 ms) or two old.
   const linesNow =
     lines && lock && wantsLineCheck && lines.lock !== null ? lines : null
-  const linesOk = !trace || !!linesNow?.held
-  const offLine = wantsLineCheck ? (linesNow?.worst ?? null) : null
-  const snapped = !!lock?.held && cue?.kind === "hold" && linesOk
+  // With lines, "Lined up" is the lines' score alone: aim, zoom and where to stand show in it, and
+  // the noisy where-to-stand measure no longer has to agree too. Without lines, the sign decides.
+  // The lines are measured where the matcher puts the view, so they say whether you stand in the
+  // right place, not whether you point at it: the view must also be in the picture, level and
+  // not too far off centre (any sign but a turn, a tilt or "back" because it doesn't fit).
+  const framedEnough =
+    !!cue &&
+    ![
+      "left",
+      "right",
+      "up",
+      "down",
+      "clockwise",
+      "anticlockwise",
+      "back",
+    ].includes(cue.kind)
+  const snapped = trace
+    ? !!lock?.held && !!linesNow?.held && framedEnough
+    : !!lock?.held && cue?.kind === "hold"
+  const offLine = wantsLineCheck && !snapped ? (linesNow?.worst ?? null) : null
+  const liveScore = snapped || linesNow?.score ? linesNow?.score?.score : null
   useEffect(() => {
     // Without lines the follower's own "steady" buzz already marks this.
     if (snapped && trace) navigator.vibrate?.(15)
@@ -1515,6 +1558,7 @@ export function RephotoCamera({
       traced: !!trace,
       assisted: !!trace && !!held,
       assistanceLost: false,
+      liveScore: liveScore ?? null,
       archive: archiveRef.current,
       takenAt: new Date(),
     })
@@ -1693,20 +1737,30 @@ export function RephotoCamera({
                 <MatcherGuide
                   hidden={false}
                   icon={
-                    captureBusy || !cue || (cue.kind === "hold" && !snapped)
+                    captureBusy
                       ? undefined
-                      : cueIcon(cue.kind)
+                      : snapped
+                        ? cueIcon("hold")
+                        : cue && cue.kind !== "hold"
+                          ? cueIcon(cue.kind)
+                          : undefined
                   }
+                  badge={
+                    captureBusy || liveScore == null ? undefined : liveScore
+                  }
+                  lined={snapped}
                   message={
                     captureBusy
                       ? "Taking photo…"
-                      : cue
-                        ? cue.kind === "hold" && offLine != null
-                          ? `Line up the ${trace.features[offLine].name.toLowerCase()}`
-                          : cue.kind === "hold" && !snapped && lock?.held
-                            ? "Checking the lines…"
-                            : cueText(cue.kind, snapped)
-                        : "Point at the view in the old photo"
+                      : snapped
+                        ? "Lined up · Take the photo"
+                        : cue && cue.kind !== "hold"
+                          ? cueText(cue.kind, false)
+                          : cue && offLine != null
+                            ? `Line up the ${trace.features[offLine].name.toLowerCase()}`
+                            : cue
+                              ? "Hold still"
+                              : "Point at the view in the old photo"
                   }
                 />
               </div>
