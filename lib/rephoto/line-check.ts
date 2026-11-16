@@ -69,7 +69,10 @@ function strongest(
   nx: number,
   ny: number,
   reach: number,
-  sign = 0
+  sign = 0,
+  // Where the edge should be (the old photo's offset) and how near counts as there.
+  expect = 0,
+  tolerance = -1
 ) {
   let best = 0
   let bestD = 0
@@ -87,9 +90,91 @@ function strongest(
     }
   }
   if (best < MIN_EDGE || Math.abs(bestD) >= reach - 1) return null
+  // A clear edge where the line should be, beaten by a stronger one further off (a shadow's edge
+  // in sun, the lettering on a new sign), can't say the line is off: the stronger edge may be
+  // something else. Seen at Bradley Lane, 16 Nov 2026: the wall's foot in shade, the pavement's
+  // shadow line 6% below it.
+  if (tolerance >= 0 && Math.abs(bestD - expect) > tolerance) {
+    let near = 0
+    for (const [d, s] of scores)
+      if (Math.abs(d - expect) <= tolerance) near = Math.max(near, s)
+    if (near >= Math.max(MIN_EDGE, best * 0.4)) return null
+  }
   for (const [d, s] of scores)
     if (Math.abs(d - bestD) > 3 && s > best * 0.8) return null
   return { d: bestD, sign: bestSign }
+}
+
+// How far (in live pixels, across the line) the patch of the old photo around a point best
+// matches the live picture: a strip a little along the line and wider across it, compared with
+// zero-mean correlation, so it goes by the whole local pattern (the mural's paint above the foot
+// of a wall, a sign's lettering) rather than by one edge that sun or a new sign may have moved.
+// Null when no shift matches well, or two shifts apart match about as well.
+function patchShift(
+  archive: Gray,
+  live: Gray,
+  x: number,
+  y: number,
+  nx: number,
+  ny: number,
+  lx: number,
+  ly: number,
+  lnx: number,
+  lny: number,
+  scale: number,
+  reach: number
+) {
+  const T = 6
+  const N = 10
+  const a: number[] = []
+  for (let t = -T; t <= T; t += 2)
+    for (let n = -N; n <= N; n++) {
+      const v = at(archive, x + nx * n - ny * t, y + ny * n + nx * t)
+      if (!Number.isFinite(v)) return null
+      a.push(v)
+    }
+  const mean = a.reduce((sum, v) => sum + v, 0) / a.length
+  let norm = 0
+  for (let i = 0; i < a.length; i++) {
+    a[i] -= mean
+    norm += a[i] * a[i]
+  }
+  if (norm < a.length * 0.0015) return null
+  const scores: [number, number][] = []
+  let best = -1
+  let bestD = 0
+  for (let d = -reach; d <= reach; d++) {
+    const b: number[] = []
+    for (let t = -T; t <= T; t += 2)
+      for (let n = -N; n <= N; n++) {
+        const along = n * scale + d
+        const v = at(
+          live,
+          lx + lnx * along - lny * t * scale,
+          ly + lny * along + lnx * t * scale
+        )
+        if (!Number.isFinite(v)) return null
+        b.push(v)
+      }
+    const bm = b.reduce((sum, v) => sum + v, 0) / b.length
+    let dot = 0
+    let bn = 0
+    for (let i = 0; i < b.length; i++) {
+      const v = b[i] - bm
+      dot += a[i] * v
+      bn += v * v
+    }
+    const ncc = bn > 1e-9 ? dot / Math.sqrt(norm * bn) : 0
+    scores.push([d, ncc])
+    if (ncc > best) {
+      best = ncc
+      bestD = d
+    }
+  }
+  if (best < 0.5 || Math.abs(bestD) >= reach - 1) return null
+  for (const [d, ncc] of scores)
+    if (Math.abs(d - bestD) > 3 && ncc > best - 0.05) return null
+  return bestD
 }
 
 function median(values: number[]) {
@@ -152,21 +237,24 @@ export function checkLines(
         samples++
         const qx = (x - w / 2) * scale
         const qy = (y - h / 2) * scale
-        const now = strongest(
+        const shift = patchShift(
+          archive,
           live,
+          x,
+          y,
+          nx,
+          ny,
           crop.cx + cos * qx - sin * qy,
           crop.cy + sin * qx + cos * qy,
           cos * nx - sin * ny,
           sin * nx + cos * ny,
-          Math.round(reach * scale),
-          then.sign
+          scale,
+          Math.round(reach * scale)
         )
-        if (!now) continue
+        if (shift == null) continue
         total++
         const along = (walked + length * t) / Math.max(1, whole)
-        sections[Math.min(2, Math.floor(along * 3))].push(
-          now.d / scale - then.d
-        )
+        sections[Math.min(2, Math.floor(along * 3))].push(shift / scale)
       }
       walked += length
     }
