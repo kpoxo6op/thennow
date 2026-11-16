@@ -139,10 +139,11 @@ export function cueFor(
         kind: step.height > 0 ? "lower" : "raise",
         value: Math.abs(step.height),
       },
-      // Size is measured across the near part, about half the view: halve it to compare.
+      // Relative size is the noisiest measure: at Bradley Lane it read 3-12% from one spot, and
+      // 4% on a shot whose lines all sat on their edges (16 Nov 2026). It needs 6% to ask for a step.
       {
         kind: step.depth > 0 ? "back" : "closer",
-        value: Math.abs(step.depth) / 2,
+        value: Math.abs(step.depth) / 3,
       },
     ]
     const pick = options
