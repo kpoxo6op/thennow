@@ -1422,6 +1422,18 @@ export function RephotoCamera({
     }
   }
 
+  // The camera sees wider than most old photos: once the view is matched, the live picture is
+  // zoomed (and turned) by the same amount the shot's crop will be, so its size matches the
+  // guide while you walk, and a small label says so.
+  const zoomNeeded =
+    trace && lock?.held && ghost && view && !showArchive
+      ? ghost.width / ((lock.crop.width * view.width) / videoSize.width)
+      : 0
+  const autoZoom =
+    zoomNeeded > 1.02 || (snapped && zoomNeeded > 0)
+      ? Math.min(2.5, zoomNeeded)
+      : 0
+
   const capture = async () => {
     const video = videoRef.current
     if (
@@ -1557,9 +1569,13 @@ export function RephotoCamera({
           muted
           playsInline
           style={
-            trace && snapped && lock && ghost && view && !showArchive
+            autoZoom && lock && view
               ? {
-                  transform: `scale(${ghost.width / ((lock.crop.width * view.width) / videoSize.width)}) rotate(${-lock.crop.rotation}rad) translate(${((videoSize.width / 2 - lock.crop.cx) * view.width) / videoSize.width}px, ${((videoSize.height / 2 - lock.crop.cy) * view.width) / videoSize.width}px)`,
+                  // Lined up: the matched view sits exactly on the guide. Before that, only the
+                  // zoom and turn are applied, so which way to point still shows.
+                  transform: snapped
+                    ? `scale(${autoZoom}) rotate(${-lock.crop.rotation}rad) translate(${((videoSize.width / 2 - lock.crop.cx) * view.width) / videoSize.width}px, ${((videoSize.height / 2 - lock.crop.cy) * view.width) / videoSize.width}px)`
+                    : `scale(${autoZoom}) rotate(${-lock.crop.rotation}rad)`,
                   transition: "transform 250ms ease-out",
                 }
               : undefined
@@ -1720,6 +1736,14 @@ export function RephotoCamera({
           </div>
         )}
 
+        {trace && autoZoom > 1.02 && status === "live" && !interrupted && (
+          <div
+            data-testid="auto-zoom"
+            className="pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))] rounded-full bg-black/65 px-2.5 py-1 text-xs tabular-nums text-white/90"
+          >
+            Auto zoom {autoZoom.toFixed(1)}×
+          </div>
+        )}
         {debugText && (
           <pre className="pointer-events-none absolute inset-x-2 top-16 whitespace-pre-wrap break-all text-[10px] text-lime-300">
             {debugText}
