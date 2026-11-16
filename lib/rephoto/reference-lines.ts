@@ -50,15 +50,22 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Front canopy underside",
+        // The awning's own front is hidden behind its sign, and the sign was replaced (MoneyGram
+        // in 2018, a deeper Hi Vape box by 2026), so the hanging TAKEAWAY sign, unchanged, marks
+        // the awning instead (16 Nov 2026).
+        name: "TAKEAWAY sign",
         region: "canopy",
         points: [
-          [0.416, 0.311],
-          [0.864, 0.294],
+          [0.676, 0.41],
+          [0.833, 0.41],
+          [0.833, 0.457],
+          [0.676, 0.457],
+          [0.676, 0.41],
         ],
       },
       {
         name: "Shopfront base receding from wall corner",
+        region: "shopfront",
         points: [
           [0.405, 0.811],
           [0.674, 0.687],
@@ -66,17 +73,10 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Shopfront window upright",
+        region: "shopfront",
         points: [
           [0.626, 0.423],
           [0.624, 0.703],
-        ],
-      },
-      {
-        name: "Receding canopy edge",
-        region: "canopy",
-        points: [
-          [0.864, 0.294],
-          [0.894, 0.412],
         ],
       },
     ],
