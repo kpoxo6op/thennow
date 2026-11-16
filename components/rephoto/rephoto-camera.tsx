@@ -543,6 +543,13 @@ export function RephotoCamera({
     : !!lock?.held && cue?.kind === "hold"
   const offLine = wantsLineCheck && !snapped ? (linesNow?.worst ?? null) : null
   const liveScore = snapped || linesNow?.score ? linesNow?.score?.score : null
+  // The last score shown, for the review when the shot itself can't be scored: pressing the
+  // shutter can land between two checks.
+  const shownScore = useRef<{ value: number; at: number } | null>(null)
+  useEffect(() => {
+    if (liveScore != null)
+      shownScore.current = { value: liveScore, at: performance.now() }
+  }, [liveScore])
   useEffect(() => {
     // Without lines the follower's own "steady" buzz already marks this.
     if (snapped && trace) navigator.vibrate?.(15)
@@ -1558,7 +1565,10 @@ export function RephotoCamera({
       traced: !!trace,
       assisted: !!trace && !!held,
       assistanceLost: false,
-      liveScore: liveScore ?? null,
+      liveScore:
+        shownScore.current && now - shownScore.current.at < 3000
+          ? shownScore.current.value
+          : null,
       archive: archiveRef.current,
       takenAt: new Date(),
     })
