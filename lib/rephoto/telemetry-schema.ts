@@ -117,7 +117,7 @@ const fields: Record<string, string[]> = {
     "rotationDelta",
   ],
   score: ["score", "ok", "worst", "on", "off", "worstOffset"],
-  lines: ["ok", "worst", "on", "off", "worstOffset"],
+  lines: ["ok", "score", "worst", "on", "off", "worstOffset"],
   cue: [
     "kind",
     "x",

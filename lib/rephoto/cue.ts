@@ -90,8 +90,8 @@ export function cueErrors(
 // Where to stand, from parallax (lib/rephoto/parallax.ts): how far the near part of the view is off
 // once the far part is lined up, as fractions of the view's width, and its relative size.
 export type StepErrors = { sideways: number; height: number; depth: number }
-// Parallax of this much (about 25 cm at Bradley Lane) starts a step; half of it ends one.
-export const STEP_LIMIT = 0.02
+// Parallax of this much (about 35 cm at Bradley Lane, above the measure's own noise) starts a\n// step; half of it ends one.
+export const STEP_LIMIT = 0.03
 
 export function cueFor(
   e: CueErrors,
@@ -140,10 +140,10 @@ export function cueFor(
         value: Math.abs(step.height),
       },
       // Relative size is the noisiest measure: at Bradley Lane it read 3-12% from one spot, and
-      // 4% on a shot whose lines all sat on their edges (16 Nov 2026). It needs 6% to ask for a step.
+      // 4% on a shot whose lines all sat on their edges (16 Nov 2026). It needs 12% to ask for a step.
       {
         kind: step.depth > 0 ? "back" : "closer",
-        value: Math.abs(step.depth) / 3,
+        value: Math.abs(step.depth) / 4,
       },
     ]
     const pick = options

@@ -26,6 +26,8 @@ import {
 import {
   alignmentScore,
   checkLines,
+  linedUp,
+  scoreUsable,
   type LineCheck,
 } from "@/lib/rephoto/line-check"
 import { grayOf, loadImage } from "@/lib/rephoto/pixels"
@@ -45,6 +47,8 @@ export type Shot = {
   traced?: boolean
   assisted?: boolean
   assistanceLost?: boolean
+  // The live score shown when the shot was taken, used if the shot itself can't be scored.
+  liveScore?: number | null
   archive: Archive | null
   takenAt: Date
 }
@@ -139,7 +143,8 @@ function stamp(date: Date) {
 }
 
 // The view's width, in pixels, at which the shot's lines are checked.
-const SCORE_WIDTH = 900
+// The same as the live check's, so the number after the shot matches the one shown before it.
+const SCORE_WIDTH = 480
 
 export function RephotoReview({
   name,
@@ -280,22 +285,26 @@ export function RephotoReview({
               width: placed.width * k,
               rotation: placed.rotation,
             })
-            const value = alignmentScore(check)
+            const scored = alignmentScore(check, trace)
+            const value = scoreUsable(scored)
+              ? scored.score
+              : (shot.liveScore ?? null)
+            const lined = linedUp(scored, false)
             setScore({ value, check })
             const worst =
               check.worst != null ? trace.features[check.worst] : null
             setNote(
               value == null
                 ? "Couldn’t check the lines. Hold the photo to compare."
-                : check.ok
-                  ? "Every line sits on its edge. Hold to compare."
+                : lined
+                  ? "Lined up. Hold to compare."
                   : worst
                     ? `${worst.name} is off. Retake from where it lines up.`
                     : "Some lines couldn’t be checked. Hold to compare."
             )
             diagnostic("score", {
               score: value,
-              ok: check.ok,
+              ok: lined,
               worst: check.worst,
               on: check.lines.filter((line) => line.state === "on").length,
               off: check.lines.filter((line) => line.state === "off").length,

@@ -142,20 +142,19 @@ function patchShift(
     norm += a[i] * a[i]
   }
   if (norm < a.length * 0.0015) return null
-  const scores: [number, number][] = []
-  let best = -1
-  let bestD = 0
-  for (let d = -reach; d <= reach; d++) {
+  // Correlation with the live patch moved d across the line and e along it (live pixels).
+  const ncc = (d: number, e: number) => {
     const b: number[] = []
     for (let t = -T; t <= T; t += 2)
       for (let n = -N; n <= N; n++) {
-        const along = n * scale + d
+        const across = n * scale + d
+        const along = t * scale + e
         const v = at(
           live,
-          lx + lnx * along - lny * t * scale,
-          ly + lny * along + lnx * t * scale
+          lx + lnx * across - lny * along,
+          ly + lny * across + lnx * along
         )
-        if (!Number.isFinite(v)) return null
+        if (!Number.isFinite(v)) return NaN
         b.push(v)
       }
     const bm = b.reduce((sum, v) => sum + v, 0) / b.length
@@ -166,17 +165,46 @@ function patchShift(
       dot += a[i] * v
       bn += v * v
     }
-    const ncc = bn > 1e-9 ? dot / Math.sqrt(norm * bn) : 0
-    scores.push([d, ncc])
-    if (ncc > best) {
-      best = ncc
+    return bn > 1e-9 ? dot / Math.sqrt(norm * bn) : 0
+  }
+  const scores: [number, number][] = []
+  let best = -1
+  let bestD = 0
+  for (let d = -reach; d <= reach; d++) {
+    const value = ncc(d, 0)
+    if (!Number.isFinite(value)) return null
+    scores.push([d, value])
+    if (value > best) {
+      best = value
       bestD = d
     }
   }
   if (best < 0.5 || Math.abs(bestD) >= reach - 1) return null
-  for (const [d, ncc] of scores)
-    if (Math.abs(d - bestD) > 3 && ncc > best - 0.05) return null
-  return bestD
+  for (const [d, value] of scores)
+    if (Math.abs(d - bestD) > 3 && value > best - 0.05) return null
+  // Along the line, too, where the pattern pins it (a sign's lettering): a sign moved sideways
+  // keeps its top and bottom edges on their lines, so across alone can't see it (Bradley Lane's
+  // TAKEAWAY 5% off on 14-15 Nov). A plain edge doesn't pin it and counts as on.
+  let bestE = 0
+  let bestAlong = best
+  const along: [number, number][] = []
+  for (let e = -reach; e <= reach; e += 2) {
+    const value = ncc(bestD, e)
+    if (!Number.isFinite(value)) continue
+    along.push([e, value])
+    if (value > bestAlong + 0.03) {
+      bestAlong = value
+      bestE = e
+    }
+  }
+  if (
+    bestE !== 0 &&
+    along.some(
+      ([e, value]) => Math.abs(e - bestE) > 4 && value > bestAlong - 0.05
+    )
+  )
+    bestE = 0
+  return Math.hypot(bestD, bestE)
 }
 
 function median(values: number[]) {
@@ -299,20 +327,67 @@ export function checkLines(
   }
 }
 
-// One number for how well the shot lines up, over every line that takes part: a line on its edge
-// counts fully, one 5% of the view's width off or more counts nothing, and one that couldn't be
-// measured counts less than half, so a shot isn't scored high on the few lines it happens to
-// show. Null when not one line could be measured.
-export function alignmentScore(check: LineCheck): number | null {
-  const voting = check.lines.filter((line) => line.votes)
-  if (!voting.some((line) => line.offset != null)) return null
-  const total = voting.reduce(
-    (sum, line) =>
-      sum +
-      (line.offset == null
-        ? 0.4
-        : Math.min(1, Math.max(0, 1 - (line.offset - LINE_ON) / 0.04))),
-    0
+// How well a view lines up, as a score out of 100 the person can watch climb, the same live and
+// after the shot. Each region (a wall, a shopfront, a sign) scores the mean of its measured lines:
+// on its edge counts 1, 5% of the view's width off or more counts 0. The score is the mean over
+// the regions that could be measured, so a wall that fits can't hide a shopfront that doesn't,
+// and lines that can't be seen don't drag it (they are reported as coverage instead).
+export type Score = {
+  score: number
+  // Regions measured, out of all regions with lines.
+  measured: number
+  regions: number
+  // The weakest measured region's score.
+  weakest: number
+  // Lines measured.
+  lines: number
+}
+export function alignmentScore(
+  check: LineCheck,
+  guide: { features: { region?: string }[] }
+): Score | null {
+  const byRegion = new Map<string, number[]>()
+  let lines = 0
+  const all = new Set<string>()
+  for (const line of check.lines) {
+    if (!line.votes) continue
+    const region = guide.features[line.index].region ?? "all"
+    all.add(region)
+    if (line.offset == null) continue
+    lines++
+    const value = Math.min(1, Math.max(0, 1 - (line.offset - LINE_ON) / 0.04))
+    byRegion.set(region, [...(byRegion.get(region) ?? []), value])
+  }
+  if (!byRegion.size) return null
+  const regionScores = [...byRegion.values()].map(
+    (values) => values.reduce((a, b) => a + b, 0) / values.length
   )
-  return Math.round((100 * total) / voting.length)
+  return {
+    score: Math.round(
+      (100 * regionScores.reduce((a, b) => a + b, 0)) / regionScores.length
+    ),
+    measured: byRegion.size,
+    regions: all.size,
+    weakest: Math.round(100 * Math.min(...regionScores)),
+    lines,
+  }
+}
+
+// Enough measured to trust the number: three lines over two regions (fewer where a place has
+// fewer regions).
+export function scoreUsable(score: Score | null): score is Score {
+  return (
+    !!score && score.lines >= 3 && score.measured >= Math.min(2, score.regions)
+  )
+}
+
+// "Lined up": a high score, every region measured, none clearly off (a line 3% away scores 50). Set below Boris's
+// own 18:04 shot at Bradley Lane (16 Nov 2026), which looked right line for line and scored 84.
+export const LINED_UP = { enter: 80, stay: 72, region: 50 }
+export function linedUp(score: Score | null, already: boolean) {
+  if (!scoreUsable(score)) return false
+  // Every region seen: a wall that fits can't vouch for a sign nobody could measure.
+  if (score.measured < score.regions) return false
+  if (score.weakest < LINED_UP.region) return false
+  return score.score >= (already ? LINED_UP.stay : LINED_UP.enter)
 }
