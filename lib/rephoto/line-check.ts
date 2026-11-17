@@ -19,6 +19,9 @@ export type LineVerdict = {
   support: number
   // Whether the line takes part (has a region): decorative lines never count.
   votes: boolean
+  // Where the line's edge sits in the live picture relative to the line, as fractions of the old
+  // photo's width and height, when its points agree on it.
+  shift?: [number, number]
 }
 export type LineCheck = {
   ok: boolean
@@ -204,7 +207,7 @@ function patchShift(
     )
   )
     bestE = 0
-  return Math.hypot(bestD, bestE)
+  return { d: bestD, e: bestE }
 }
 
 function median(values: number[]) {
@@ -235,6 +238,7 @@ export function checkLines(
       return { index, state: "unknown", offset: null, support: 0, votes: false }
     // Offsets in thirds of the line, so one matching stretch can't hide the rest.
     const sections: number[][] = [[], [], []]
+    const moves: [number, number][] = []
     let total = 0
     const lengths = feature.points.slice(1).map((p, k) => {
       const q = feature.points[k]
@@ -284,7 +288,14 @@ export function checkLines(
         if (shift == null) continue
         total++
         const along = (walked + length * t) / Math.max(1, whole)
-        sections[Math.min(2, Math.floor(along * 3))].push(shift / scale)
+        sections[Math.min(2, Math.floor(along * 3))].push(
+          Math.hypot(shift.d, shift.e) / scale
+        )
+        // Where this point's edge is in the live picture, in old-photo pixels.
+        moves.push([
+          (nx * shift.d - ny * shift.e) / scale,
+          (ny * shift.d + nx * shift.e) / scale,
+        ])
       }
       walked += length
     }
@@ -295,12 +306,22 @@ export function checkLines(
     const offset = Math.max(
       ...filled.map((section) => Math.abs(median(section)) / w)
     )
+    // The line's whole shift, shown as a dashed copy where its edge really is: only when most
+    // points agree on the way it moved, so a stray match can't draw a confident wrong copy.
+    const mx = median(moves.map(([x]) => x))
+    const my = median(moves.map(([, y]) => y))
+    const agree =
+      moves.filter(([x, y]) => x * mx + y * my > 0).length / moves.length
     return {
       index,
       state: offset <= LINE_ON ? "on" : offset > LINE_OFF ? "off" : "unknown",
       offset,
       support,
       votes: true,
+      shift:
+        support >= 0.6 && agree >= 0.7 && Math.hypot(mx, my) / w > LINE_ON
+          ? [mx / w, my / h]
+          : undefined,
     }
   })
   const off = lines

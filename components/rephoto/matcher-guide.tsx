@@ -16,6 +16,7 @@ export function MatcherGuide({
   icon,
   badge,
   lined = false,
+  label,
 }: {
   hidden: boolean
   found?: boolean
@@ -26,6 +27,8 @@ export function MatcherGuide({
   badge?: number
   // Green only when the camera says lined up: a high number over too few lines isn't.
   lined?: boolean
+  // Said to screen readers when there are no words on screen.
+  label?: string
 }) {
   const status = useSyncExternalStore(
     subscribeMatcher,
@@ -58,6 +61,13 @@ export function MatcherGuide({
 
   const ready = status.phase === "ready"
   if (!ready && notice.dismissed) return null
+  // Nothing to show: no pill at all rather than an empty one.
+  if (ready && message === "" && !icon && badge == null)
+    return label ? (
+      <span role="status" className="sr-only">
+        {label}
+      </span>
+    ) : null
   return (
     <div
       hidden={hidden}
@@ -72,7 +82,12 @@ export function MatcherGuide({
     >
       <div className="inline-flex max-w-full items-center gap-2 text-balance rounded-full bg-black/65 px-3 py-1.5 text-sm leading-5">
         {ready && icon}
-        <span role="status">
+        {ready && message === "" && label && (
+          <span role="status" className="sr-only">
+            {label}
+          </span>
+        )}
+        <span role="status" hidden={ready && message === ""}>
           {ready
             ? (message ??
               (found

@@ -14,6 +14,7 @@ import {
   MoveUp,
   RotateCcw,
   RotateCw,
+  Search,
   X,
   ZoomIn,
   ZoomOut,
@@ -380,7 +381,8 @@ export function RephotoCamera({
   }, [lock, lastPlacement])
 
   // One sign at a time telling which way to move, from where the view sits in the live picture.
-  const cueFilter = useRef(new CueFilter())
+  // A sign stays at least 1.5 s, so the words don't change faster than they can be read.
+  const cueFilter = useRef(new CueFilter(1500))
   const stepRef = useRef<(StepErrors & { at: number }) | null>(null)
   const [step, setStep] = useState<(StepErrors & { at: number }) | null>(null)
   const [cue, setCue] = useState<Cue | null>(null)
@@ -411,7 +413,13 @@ export function RephotoCamera({
         cueFor(
           errors,
           cueFilter.current.current?.kind ?? null,
-          step && now - step.at < TRACKED_LIFE ? step : null
+          step && now - step.at < TRACKED_LIFE
+            ? // With lines, the zoom takes care of size: never "step closer" or "back" from
+              // parallax, only sideways and up or down.
+              trace
+              ? { ...step, depth: 0 }
+              : step
+            : null
         ),
         now
       )
@@ -433,13 +441,24 @@ export function RephotoCamera({
       })
       cueLogged.current = { kind, at: now }
     }
-  }, [lock, aspect, step])
+  }, [lock, aspect, step, trace])
   // Close enough: the crop does the rest, and the live picture snaps onto the old photograph.
   // Every reference line checked on its own edge before "Lined up": one rotation, zoom and
   // shift can fit the wall and leave the canopy off when the viewpoint differs.
   const [lines, setLines] = useState<
     (LineCheck & { lock: object; held: boolean; score: Score | null }) | null
   >(null)
+  // How each line looks, settled over checks: green once on twice running, amber once off twice
+  // running, kept between, and back to plain after 1.5 s unseen. Nothing flashes per check.
+  type LineLook = {
+    look: "on" | "off" | "plain"
+    onRun: number
+    offRun: number
+    seenAt: number
+    shift?: [number, number]
+  }
+  const lineLooks = useRef(new Map<number, LineLook>())
+  const [looks, setLooks] = useState<Map<number, LineLook>>(new Map())
   // The last few scores, for a steady number (their median) instead of a jittery one.
   const recentScores = useRef<number[]>([])
   const lastLineCheck = useRef(0)
@@ -458,6 +477,10 @@ export function RephotoCamera({
     if (!wantsLineCheck) {
       lineRun.current = { passes: 0, fails: 0, held: false }
       recentScores.current = []
+      if (lineLooks.current.size) {
+        lineLooks.current = new Map()
+        setLooks(new Map())
+      }
     }
     if (!wantsLineCheck || !lock || !trace || checkingLines.current) return
     if (performance.now() - lastLineCheck.current < 450) return
@@ -499,6 +522,37 @@ export function RephotoCamera({
         if (!run.held && run.passes >= 2) run.held = true
         if (run.held && run.fails >= 2) run.held = false
         setLines({ ...result, lock: placed, held: run.held, score })
+        const at = performance.now()
+        const next = new Map(lineLooks.current)
+        for (const line of result.lines) {
+          if (!line.votes) continue
+          const was = next.get(line.index) ?? {
+            look: "plain" as const,
+            onRun: 0,
+            offRun: 0,
+            seenAt: 0,
+          }
+          const look = { ...was }
+          if (line.state === "on") {
+            look.onRun++
+            look.offRun = 0
+            look.seenAt = at
+            look.shift = undefined
+            if (look.onRun >= 2) look.look = "on"
+          } else if (line.state === "off") {
+            look.offRun++
+            look.onRun = 0
+            look.seenAt = at
+            look.shift = line.shift ?? look.shift
+            if (look.offRun >= 2) look.look = "off"
+          } else if (at - look.seenAt > 1500) {
+            look.look = "plain"
+            look.shift = undefined
+          }
+          next.set(line.index, look)
+        }
+        lineLooks.current = next
+        setLooks(next)
         const summary = `${run.held}:${result.worst}:${Math.round((score?.score ?? -10) / 10)}`
         if (summary !== linesLogged.current) {
           linesLogged.current = summary
@@ -541,7 +595,28 @@ export function RephotoCamera({
   const snapped = trace
     ? !!lock?.held && !!linesNow?.held && framedEnough
     : !!lock?.held && cue?.kind === "hold"
-  const offLine = wantsLineCheck && !snapped ? (linesNow?.worst ?? null) : null
+  // Lined up: every line green. Otherwise each line as it has settled; the two furthest-off lines
+  // get a dashed copy where their edge really is, so the gap to close is plain to see.
+  const lineStyle = (() => {
+    if (!trace || showArchive || !wantsLineCheck)
+      return { confirmed: [], off: [], shifts: [] }
+    if (snapped)
+      return {
+        confirmed: trace.features.flatMap((f, i) => (f.region ? [i] : [])),
+        off: [],
+        shifts: [],
+      }
+    const entries = [...looks.entries()]
+    return {
+      confirmed: entries.filter(([, l]) => l.look === "on").map(([i]) => i),
+      off: entries.filter(([, l]) => l.look === "off").map(([i]) => i),
+      shifts: entries
+        .filter(([, l]) => l.look === "off" && l.shift)
+        .map(([index, l]) => ({ index, dx: l.shift![0], dy: l.shift![1] }))
+        .sort((a, b) => Math.hypot(b.dx, b.dy) - Math.hypot(a.dx, a.dy))
+        .slice(0, 2),
+    }
+  })()
   const liveScore = snapped || linesNow?.score ? linesNow?.score?.score : null
   // The last score shown, for the review when the shot itself can't be scored: pressing the
   // shutter can land between two checks.
@@ -1686,14 +1761,9 @@ export function RephotoCamera({
                   <div className="absolute inset-0 border border-white/35" />
                   <ReferenceTrace
                     guide={trace}
-                    highlighted={showArchive ? null : offLine}
-                    confirmed={
-                      !showArchive && linesNow
-                        ? linesNow.lines
-                            .filter((line) => line.state === "on")
-                            .map((line) => line.index)
-                        : []
-                    }
+                    confirmed={lineStyle.confirmed}
+                    off={lineStyle.off}
+                    shifts={lineStyle.shifts}
                   />
                 </>
               )}
@@ -1747,30 +1817,35 @@ export function RephotoCamera({
                 <MatcherGuide
                   hidden={false}
                   icon={
-                    captureBusy
-                      ? undefined
-                      : snapped
-                        ? cueIcon("hold")
-                        : cue && cue.kind !== "hold"
-                          ? cueIcon(cue.kind)
-                          : undefined
+                    captureBusy ? undefined : snapped ? (
+                      cueIcon("hold")
+                    ) : cue && cue.kind !== "hold" ? (
+                      cueIcon(cue.kind)
+                    ) : !lock ? (
+                      <Search
+                        aria-hidden
+                        className="size-5 shrink-0 motion-safe:animate-pulse"
+                      />
+                    ) : undefined
                   }
                   badge={
                     captureBusy || liveScore == null ? undefined : liveScore
                   }
                   lined={snapped}
+                  // Words only for a plain direction to move; the lines and the score say the rest.
                   message={
                     captureBusy
                       ? "Taking photo…"
-                      : snapped
-                        ? "Lined up · Take the photo"
-                        : cue && cue.kind !== "hold"
-                          ? cueText(cue.kind, false)
-                          : cue && offLine != null
-                            ? `Line up the ${trace.features[offLine].name.toLowerCase()}`
-                            : cue
-                              ? "Hold still"
-                              : "Point at the view in the old photo"
+                      : cue && cue.kind !== "hold" && !snapped
+                        ? cueText(cue.kind, false)
+                        : ""
+                  }
+                  label={
+                    snapped
+                      ? "Lined up"
+                      : lock
+                        ? "Line up the lines"
+                        : "Point at the view in the old photo"
                   }
                 />
               </div>
@@ -1835,7 +1910,8 @@ export function RephotoCamera({
             (!!trace && showArchive)
           }
           onClick={() => capture()}
-          className="relative grid size-[4.5rem] place-items-center rounded-full border-4 border-white transition-transform duration-300 active:scale-95 disabled:opacity-40"
+          data-lined={snapped || undefined}
+          className={`relative grid size-[4.5rem] place-items-center rounded-full border-4 transition-[transform,border-color] duration-300 active:scale-95 disabled:opacity-40 ${snapped ? "border-lime-300" : "border-white"}`}
         >
           <span className="size-14 rounded-full bg-white" />
         </button>

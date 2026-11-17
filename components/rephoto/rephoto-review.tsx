@@ -293,15 +293,8 @@ export function RephotoReview({
             setScore({ value, check })
             const worst =
               check.worst != null ? trace.features[check.worst] : null
-            setNote(
-              value == null
-                ? "Couldn’t check the lines. Hold the photo to compare."
-                : lined
-                  ? "Lined up. Hold to compare."
-                  : worst
-                    ? `${worst.name} is off. Retake from where it lines up.`
-                    : "Some lines couldn’t be checked. Hold to compare."
-            )
+            // No line names: the coloured lines show which are off.
+            setNote(lined ? "Lined up." : "Hold the photo to compare.")
             diagnostic("score", {
               score: value,
               ok: lined,
