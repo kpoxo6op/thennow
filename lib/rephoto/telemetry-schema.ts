@@ -118,6 +118,7 @@ const fields: Record<string, string[]> = {
   ],
   score: ["score", "ok", "worst", "on", "off", "worstOffset"],
   lines: ["ok", "score", "worst", "on", "off", "worstOffset"],
+  "step muted": ["kind", "from", "to"],
   cue: [
     "kind",
     "x",
