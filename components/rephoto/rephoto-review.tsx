@@ -288,10 +288,9 @@ export function RephotoReview({
             const scored = alignmentScore(check, trace)
             // Only what this shot itself shows: no borrowed live number (19 Nov: an 81 came from
             // the live score while the shot could be checked in one region only).
-            const value =
-              scoreUsable(scored) && scored.measured >= scored.regions
-                ? scored.score
-                : null
+            // At least two parts of the scene measured (19 Nov: a well-lined-up shot whose
+            // shaded TAKEAWAY sign couldn't be read got no score at all).
+            const value = scoreUsable(scored) ? scored.score : null
             const lined = linedUp(scored, false)
             setScore({ value, check })
             const worst =

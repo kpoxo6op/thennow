@@ -127,7 +127,10 @@ function patchShift(
   lnx: number,
   lny: number,
   scale: number,
-  reach: number
+  reach: number,
+  // Also look along the line: only for lines whose own pattern pins them that way (a sign's
+  // lettering). Elsewhere a changed patch (a new sign over a wall's top) "finds" a false shift.
+  pinned = false
 ) {
   const T = 6
   const N = 10
@@ -188,6 +191,7 @@ function patchShift(
   // Along the line, too, where the pattern pins it (a sign's lettering): a sign moved sideways
   // keeps its top and bottom edges on their lines, so across alone can't see it (Bradley Lane's
   // TAKEAWAY 5% off on 14-15 Nov). A plain edge doesn't pin it and counts as on.
+  if (!pinned) return { d: bestD, e: 0 }
   let bestE = 0
   let bestAlong = best
   const along: [number, number][] = []
@@ -283,7 +287,8 @@ export function checkLines(
           cos * nx - sin * ny,
           sin * nx + cos * ny,
           scale,
-          Math.round(reach * scale)
+          Math.round(reach * scale),
+          !!feature.along
         )
         if (shift == null) continue
         total++
