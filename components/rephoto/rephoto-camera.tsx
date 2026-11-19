@@ -384,6 +384,12 @@ export function RephotoCamera({
   // A sign stays at least 1.5 s, so the words don't change faster than they can be read.
   const cueFilter = useRef(new CueFilter(1500))
   const stepRef = useRef<(StepErrors & { at: number }) | null>(null)
+  const stepFollow = useRef<{
+    kind: CueKind
+    value: number
+    at: number
+  } | null>(null)
+  const stepMutedUntil = useRef(0)
   const [step, setStep] = useState<(StepErrors & { at: number }) | null>(null)
   const [cue, setCue] = useState<Cue | null>(null)
   const cueLogged = useRef<{ kind: CueKind | "none"; at: number }>({
@@ -413,7 +419,7 @@ export function RephotoCamera({
         cueFor(
           errors,
           cueFilter.current.current?.kind ?? null,
-          step && now - step.at < TRACKED_LIFE
+          step && now - step.at < TRACKED_LIFE && now >= stepMutedUntil.current
             ? // With lines, the zoom takes care of size: never "step closer" or "back" from
               // parallax, only sideways and up or down.
               trace
@@ -426,6 +432,34 @@ export function RephotoCamera({
       )
     } else cueFilter.current.update(null, now)
     setCue(next)
+    // Learning from what the person does: a step sign they follow should shrink its own
+    // measure. If after 5 s of "Step left" the gap has grown instead, the measure is wrong here
+    // (Bradley Lane at night, 19 Nov 2026: "Step left" for a minute while the gap grew from 1.5%
+    // to 6%), so step signs stop for 30 s.
+    const stepKinds: Record<string, "sideways" | "height"> = {
+      "step-left": "sideways",
+      "step-right": "sideways",
+      raise: "height",
+      lower: "height",
+    }
+    const axis = next ? stepKinds[next.kind] : undefined
+    if (axis && step) {
+      const value = Math.abs(step[axis])
+      const followed = stepFollow.current
+      if (!followed || followed.kind !== next!.kind)
+        stepFollow.current = { kind: next!.kind, value, at: now }
+      else if (now - followed.at > 5000) {
+        if (value > followed.value + 0.01) {
+          stepMutedUntil.current = now + 30_000
+          stepFollow.current = null
+          diagnostic("step muted", {
+            kind: next!.kind,
+            from: followed.value,
+            to: value,
+          })
+        } else stepFollow.current = { kind: next!.kind, value, at: now }
+      }
+    } else stepFollow.current = null
     const kind = next?.kind ?? "none"
     if (kind !== cueLogged.current.kind) {
       diagnostic("cue", {
