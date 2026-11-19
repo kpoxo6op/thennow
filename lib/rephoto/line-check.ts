@@ -350,7 +350,7 @@ export function checkLines(
 
 // How well a view lines up, as a score out of 100 the person can watch climb, the same live and
 // after the shot. Each region (a wall, a shopfront, a sign) scores the mean of its measured lines:
-// on its edge counts 1, 5% of the view's width off or more counts 0. The score is the mean over
+// on its edge counts 1, 3% of the view's width off or more counts 0 (19 Nov: at 5%, lines 2% off still scored 81). The score is the mean over
 // the regions that could be measured, so a wall that fits can't hide a shopfront that doesn't,
 // and lines that can't be seen don't drag it (they are reported as coverage instead).
 export type Score = {
@@ -376,7 +376,7 @@ export function alignmentScore(
     all.add(region)
     if (line.offset == null) continue
     lines++
-    const value = Math.min(1, Math.max(0, 1 - (line.offset - LINE_ON) / 0.04))
+    const value = Math.min(1, Math.max(0, 1 - (line.offset - LINE_ON) / 0.02))
     byRegion.set(region, [...(byRegion.get(region) ?? []), value])
   }
   if (!byRegion.size) return null

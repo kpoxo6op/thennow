@@ -96,13 +96,18 @@ export const STEP_LIMIT = 0.03
 export function cueFor(
   e: CueErrors,
   showing: CueKind | null = null,
-  step: StepErrors | null = null
+  step: StepErrors | null = null,
+  // False when the live picture is already shifted and turned onto the guide (places with
+  // lines): then pointing only matters once the view no longer fits, and where you stand comes
+  // first.
+  aimMatters = true
 ): Cue {
   const keep = (kind: CueKind) => (showing === kind ? 0.5 : 1)
   // Too big to fit even when centred: only stepping back (or a wider lens) helps.
   if (e.scale > 1.08 / keep("back") || (e.scale > 1.04 && !e.fits))
     return { kind: "back", amount: Math.min(1, (e.scale - 1) * 3) }
-  const roll = Math.abs(e.roll)
+  const aiming = aimMatters || !e.fits
+  const roll = aiming ? Math.abs(e.roll) : 0
   if (roll > CUE_LIMITS.roll * keep(e.roll > 0 ? "clockwise" : "anticlockwise"))
     return {
       kind: e.roll > 0 ? "clockwise" : "anticlockwise",
@@ -112,8 +117,8 @@ export function cueFor(
   const ay = Math.abs(e.y)
   const horizontal = e.x > 0 ? "right" : "left"
   const vertical = e.y > 0 ? "down" : "up"
-  const aimX = ax > CUE_LIMITS.aim * keep(horizontal)
-  const aimY = ay > CUE_LIMITS.aim * keep(vertical)
+  const aimX = aiming && ax > CUE_LIMITS.aim * keep(horizontal)
+  const aimY = aiming && ay > CUE_LIMITS.aim * keep(vertical)
   if (aimX || aimY) {
     // The larger error first; a showing direction keeps its place unless clearly beaten.
     const preferX =

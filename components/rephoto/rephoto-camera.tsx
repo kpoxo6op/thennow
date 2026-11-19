@@ -419,7 +419,8 @@ export function RephotoCamera({
               trace
               ? { ...step, depth: 0 }
               : step
-            : null
+            : null,
+          !trace
         ),
         now
       )
@@ -483,7 +484,7 @@ export function RephotoCamera({
       }
     }
     if (!wantsLineCheck || !lock || !trace || checkingLines.current) return
-    if (performance.now() - lastLineCheck.current < 450) return
+    if (performance.now() - lastLineCheck.current < 280) return
     lastLineCheck.current = performance.now()
     if (!video?.videoWidth || !image?.naturalWidth) return
     checkingLines.current = true
@@ -610,9 +611,14 @@ export function RephotoCamera({
     return {
       confirmed: entries.filter(([, l]) => l.look === "on").map(([i]) => i),
       off: entries.filter(([, l]) => l.look === "off").map(([i]) => i),
-      shifts: entries
-        .filter(([, l]) => l.look === "off" && l.shift)
-        .map(([index, l]) => ({ index, dx: l.shift![0], dy: l.shift![1] }))
+      // From the latest check alone (no waiting for a second), so the copy keeps up.
+      shifts: (linesNow?.lines ?? [])
+        .filter((line) => line.votes && line.shift)
+        .map((line) => ({
+          index: line.index,
+          dx: line.shift![0],
+          dy: line.shift![1],
+        }))
         .sort((a, b) => Math.hypot(b.dx, b.dy) - Math.hypot(a.dx, a.dy))
         .slice(0, 2),
     }
@@ -1555,9 +1561,7 @@ export function RephotoCamera({
       ? ghost.width / ((lock.crop.width * view.width) / videoSize.width)
       : 0
   const autoZoom =
-    zoomNeeded > 1.02 || (snapped && zoomNeeded > 0)
-      ? Math.min(2.5, zoomNeeded)
-      : 0
+    zoomNeeded > 0 ? Math.min(2.5, Math.max(0.85, zoomNeeded)) : 0
 
   const capture = async () => {
     const video = videoRef.current
@@ -1702,9 +1706,10 @@ export function RephotoCamera({
               ? {
                   // Lined up: the matched view sits exactly on the guide. Before that, only the
                   // zoom and turn are applied, so which way to point still shows.
-                  transform: snapped
-                    ? `scale(${autoZoom}) rotate(${-lock.crop.rotation}rad) translate(${((videoSize.width / 2 - lock.crop.cx) * view.width) / videoSize.width}px, ${((videoSize.height / 2 - lock.crop.cy) * view.width) / videoSize.width}px)`
-                    : `scale(${autoZoom}) rotate(${-lock.crop.rotation}rad)`,
+                  // The screen shows exactly the crop the shot will keep: what's left between a
+                  // line and its edge is only what moving your feet can fix (19 Nov 2026: without
+                  // the shift, the dashed copies didn't match anything on screen).
+                  transform: `scale(${autoZoom}) rotate(${-lock.crop.rotation}rad) translate(${((videoSize.width / 2 - lock.crop.cx) * view.width) / videoSize.width}px, ${((videoSize.height / 2 - lock.crop.cy) * view.width) / videoSize.width}px)`,
                   transition: "transform 250ms ease-out",
                 }
               : undefined
