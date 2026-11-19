@@ -93,44 +93,17 @@ const guides: Record<string, ReferenceLines> = {
   "tamaki-road-board-offices": {
     image:
       "/posts/0006-tamaki-road-board-offices/then-tamaki-road-board-offices.jpg",
+    // St Heliers library today (19 Nov 2026): a large tree hides the left wing, the arch and the
+    // front windows; the street became a roundabout and the 1929 buildings across it are gone.
+    // Only what still shows takes part: the right roof and the corner and window of the right
+    // facade. The kerb, the left wing's eaves and the horizon were dropped (now hidden or
+    // rebuilt), and the base stays as a plain guide (benches and a hedge cover it).
     features: [
       {
-        name: "Visible distant horizon at left edge",
-        points: [
-          [0.039, 0.496],
-          [0.068, 0.496],
-        ],
-      },
-      {
-        name: "Long street kerb",
-        points: [
-          [0.29, 0.579],
-          [0.615, 0.7],
-          [0.985, 0.818],
-        ],
-      },
-      {
         name: "Right roof ridge near frame edge",
-        region: "roof",
         points: [
           [0.9, 0.21],
           [0.985, 0.215],
-        ],
-      },
-      {
-        name: "Left wing eaves",
-        region: "roof",
-        points: [
-          [0.538, 0.374],
-          [0.602, 0.366],
-        ],
-      },
-      {
-        name: "Base of right brick facade",
-        points: [
-          [0.718, 0.573],
-          [0.849, 0.603],
-          [0.985, 0.598],
         ],
       },
       {
@@ -151,14 +124,30 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
+        name: "Building corner below the hip",
+        region: "facade",
+        points: [
+          [0.849, 0.36],
+          [0.849, 0.575],
+        ],
+      },
+      {
         name: "Right edge window frame",
-        region: "window",
+        region: "facade",
         points: [
           [0.947, 0.4],
           [0.947, 0.533],
           [0.982, 0.533],
           [0.982, 0.4],
           [0.947, 0.4],
+        ],
+      },
+      {
+        name: "Base of right brick facade",
+        points: [
+          [0.718, 0.573],
+          [0.849, 0.603],
+          [0.985, 0.598],
         ],
       },
     ],
