@@ -4,7 +4,6 @@ import {
   createHash,
   createHmac,
   createPrivateKey,
-  hkdfSync,
   randomBytes,
   sign,
   timingSafeEqual,
@@ -40,20 +39,14 @@ export const LABEL: Record<Provider, string> = {
 
 const env = (name: string) => process.env[name]?.trim() || ""
 
-// The key that signs the short-lived sign-in cookies and seals the cookie kept in each link:
-// TN_AUTH_KEY when it is set, otherwise one drawn from the store's own token, so the site needs no
-// extra secret. The test suite's server has a fixed one of its own.
+// The key that signs the short-lived sign-in cookies and seals the cookie kept in each link. It must
+// never change, or every link stops opening. The test suite's server has a fixed one of its own.
 function secret(): Buffer | null {
   if (memoryStore) return createHash("sha256").update("tn-test-auth").digest()
   const raw = env("TN_AUTH_KEY")
-  if (raw) {
-    const key = Buffer.from(raw, "base64")
-    return key.length >= 32 ? key.subarray(0, 32) : null
-  }
-  const store = env("BLOB_READ_WRITE_TOKEN")
-  return store
-    ? Buffer.from(hkdfSync("sha256", store, "thennow", "tn-auth-v1", 32))
-    : null
+  if (!raw) return null
+  const key = Buffer.from(raw, "base64")
+  return key.length >= 32 ? key.subarray(0, 32) : null
 }
 
 export function isConfigured(provider: Provider): boolean {
@@ -93,22 +86,25 @@ export function asProvider(raw: string): Provider | null {
 
 const b64 = (data: Buffer | string) => Buffer.from(data).toString("base64url")
 
-function seal(value: unknown, maxAgeSec: number): string {
+// Each cookie says what it is for inside its signature, so one can never stand in for another.
+function seal(purpose: string, value: unknown, maxAgeSec: number): string {
   const key = secret()
   if (!key) throw new Error("no auth key")
   const body = b64(
     JSON.stringify({ v: value, e: Date.now() + maxAgeSec * 1000 })
   )
-  const mac = b64(createHmac("sha256", key).update(body).digest())
+  const mac = b64(
+    createHmac("sha256", key).update(`${purpose}.${body}`).digest()
+  )
   return `${body}.${mac}`
 }
 
-function unseal<T>(token: string | null): T | null {
+function unseal<T>(purpose: string, token: string | null): T | null {
   const key = secret()
   if (!key || !token) return null
   const [body, mac] = token.split(".")
   if (!body || !mac) return null
-  const want = createHmac("sha256", key).update(body).digest()
+  const want = createHmac("sha256", key).update(`${purpose}.${body}`).digest()
   const got = Buffer.from(mac, "base64url")
   if (got.length !== want.length || !timingSafeEqual(got, want)) return null
   try {
@@ -148,8 +144,16 @@ export type Landed = {
 
 // Apple answers with a form posted from its own site, which only carries a cookie marked
 // SameSite=None. That needs Secure, which plain-http localhost can't have; tests use Lax there.
-function tripCookie(value: string, request: Request, maxAge: number) {
-  const same = isSecure(request) ? "SameSite=None; Secure" : "SameSite=Lax"
+function tripCookie(
+  value: string,
+  request: Request,
+  maxAge: number,
+  crossSite = true
+) {
+  const same =
+    crossSite && isSecure(request)
+      ? "SameSite=None; Secure"
+      : `SameSite=Lax${isSecure(request) ? "; Secure" : ""}`
   return `${TRIP}=${value}; Path=/api/auth; Max-Age=${maxAge}; HttpOnly; ${same}`
 }
 
@@ -167,7 +171,7 @@ export function safeBack(raw: string | null | undefined): string {
     raw.includes("\\")
   )
     return "/me"
-  return raw.slice(0, 500)
+  return raw.split("#")[0].slice(0, 500)
 }
 
 // The address the browser used. Next may name a local server by another host than the one
@@ -265,7 +269,12 @@ export function startUrl(request: Request, provider: Provider, back: string) {
   }
   return {
     url: url.toString(),
-    cookie: tripCookie(seal(trip, 600), request, 600),
+    cookie: tripCookie(
+      seal(TRIP, trip, 600),
+      request,
+      600,
+      provider === "apple"
+    ),
   }
 }
 
@@ -411,9 +420,9 @@ async function identify(
         trip.n
       )
       // A Microsoft subject is only unique within its tenant.
-      return claims
+      return claims && typeof claims.tid === "string" && claims.tid
         ? {
-            sub: `${String(claims.tid ?? "")}:${claims.sub}`,
+            sub: `${claims.tid}:${claims.sub}`,
             name: cleanName(claims.name),
           }
         : null
@@ -494,10 +503,15 @@ export async function land(
       : null
   const param = (name: string) =>
     form?.get(name) ?? url.searchParams.get(name) ?? null
-  const trip = unseal<Trip>(readCookieNamed(request, TRIP))
+  const trip = unseal<Trip>(TRIP, readCookieNamed(request, TRIP))
   const clear = tripCookie("", request, 0)
   const origin = originOf(request)
-  if (!trip || trip.p !== provider)
+  if (
+    !trip ||
+    trip.p !== provider ||
+    typeof trip.s !== "string" ||
+    typeof trip.b !== "string"
+  )
     return { ok: false, url: `${origin}/me#signin-failed`, cookies: [clear] }
   const back = `${origin}${trip.b}`
   const failed = {
@@ -505,11 +519,9 @@ export async function land(
     url: `${back}#signin-failed`,
     cookies: [clear],
   }
-  const state = param("state") ?? ""
-  if (
-    state.length !== trip.s.length ||
-    !timingSafeEqual(Buffer.from(state), Buffer.from(trip.s))
-  )
+  const state = Buffer.from(param("state") ?? "")
+  const want = Buffer.from(trip.s)
+  if (state.length !== want.length || !timingSafeEqual(state, want))
     return failed
   // Turning the provider down is an answer, not a failure: back to where they were.
   const error = param("error")
@@ -533,7 +545,7 @@ export async function land(
     return {
       ok: true,
       url: `${origin}/api/auth/done`,
-      cookies: [clear, landedCookie(seal(landed, 120), request, 120)],
+      cookies: [clear, landedCookie(seal(LANDED, landed, 120), request, 120)],
     }
   } catch (error) {
     console.error(`sign in ${provider} failed ${String(error).slice(0, 300)}`)
@@ -542,10 +554,17 @@ export async function land(
 }
 
 export function takeLanded(request: Request) {
-  return {
-    landed: unseal<Landed>(readCookieNamed(request, LANDED)),
-    clear: landedCookie("", request, 0),
-  }
+  const found = unseal<Landed>(LANDED, readCookieNamed(request, LANDED))
+  const landed =
+    found &&
+    asProvider(String(found.p)) &&
+    typeof found.sub === "string" &&
+    found.sub &&
+    typeof found.b === "string" &&
+    (found.name === null || typeof found.name === "string")
+      ? { ...found, b: safeBack(found.b) }
+      : null
+  return { landed, clear: landedCookie("", request, 0) }
 }
 
 // ---- Links between a provider's account and a person --------------------------------------
@@ -590,13 +609,8 @@ export async function linkedCookie(provider: Provider, sub: string) {
   return cookie && link.id === personId(cookie) ? cookie : null
 }
 
-// A link that can no longer be read (its key changed) may be written over; any other is kept.
-export async function link(
-  provider: Provider,
-  sub: string,
-  cookie: string,
-  overwrite = false
-) {
+// A link, once made, is never written over.
+export async function link(provider: Provider, sub: string, cookie: string) {
   await put(
     linkPath(provider, sub),
     JSON.stringify({ id: personId(cookie), c: encrypt(cookie) }),
@@ -604,15 +618,7 @@ export async function link(
       access: "private",
       contentType: "application/json",
       addRandomSuffix: false,
-      allowOverwrite: overwrite,
+      allowOverwrite: false,
     }
   )
-}
-
-export async function hasLink(provider: Provider, sub: string) {
-  const found = await get(linkPath(provider, sub), {
-    access: "private",
-    useCache: false,
-  })
-  return !!found && found.statusCode === 200
 }

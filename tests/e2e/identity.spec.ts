@@ -84,6 +84,7 @@ async function device(browser: Browser) {
 
 async function signUp(phone: Awaited<ReturnType<typeof device>>, name: string) {
   await phone.page.goto("/me")
+  await phone.page.getByTestId("me-passkey-signup").click()
   await phone.page.getByTestId("me-name-input").fill(name)
   await phone.page.getByTestId("me-name-save").click()
   await expect(phone.page.getByTestId("me-name-value")).toHaveText(name)
@@ -514,17 +515,20 @@ test("an account signs in as the same person everywhere, and never merges two pe
   const signIn = (phone: Awaited<ReturnType<typeof device>>, as: string) =>
     phone.page.goto(`/api/auth/test?as=${as}&back=/me`)
 
-  // First time: the account's name becomes the person's name.
+  // The account's name becomes a new person's name.
   const a = await device(browser)
   await a.page.goto("/me")
   await a.page.getByTestId("sign-in-test").click()
   await expect(a.page).toHaveURL(/\/me$/)
   await expect(a.page.getByTestId("me-name")).toBeVisible()
+  const first = await a.cookie()
+  // Someone else's account on a browser already signed in: a new person, not a merge.
   await signIn(a, `${account}:Aroha%20Test`)
   await expect(a.page.getByTestId("me-name-value")).toHaveText("Aroha Test")
   await expect(a.page.getByTestId("me-sign-out")).toBeVisible()
   await expect(a.page.getByTestId("sign-in")).toHaveCount(0)
   const person = await a.cookie()
+  expect(person).not.toBe(first)
 
   // A second phone that had sent a photo without signing in brings it along.
   const b = await device(browser)
@@ -601,6 +605,12 @@ test("a provider's answer counts only for the trip this browser started, and onl
   )
   expect(where(forged)).toMatch(/\/mission-house#signin-failed$/)
   expect(forged.headers()["set-cookie"] ?? "").not.toContain("tn_me=")
+  // The trip's own cookie can't stand in for a provider's answer.
+  const trip = /tn_oa=([^;]+)/.exec(start.headers()["set-cookie"] ?? "")![1]
+  const swapped = await visitor(playwright, { cookie: `tn_ok=${trip}` })
+  const posed = await swapped.get("/api/auth/done", no)
+  expect(where(posed)).toMatch(/#signin-failed$/)
+  expect(posed.headers()["set-cookie"] ?? "").not.toContain("tn_me=")
   // Finishing without an answer signs nobody in.
   const done = await who.get("/api/auth/done", no)
   expect(where(done)).toMatch(/#signin-failed$/)

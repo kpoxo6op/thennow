@@ -70,6 +70,9 @@ export function MeName({
   const [draft, setDraft] = useState(saved ?? "")
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState("")
+  // Without another account, a name and a passkey still sign someone up; that way waits behind a
+  // link while the accounts are offered.
+  const [byPasskey, setByPasskey] = useState(!providers.length)
   const field = useRef<HTMLInputElement>(null)
   const signInFailed = useSignInFailed()
   const canSignIn = useSyncExternalStore(
@@ -111,7 +114,7 @@ export function MeName({
     if (busy) return
     setBusy(true)
     try {
-      const response = await fetch("/api/auth/out", { method: "POST" })
+      const response = await fetch("/api/auth/signout", { method: "POST" })
       if (!response.ok) throw new Error(String(response.status))
       window.location.reload()
     } catch {
@@ -201,7 +204,21 @@ export function MeName({
               busy={busy}
             />
           )}
+          {!name && !verified && !byPasskey && canSignIn && (
+            <button
+              type="button"
+              data-testid="me-passkey-signup"
+              onClick={() => {
+                flushSync(() => setByPasskey(true))
+                field.current?.focus()
+              }}
+              className="block py-2 text-base text-muted-foreground underline underline-offset-4"
+            >
+              Sign up with a passkey instead
+            </button>
+          )}
           <form
+            hidden={!name && !verified && !byPasskey}
             onSubmit={(event) => void save(event)}
             className={`flex max-w-md gap-2${!name && !verified ? " pt-4" : ""}`}
           >
@@ -228,6 +245,22 @@ export function MeName({
             </button>
           </form>
         </>
+      )}
+      {!name && verified && (
+        <button
+          type="button"
+          data-testid="me-sign-out"
+          disabled={busy}
+          onClick={() => void signOut()}
+          className="block py-2 text-base underline underline-offset-4"
+        >
+          Sign out
+        </button>
+      )}
+      {name && !verified && !editing && (
+        <p className="pt-2 text-lg">
+          Sign in to comment and to keep your name on every device.
+        </p>
       )}
       {name && !verified && !editing && (
         <SignIn

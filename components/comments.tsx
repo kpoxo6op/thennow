@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
+import Link from "next/link"
 
 import {
   passkeySignIn,
@@ -76,7 +77,12 @@ export function Comments({ place }: { place: string }) {
   const [comments, setComments] = useState<Shown[]>([])
   const [me, setMe] = useState<Me | null>(null)
   const [askName, setAskName] = useState(false)
-  const [text, setText] = useState("")
+  // Words kept for each editor, so starting a reply never takes a half-written comment.
+  const [texts, setTexts] = useState<Record<string, string>>({})
+  const text = (open && texts[open]) || ""
+  const setText = (value: string, target = open) => {
+    if (target) setTexts((now) => ({ ...now, [target]: value }))
+  }
   const [name, setName] = useState("")
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState("")
@@ -146,7 +152,9 @@ export function Comments({ place }: { place: string }) {
           const draft = restored ? null : readDraft(place)
           restored = true
           if (draft) {
-            setText(draft.text)
+            // Used once: a later visit to this place doesn't bring it back.
+            keepDraft(null)
+            setTexts((now) => ({ ...now, [draft.to]: draft.text }))
             setOpen(draft.to)
             requestAnimationFrame(() =>
               textField.current
@@ -201,6 +209,7 @@ export function Comments({ place }: { place: string }) {
   // Back to the button that opened the editor, which is drawn again once the editor goes.
   function close() {
     const target = open
+    keepDraft(null)
     setOpen(null)
     setNote("")
     requestAnimationFrame(() =>
@@ -227,7 +236,7 @@ export function Comments({ place }: { place: string }) {
           place,
           text,
           name: showName ? name : undefined,
-          to: open === NEW ? undefined : open,
+          to: open === NEW || !byId.has(open) ? undefined : open,
           website: trap.current?.value ?? "",
         }),
       })
@@ -258,6 +267,7 @@ export function Comments({ place }: { place: string }) {
           .then((json) => json?.error)
           .catch(() => null)
         if (response.status === 401) {
+          setNote("Please sign in to post.")
           setMe((now) => ({
             name: now?.name ?? null,
             signedIn: false,
@@ -444,30 +454,46 @@ export function Comments({ place }: { place: string }) {
               providers={me.providers}
               back={back}
               onLeave={() => keepDraft({ place, text, to: target })}
-              busy={busy}
-              passkey={
-                passkeyWorks
-                  ? async () => {
-                      setBusy(true)
-                      setNote("")
-                      keepDraft({ place, text, to: target })
-                      const result = await passkeySignIn()
-                      if (result === "ok") return window.location.reload()
-                      keepDraft(null)
-                      if (result === "failed")
-                        setNote("Not signed in. Your words are still here.")
-                      setBusy(false)
-                    }
-                  : undefined
-              }
             />
-            <button
-              type="button"
-              onClick={close}
-              className="min-h-11 px-0 text-muted-foreground underline underline-offset-4"
-            >
-              Cancel
-            </button>
+            <div className="flex flex-wrap gap-x-6">
+              {me.providers.length === 0 && (
+                <Link
+                  href="/me"
+                  onClick={() => keepDraft({ place, text, to: target })}
+                  className="flex min-h-11 items-center underline underline-offset-4"
+                >
+                  Sign up
+                </Link>
+              )}
+              {passkeyWorks && (
+                <button
+                  type="button"
+                  data-testid="comment-passkey"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true)
+                    setNote("")
+                    keepDraft({ place, text, to: target })
+                    const result = await passkeySignIn()
+                    if (result === "ok") return window.location.reload()
+                    keepDraft(null)
+                    if (result === "failed")
+                      setNote("Not signed in. Your words are still here.")
+                    setBusy(false)
+                  }}
+                  className="min-h-11 text-muted-foreground underline underline-offset-4"
+                >
+                  Use a passkey
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={close}
+                className="min-h-11 text-muted-foreground underline underline-offset-4"
+              >
+                Cancel
+              </button>
+            </div>
           </>
         ) : (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -477,7 +503,11 @@ export function Comments({ place }: { place: string }) {
               disabled={!ready || busy}
               className="min-h-12 max-w-full rounded-md bg-foreground px-6 text-lg font-medium text-background disabled:opacity-50"
             >
-              {me?.name && !showName ? `Post as ${me.name}` : "Post"}
+              {me?.name && !showName
+                ? `Post as ${me.name}`
+                : showName && name.trim()
+                  ? `Post as ${name.trim()}`
+                  : "Post"}
             </button>
             <button
               type="button"
@@ -563,8 +593,8 @@ export function Comments({ place }: { place: string }) {
         </ul>
       )}
 
-      {open === NEW ? (
-        <div className={starts.length ? "mt-2" : ""}>{editor(NEW)}</div>
+      {open === NEW || (open && !starts.includes(open)) ? (
+        <div className={starts.length ? "mt-2" : ""}>{editor(open)}</div>
       ) : (
         <button
           type="button"

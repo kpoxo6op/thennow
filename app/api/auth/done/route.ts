@@ -1,4 +1,4 @@
-import { hasLink, link, linkedCookie, originOf, takeLanded } from "@/lib/auth"
+import { link, linkedCookie, originOf, takeLanded } from "@/lib/auth"
 import { moveComments } from "@/lib/comments"
 import {
   cookieHeader,
@@ -18,7 +18,8 @@ import { hasStore } from "@/lib/store"
 // - An account already linked always signs in as the person it is linked to. A browser that had
 //   only sent photos or written comments, without signing in, brings them along. A browser
 //   signed in as someone else is simply switched: two people are never merged.
-// - An account not yet linked joins whoever this browser already is, or a new person.
+// - An account not yet linked joins this browser's own photos and comments, unless the browser is
+//   signed in as someone already: then it is a new person, and the browser switches to them.
 // The name the account gives is used only when the person has none yet.
 
 export const runtime = "nodejs"
@@ -53,13 +54,13 @@ export async function GET(request: Request) {
         }
       }
     } else {
-      cookie = before ?? newCookie()
-      // A link that can't be read any more is written over; one being written right now wins.
-      const stale = await hasLink(landed.p, landed.sub)
+      const was = before ? await readProfile(personId(before)) : null
+      cookie = before && !isVerified(was) ? before : newCookie()
       try {
-        await link(landed.p, landed.sub, cookie, stale)
+        await link(landed.p, landed.sub, cookie)
       } catch {
-        // Linked a moment ago by another tab: that link wins.
+        // Linked a moment ago by another tab: that link wins. A link that exists but can't be
+        // opened (its key changed) fails here rather than being replaced by a new person.
         const won = await linkedCookie(landed.p, landed.sub)
         if (!won) throw new Error("link failed")
         cookie = won

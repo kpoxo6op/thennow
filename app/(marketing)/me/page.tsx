@@ -159,8 +159,8 @@ export default async function MePage() {
       )}
 
       <p className="mt-14 max-w-2xl border-t pt-6 text-[15px] leading-relaxed text-muted-foreground lg:ml-[calc(50%+1.25rem)]">
-        Signing in keeps only your name, to credit your photos and sign what you
-        write. No email, no password.{" "}
+        Signing in keeps your name and which account you used, to credit your
+        photos and sign what you write. No email, no password.{" "}
         <Link
           href="/about#your-photos"
           className="underline underline-offset-4"
