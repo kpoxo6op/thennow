@@ -6,7 +6,13 @@ export const TRACE_OVERLAY_OPACITY = 0.16
 // of that image, not detections or a claim that the modern scene is unchanged.
 export type ReferenceLines = {
   image: string
-  features: { name: string; points: [number, number][]; region?: string }[]
+  features: {
+    name: string
+    points: [number, number][]
+    region?: string
+    // Its lettering pins it along its length too, so a sideways shift can be measured.
+    along?: boolean
+  }[]
   // Which part of the old photo is near and which far, for telling where to stand (parallax).
   zones?: Zones
 }
@@ -19,8 +25,10 @@ const guides: Record<string, ReferenceLines> = {
       {
         name: "Mural wall corner",
         region: "wall",
+        // From below the DISCOUNTER sign that now covers the corner's top (2026): checked
+        // there, a fitting corner read 4.6% off (19 Nov 2026).
         points: [
-          [0.396, 0.01],
+          [0.3955, 0.15],
           [0.392, 0.81],
         ],
       },
@@ -55,6 +63,7 @@ const guides: Record<string, ReferenceLines> = {
         // the awning instead (16 Nov 2026).
         name: "TAKEAWAY sign",
         region: "canopy",
+        along: true,
         points: [
           [0.676, 0.41],
           [0.833, 0.41],

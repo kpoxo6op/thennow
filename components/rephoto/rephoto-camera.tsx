@@ -471,7 +471,7 @@ export function RephotoCamera({
   const linesLogged = useRef("")
   // Checked about twice a second once the view is held, whatever the sign says: the score is how
   // the person sees whether a move helped.
-  const wantsLineCheck = !!trace && !!lock?.held
+  const wantsLineCheck = !!trace && !!lock
   useEffect(() => {
     const video = videoRef.current
     const image = archiveImage.current
@@ -594,7 +594,7 @@ export function RephotoCamera({
       "back",
     ].includes(cue.kind)
   const snapped = trace
-    ? !!lock?.held && !!linesNow?.held && framedEnough
+    ? !!lock && !!linesNow?.held && framedEnough
     : !!lock?.held && cue?.kind === "hold"
   // Lined up: every line green. Otherwise each line as it has settled; the two furthest-off lines
   // get a dashed copy where their edge really is, so the gap to close is plain to see.
@@ -1556,9 +1556,13 @@ export function RephotoCamera({
   // The camera sees wider than most old photos: once the view is matched, the live picture is
   // zoomed (and turned) by the same amount the shot's crop will be, so its size matches the
   // guide while you walk, and a small label says so.
+  // Held on while the view is tracked at all, and through a lost match's short fade: switching it
+  // off whenever a new match was still unconfirmed made the picture jump in and out every two
+  // seconds (Bradley Lane, 19 Nov 2026).
+  const zoomed = trace && !showArchive ? (lock ?? lastPlacement) : null
   const zoomNeeded =
-    trace && lock?.held && ghost && view && !showArchive
-      ? ghost.width / ((lock.crop.width * view.width) / videoSize.width)
+    zoomed && ghost && view
+      ? ghost.width / ((zoomed.crop.width * view.width) / videoSize.width)
       : 0
   const autoZoom =
     zoomNeeded > 0 ? Math.min(2.5, Math.max(0.85, zoomNeeded)) : 0
@@ -1702,14 +1706,12 @@ export function RephotoCamera({
           muted
           playsInline
           style={
-            autoZoom && lock && view
+            autoZoom && zoomed && view
               ? {
-                  // Lined up: the matched view sits exactly on the guide. Before that, only the
-                  // zoom and turn are applied, so which way to point still shows.
                   // The screen shows exactly the crop the shot will keep: what's left between a
                   // line and its edge is only what moving your feet can fix (19 Nov 2026: without
                   // the shift, the dashed copies didn't match anything on screen).
-                  transform: `scale(${autoZoom}) rotate(${-lock.crop.rotation}rad) translate(${((videoSize.width / 2 - lock.crop.cx) * view.width) / videoSize.width}px, ${((videoSize.height / 2 - lock.crop.cy) * view.width) / videoSize.width}px)`,
+                  transform: `scale(${autoZoom}) rotate(${-zoomed.crop.rotation}rad) translate(${((videoSize.width / 2 - zoomed.crop.cx) * view.width) / videoSize.width}px, ${((videoSize.height / 2 - zoomed.crop.cy) * view.width) / videoSize.width}px)`,
                   transition: "transform 250ms ease-out",
                 }
               : undefined
