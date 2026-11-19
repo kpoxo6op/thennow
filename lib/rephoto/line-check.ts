@@ -275,21 +275,42 @@ export function checkLines(
         samples++
         const qx = (x - w / 2) * scale
         const qy = (y - h / 2) * scale
-        const shift = patchShift(
+        const lx = crop.cx + cos * qx - sin * qy
+        const ly = crop.cy + sin * qx + cos * qy
+        const lnx = cos * nx - sin * ny
+        const lny = sin * nx + cos * ny
+        let shift = patchShift(
           archive,
           live,
           x,
           y,
           nx,
           ny,
-          crop.cx + cos * qx - sin * qy,
-          crop.cy + sin * qx + cos * qy,
-          cos * nx - sin * ny,
-          sin * nx + cos * ny,
+          lx,
+          ly,
+          lnx,
+          lny,
           scale,
           Math.round(reach * scale),
           !!feature.along
         )
+        // Where the surroundings changed too much for the patch to match (a 1929 photo against
+        // today's colours), the single clear edge still can, provided nothing near the line's
+        // place competes with it.
+        if (shift == null) {
+          const edgeNow = strongest(
+            live,
+            lx,
+            ly,
+            lnx,
+            lny,
+            Math.round(reach * scale),
+            then.sign,
+            then.d * scale,
+            Math.max(2, LINE_ON * w * scale)
+          )
+          if (edgeNow) shift = { d: edgeNow.d - then.d * scale, e: 0 }
+        }
         if (shift == null) continue
         total++
         const along = (walked + length * t) / Math.max(1, whole)
@@ -306,7 +327,14 @@ export function checkLines(
     }
     const support = samples ? total / samples : 0
     const filled = sections.filter((section) => section.length >= 2)
-    if (samples < 6 || support < MIN_SUPPORT || filled.length < 2)
+    // A short line (a roof hip, a building corner) is judged on fewer points and may fill
+    // only one third with two of them; a long one still needs two thirds.
+    const short = whole < w * 0.12
+    if (
+      samples < (short ? 4 : 6) ||
+      support < MIN_SUPPORT ||
+      filled.length < (short ? 1 : 2)
+    )
       return { index, state: "unknown", offset: null, support, votes: true }
     const offset = Math.max(
       ...filled.map((section) => Math.abs(median(section)) / w)
@@ -403,7 +431,10 @@ export function alignmentScore(
 // fewer regions).
 export function scoreUsable(score: Score | null): score is Score {
   return (
-    !!score && score.lines >= 3 && score.measured >= Math.min(2, score.regions)
+    !!score &&
+    // Three lines, or two where a place has only two parts left to check (St Heliers).
+    score.lines >= Math.min(3, Math.max(2, score.regions)) &&
+    score.measured >= Math.min(2, score.regions)
   )
 }
 

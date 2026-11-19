@@ -21,15 +21,15 @@ These requirements come from the failed field shots and Boris's corrections to
 our first guides. Apply them to every new reference image, not just the two pilot
 places. The shipped coordinates are examples, not a template to copy blindly.
 
-| Observed problem | Rule for the next reference |
-| --- | --- |
-| A large instruction panel obscured the view. | Keep the scene visible. Use concise, transient status for loading; do not cover framing with a persistent manual. |
-| Three isolated strokes left too little context to aim handheld. | Keep the old photograph faintly visible underneath and offer a clear full-photo inspection. Minimal UI does not mean too few useful landmarks. |
-| The horizon and cowboy's foot were missed. | Scan the whole image, including the distant horizon and recognizable contours. Do not limit selection to building edges or straight lines. |
-| Good long building lines were left untraced. | Inspect roof ridges, eaves, wall corners, seams, building bases and shopfronts systematically. Include useful surviving lines rather than stopping after the first few. |
-| The library window near the edge was useful for framing. | Prefer recognizable features near the image perimeter. Trace a complete window frame when its sides supply useful width, height and position cues; do not reduce it to an arbitrary isolated stroke. |
-| The library roof corner visibly missed despite an apparently aligned result. | Judge separate regions across the whole subject. A central match or steady overlay cannot excuse a wrong roof, edge or foreground. |
-| Boris's older manual photographs aligned better. | Use the [manual-photo baseline](alignment-quality.md) for acceptance. More guides and passing browser checks do not establish photographic accuracy. |
+| Observed problem                                                             | Rule for the next reference                                                                                                                                                                          |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A large instruction panel obscured the view.                                 | Keep the scene visible. Use concise, transient status for loading; do not cover framing with a persistent manual.                                                                                    |
+| Three isolated strokes left too little context to aim handheld.              | Keep the old photograph faintly visible underneath and offer a clear full-photo inspection. Minimal UI does not mean too few useful landmarks.                                                       |
+| The horizon and cowboy's foot were missed.                                   | Scan the whole image, including the distant horizon and recognizable contours. Do not limit selection to building edges or straight lines.                                                           |
+| Good long building lines were left untraced.                                 | Inspect roof ridges, eaves, wall corners, seams, building bases and shopfronts systematically. Include useful surviving lines rather than stopping after the first few.                              |
+| The library window near the edge was useful for framing.                     | Prefer recognizable features near the image perimeter. Trace a complete window frame when its sides supply useful width, height and position cues; do not reduce it to an arbitrary isolated stroke. |
+| The library roof corner visibly missed despite an apparently aligned result. | Judge separate regions across the whole subject. A central match or steady overlay cannot excuse a wrong roof, edge or foreground.                                                                   |
+| Boris's older manual photographs aligned better.                             | Use the [manual-photo baseline](alignment-quality.md) for acceptance. More guides and passing browser checks do not establish photographic accuracy.                                                 |
 
 ## Drawing rules
 
@@ -124,3 +124,22 @@ The first evaluation rejects the morning Bradley shot despite 403 coarse inliers
 identity/perturbation controls pass, and unrelated/blank controls refuse. These
 controls do not establish real photographic precision or Pixel latency. The
 30-second handheld goal remains a field acceptance target, not a measured result.
+
+## Lessons from the Bradley Lane field rounds (14-19 November 2026)
+
+The live camera now checks each reference line against the live picture. A line's
+`region` decides whether it counts, and the place's `zones` decide whether the camera
+can say where to stand. Set both up for every place with lines.
+
+| Observed problem                                                                                                                                                | Rule                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A line traced the bottom of a sign that has since been replaced (MoneyGram in 2018, a deeper Hi Vape box by 2026), so it could never be lined up from anywhere. | Never give a region to a sign, awning fascia, mural or anything that changes. Trace what survives. An unchanged hanging sign (TAKEAWAY) is fine; mark lettered signs `along: true` so a sideways shift shows. |
+| The top of the mural wall corner is now under a new sign, so a fitting corner read 4.6% off.                                                                    | Trim a line to the part that is still visible today; don't run it into areas a later sign, tree or hedge covers.                                                                                              |
+| "Lined up" could pass on a fitting wall while the canopy was never measured.                                                                                    | Give each surviving part of the scene its own `region` (wall, canopy, shopfront; roof, facade). Lined up needs every region measured, so only regions that can be seen today. Two regions minimum.            |
+| The camera kept asking to step back and forth on noise.                                                                                                         | Add `zones: { near, far }` (archive fractions) only when a clearly near surface and a clearly far, unchanged part both survive. Without them the camera just doesn't give step signs.                         |
+| Most of the old view has changed (St Heliers: a tree hides the left wing, the street is a roundabout).                                                          | The matcher accepts a dense match on what survives (45+ agreeing points over at least 12% x 15% of the old view). Put the regions on that surviving part and drop lines over hidden or rebuilt parts.         |
+| Line names flashing on screen were unreadable.                                                                                                                  | Names stay internal (accessibility labels, telemetry). Write them for a person reading the code, not the camera user.                                                                                         |
+
+Check a new or changed guide offline before shipping: `node --experimental-strip-types
+scripts/check-guide.mjs <slug> <recent-photo.jpg>` scores the lines the way the camera does.
+Every region should be measured, and a visually good shot should score highest.

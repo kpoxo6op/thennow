@@ -340,7 +340,11 @@ export function fitCrop(
   const ys = best.map((i) => qs[i].y)
   const spanX = (Math.max(...xs) - Math.min(...xs)) / 1000
   const spanY = (Math.max(...ys) - Math.min(...ys)) / (1000 * aspect)
-  if (spanX < 0.3 || spanY < 0.2) return report("spread", best.length)
+  // Where much of the old view has changed (a tree now hides most of St Heliers library), what
+  // survives can be a small part of it: a strong, dense agreement there still counts.
+  const dense = best.length >= 45 && spanX >= 0.12 && spanY >= 0.15
+  if ((spanX < 0.3 || spanY < 0.2) && !dense)
+    return report("spread", best.length)
   // Most of the archive view must be in the shot; a few black corners are fine.
   if (coverage(crop, aspect, photo) < minCoverage)
     return report("coverage", best.length)
