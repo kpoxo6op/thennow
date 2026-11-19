@@ -1,4 +1,5 @@
 import { fetchPending, fetchPosts } from "@/lib/api"
+import { configured } from "@/lib/auth"
 import {
   addComment,
   adminIds,
@@ -13,9 +14,7 @@ import {
 import { limiter, sameSite } from "@/lib/limit"
 import {
   cleanName,
-  cookieHeader,
-  isSecure,
-  newCookie,
+  isVerified,
   personId,
   readCookie,
   readProfile,
@@ -23,9 +22,10 @@ import {
 } from "@/lib/people"
 import { hasStore, memoryStore } from "@/lib/store"
 
-// What visitors write at the end of a place's page: the list, a new comment, and removing one.
-// Reading never gives a browser a cookie; only posting does. The answer never says who wrote what,
-// only whether this browser may remove a comment (its own, or any if it belongs to an admin).
+// What visitors write at the end of a place's page: the list, a new comment or reply, and removing
+// one. Anyone can read; writing needs someone signed in, with a passkey or another account
+// (lib/auth), so a name under a comment is always the same person's. The answer never says who
+// wrote what, only whether this browser may remove a comment (its own, or any for an admin).
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -33,6 +33,17 @@ export const dynamic = "force-dynamic"
 // Posting: five an hour from one network. The count is kept per server instance (see
 // lib/limit.ts), so on the site it is a rough limit.
 const posts = limiter(5, 60 * 60_000)
+// And twenty an hour from one person, wherever they are.
+const perPerson = new Map<string, number[]>()
+function personAllowed(id: string) {
+  const now = Date.now()
+  const times = (perPerson.get(id) ?? []).filter((t) => now - t < 60 * 60_000)
+  if (times.length >= 20) return false
+  times.push(now)
+  perPerson.set(id, times)
+  if (perPerson.size > 10_000) perPerson.clear()
+  return true
+}
 // Everything that reaches the store on someone's say-so counts here first.
 const knocks = limiter(60, 60 * 60_000)
 const reads = limiter(600, 60 * 60_000)
@@ -72,6 +83,7 @@ function shown(comment: Comment, id: string | null, admins: Set<string>) {
     name: comment.name,
     text: comment.text,
     at: comment.at,
+    to: comment.to ?? null,
     canRemove: !!id && (comment.by === id || admins.has(id)),
   }
 }
@@ -80,18 +92,24 @@ export async function GET(request: Request) {
   const place = new URL(request.url).searchParams.get("place") ?? ""
   if (!(await realPlace(place))) return refuse(404, "no such place")
   if (!reads(request)) return refuse(429, "slow down")
-  if (!hasStore()) return answer({ comments: [], name: null })
+  const providers = configured()
+  if (!hasStore())
+    return answer({ comments: [], name: null, signedIn: false, providers })
 
-  // No cookie is made here: a browser gets one only when it posts.
+  // No cookie is made here.
   const cookie = readCookie(request)
   const id = cookie ? personId(cookie) : null
   try {
-    const comments = await listComments(place)
-    const name = id ? usable((await readProfile(id))?.name) : null
+    const [comments, profile] = await Promise.all([
+      listComments(place),
+      id ? readProfile(id) : null,
+    ])
     const admins = adminIds()
     return answer({
       comments: comments.map((comment) => shown(comment, id, admins)),
-      name,
+      name: usable(profile?.name),
+      signedIn: isVerified(profile),
+      providers,
     })
   } catch (error) {
     console.error(`comments failed ${String(error).slice(0, 300)}`)
@@ -133,24 +151,38 @@ export async function POST(request: Request) {
   if (hasLink(text)) return refuse(400, "links")
   if (!hasStore()) return refuse(503, "no store")
 
-  const cookie = readCookie(request) ?? newCookie()
+  const rawTo = body.to
+  if (
+    rawTo !== undefined &&
+    rawTo !== null &&
+    !(typeof rawTo === "string" && KEY.test(rawTo))
+  )
+    return refuse(400, "bad reply")
+
+  const cookie = readCookie(request)
+  if (!cookie) return refuse(401, "sign in")
   const id = personId(cookie)
   try {
     const profile = await readProfile(id)
+    if (!isVerified(profile)) return refuse(401, "sign in")
     const saved = usable(profile?.name)
     const name = saved ?? cleanName(body.name)
     if (!name) return refuse(400, "name")
     if (hasLink(name)) return refuse(400, "links")
-    if (!posts(request)) return refuse(429, "slow down")
+    // A reply joins the thread of the comment it answers, which must still be there.
+    let to: string | undefined
+    if (typeof rawTo === "string") {
+      const parent = await readComment(place, rawTo)
+      if (!parent) return refuse(404, "no such comment")
+      to = parent.to ?? parent.key
+    }
+    if (!posts(request) || !personAllowed(id)) return refuse(429, "slow down")
     if (!profile?.name) await writeProfile(id, { name })
-    const comment = await addComment(place, { text, name, by: id })
-    return answer(
-      {
-        comment: shown(comment, id, adminIds()),
-        name: profile?.name ? saved : name,
-      },
-      { "set-cookie": cookieHeader(cookie, isSecure(request)) }
-    )
+    const comment = await addComment(place, { text, name, by: id, to })
+    return answer({
+      comment: shown(comment, id, adminIds()),
+      name: profile?.name ? saved : name,
+    })
   } catch (error) {
     console.error(`comment failed ${String(error).slice(0, 300)}`)
     return refuse(502, "store failed")

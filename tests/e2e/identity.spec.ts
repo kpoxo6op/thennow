@@ -214,6 +214,7 @@ test("signing up saves a passkey, and signing in with it on a second phone bring
   await b.page.goto("/me")
   await expect(b.page.getByTestId("me-photo")).toHaveCount(1)
   await expect(b.page.getByTestId("me-name-save")).toHaveText("Sign up")
+  await expect(b.page.getByTestId("sign-in-test")).toBeVisible()
 
   // The same person signs in there: their passkey has synced to the second phone.
   await b.cdp.send("WebAuthn.addCredential", {
@@ -251,8 +252,13 @@ test("signing in brings along what that phone wrote", async ({
   await signUp(a, "Comment Passkey Tester")
   const [passkey] = await a.passkeys()
 
-  // A second phone writes a comment on its own, without signing up.
+  // A second phone signs in with another account of its own and writes a comment.
   const b = await device(browser)
+  expect(
+    (
+      await b.context.request.get(`/api/auth/test?as=${address()}&back=/api/me`)
+    ).status()
+  ).toBe(200)
   const text = `Remembered by a second phone ${Date.now()}-${Math.random().toString(36).slice(2)}`
   const posted = await b.context.request.post("/api/comments", {
     data: { place: PLACE, text, name: "Second Phone" },
@@ -261,7 +267,7 @@ test("signing in brings along what that phone wrote", async ({
   const id = (await posted.json()).comment.id as string
   const before = await b.cookie()
   expect(before).toBeTruthy()
-  // Posting saved that name; the sign-in button is only offered to a phone with no name.
+  // Removing the name forgets that account's profile, so the passkey is offered again.
   expect((await b.context.request.delete("/api/me")).status()).toBe(200)
 
   await b.cdp.send("WebAuthn.addCredential", {
@@ -496,4 +502,120 @@ test("a passkey's answer signs in once, and a copy that has fallen behind is ref
   await expect(c.page.getByTestId("me-name-note")).toHaveText(
     "Not signed in. Please try again."
   )
+})
+
+// Signing in with another account (lib/auth), through the test server's pretend provider. The
+// real providers' own screens and tokens can only be tried on the site itself.
+test("an account signs in as the same person everywhere, and never merges two people", async ({
+  browser,
+  playwright,
+}) => {
+  const account = `acct-${address()}`
+  const signIn = (phone: Awaited<ReturnType<typeof device>>, as: string) =>
+    phone.page.goto(`/api/auth/test?as=${as}&back=/me`)
+
+  // First time: the account's name becomes the person's name.
+  const a = await device(browser)
+  await a.page.goto("/me")
+  await a.page.getByTestId("sign-in-test").click()
+  await expect(a.page).toHaveURL(/\/me$/)
+  await expect(a.page.getByTestId("me-name")).toBeVisible()
+  await signIn(a, `${account}:Aroha%20Test`)
+  await expect(a.page.getByTestId("me-name-value")).toHaveText("Aroha Test")
+  await expect(a.page.getByTestId("me-sign-out")).toBeVisible()
+  await expect(a.page.getByTestId("sign-in")).toHaveCount(0)
+  const person = await a.cookie()
+
+  // A second phone that had sent a photo without signing in brings it along.
+  const b = await device(browser)
+  await b.context.request.get("/api/me")
+  const key = newKey()
+  expect(
+    (
+      await b.context.request.post(
+        `/api/submit?place=${PLACE}&key=${key}&checked=0`,
+        { data: PHOTO, headers: jpeg }
+      )
+    ).status()
+  ).toBe(200)
+  await signIn(b, `${account}:Someone%20Else`)
+  await expect(b.page.getByTestId("me-name-value")).toHaveText("Aroha Test")
+  expect(await b.cookie()).toBe(person)
+  await expect(b.page.getByTestId("me-photo")).toHaveCount(1)
+
+  // A phone signed in as someone else is switched, not merged.
+  const c = await device(browser)
+  await signIn(c, `other-${address()}:Other%20Person`)
+  const other = await c.cookie()
+  const otherKey = newKey()
+  expect(
+    (
+      await c.context.request.post(
+        `/api/submit?place=${PLACE}&key=${otherKey}&checked=0`,
+        { data: PHOTO, headers: jpeg }
+      )
+    ).status()
+  ).toBe(200)
+  await signIn(c, account)
+  expect(await c.cookie()).toBe(person)
+  await expect(c.page.getByTestId("me-photo")).toHaveCount(1)
+  const asOther = await visitor(playwright, { cookie: `tn_me=${other}` })
+  expect(
+    (await asOther.get(`/api/me/photo?place=${PLACE}&key=${otherKey}`)).status()
+  ).toBe(200)
+
+  // Signing out forgets the person on that phone only.
+  await c.page.goto("/me")
+  await c.page.getByTestId("me-sign-out").click()
+  await expect(c.page.getByTestId("sign-in")).toBeVisible()
+  expect(await c.cookie()).toBeUndefined()
+  await a.page.goto("/me")
+  await expect(a.page.getByTestId("me-name-value")).toHaveText("Aroha Test")
+})
+
+test("a provider's answer counts only for the trip this browser started, and only back to this site", async ({
+  playwright,
+}) => {
+  const no = { maxRedirects: 0 }
+  const where = (response: { headers(): Record<string, string> }) =>
+    response.headers()["location"] ?? ""
+
+  // No trip started here.
+  const stranger = await visitor(playwright)
+  const cold = await stranger.get(
+    "/api/auth/test/callback?state=x&code=someone",
+    no
+  )
+  expect(where(cold)).toMatch(/\/me#signin-failed$/)
+
+  // A trip started, but answered with another state: someone else's answer.
+  const who = await visitor(playwright)
+  const start = await who.get(
+    `/api/auth/test?as=${address()}&back=/mission-house`,
+    no
+  )
+  expect(start.status()).toBe(303)
+  const forged = await who.get(
+    "/api/auth/test/callback?state=forged-state-of-same-len&code=someone",
+    no
+  )
+  expect(where(forged)).toMatch(/\/mission-house#signin-failed$/)
+  expect(forged.headers()["set-cookie"] ?? "").not.toContain("tn_me=")
+  // Finishing without an answer signs nobody in.
+  const done = await who.get("/api/auth/done", no)
+  expect(where(done)).toMatch(/#signin-failed$/)
+  expect(done.headers()["set-cookie"] ?? "").not.toContain("tn_me=")
+
+  // Only paths on this site are returned to.
+  for (const back of ["https://evil.example/", "//evil.example/", "/\\evil"]) {
+    const away = await visitor(playwright)
+    const trip = await away.get(
+      `/api/auth/test?as=${address()}&back=${encodeURIComponent(back)}`
+    )
+    expect(new URL(trip.url()).host).toBe("localhost:3100")
+    expect(new URL(trip.url()).pathname).toBe("/me")
+  }
+  // A provider that isn't set up isn't there.
+  expect((await who.get("/api/auth/google", no)).status()).toBe(404)
+  expect((await who.get("/api/auth/nope", no)).status()).toBe(404)
 })

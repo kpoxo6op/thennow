@@ -2,11 +2,14 @@
 
 import { useRef, useState, useSyncExternalStore, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
-import { startAuthentication, startRegistration } from "@simplewebauthn/browser"
+import { startRegistration } from "@simplewebauthn/browser"
 import { flushSync } from "react-dom"
 
-// Signing up is one field: a name. The phone then saves a passkey for it, which is how the same
-// person signs in on another device, or on this one after its browser is cleared.
+import { passkeySignIn, SignIn, useSignInFailed } from "@/components/sign-in"
+
+// Signing in is one tap on an account people already have (lib/auth), or a passkey. Without
+// either, a name alone still signs up: the phone then saves a passkey for it, which is how the
+// same person signs in on another device, or on this one after its browser is cleared.
 
 const OFFLINE = "Not saved. Check your signal and try again."
 const json = { "content-type": "application/json" }
@@ -53,9 +56,13 @@ async function savePasskey() {
 export function MeName({
   name: saved,
   passkey,
+  verified,
+  providers,
 }: {
   name: string | null
   passkey: boolean
+  verified: boolean
+  providers: string[]
 }) {
   const router = useRouter()
   const [name, setName] = useState(saved)
@@ -64,6 +71,7 @@ export function MeName({
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState("")
   const field = useRef<HTMLInputElement>(null)
+  const signInFailed = useSignInFailed()
   const canSignIn = useSyncExternalStore(
     noStore,
     () => "PublicKeyCredential" in window,
@@ -83,7 +91,7 @@ export function MeName({
     setName(result.name)
     setDraft(result.name)
     setEditing(false)
-    if (!result.passkey && canSignIn) await savePasskey()
+    if (!result.passkey && !verified && canSignIn) await savePasskey()
     setBusy(false)
     router.refresh()
   }
@@ -92,25 +100,22 @@ export function MeName({
     if (busy) return
     setBusy(true)
     setNote("")
+    const result = await passkeySignIn()
+    // The whole page again, now with this person's cookie.
+    if (result === "ok") return window.location.reload()
+    if (result === "failed") setNote("Not signed in. Please try again.")
+    setBusy(false)
+  }
+
+  const signOut = async () => {
+    if (busy) return
+    setBusy(true)
     try {
-      const options = await fetch("/api/me/signin", { cache: "no-store" })
-      if (!options.ok) throw new Error(String(options.status))
-      const response = await startAuthentication({
-        optionsJSON: await options.json(),
-      })
-      const done = await fetch("/api/me/signin", {
-        method: "POST",
-        headers: json,
-        body: JSON.stringify(response),
-      })
-      if (!done.ok) throw new Error(String(done.status))
-      // The whole page again, now with this person's cookie.
+      const response = await fetch("/api/auth/out", { method: "POST" })
+      if (!response.ok) throw new Error(String(response.status))
       window.location.reload()
-    } catch (error) {
-      // Closing the phone's own passkey sheet is an answer, not a failure.
-      const closed =
-        error instanceof Error && /NotAllowed|Abort/.test(error.name)
-      if (!closed) setNote("Not signed in. Please try again.")
+    } catch {
+      setNote("Not signed out. Check your signal and try again.")
       setBusy(false)
     }
   }
@@ -157,24 +162,48 @@ export function MeName({
             Change
           </button>{" "}
           ·{" "}
-          <button
-            type="button"
-            data-testid="me-name-remove"
-            disabled={busy}
-            onClick={() => void remove()}
-            className="-my-2 py-2 underline underline-offset-4"
-          >
-            Remove
-          </button>
+          {verified ? (
+            <button
+              type="button"
+              data-testid="me-sign-out"
+              disabled={busy}
+              onClick={() => void signOut()}
+              className="-my-2 py-2 underline underline-offset-4"
+            >
+              Sign out
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-testid="me-name-remove"
+              disabled={busy}
+              onClick={() => void remove()}
+              className="-my-2 py-2 underline underline-offset-4"
+            >
+              Remove
+            </button>
+          )}
         </p>
       ) : (
         <>
           {!name && (
-            <p className="text-lg">Sign up to be credited for your photos.</p>
+            <p className="text-lg">
+              {verified
+                ? "Add your name to be credited for your photos."
+                : "Sign in to be credited for your photos."}
+            </p>
+          )}
+          {!name && !verified && (
+            <SignIn
+              providers={providers}
+              back="/me"
+              passkey={canSignIn ? () => void signIn() : undefined}
+              busy={busy}
+            />
           )}
           <form
             onSubmit={(event) => void save(event)}
-            className="flex max-w-md gap-2"
+            className={`flex max-w-md gap-2${!name && !verified ? " pt-4" : ""}`}
           >
             <input
               ref={field}
@@ -195,21 +224,23 @@ export function MeName({
               disabled={!draft.trim() || busy}
               className="min-h-12 rounded-md bg-foreground px-5 text-lg font-medium text-background disabled:opacity-50"
             >
-              {name ? "Save" : "Sign up"}
+              {name || verified ? "Save" : "Sign up"}
             </button>
           </form>
-          {!name && canSignIn && (
-            <button
-              type="button"
-              data-testid="me-sign-in"
-              disabled={busy}
-              onClick={() => void signIn()}
-              className="block py-2 text-lg underline underline-offset-4"
-            >
-              Sign in
-            </button>
-          )}
         </>
+      )}
+      {name && !verified && !editing && (
+        <SignIn
+          providers={providers}
+          back="/me"
+          passkey={canSignIn ? () => void signIn() : undefined}
+          busy={busy}
+        />
+      )}
+      {signInFailed && !note && (
+        <p role="status" className="text-base text-muted-foreground">
+          Not signed in. Please try again.
+        </p>
       )}
       {note && (
         <p

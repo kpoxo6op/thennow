@@ -49,11 +49,19 @@ export const photoPath = (id: string, place: string, key: string) =>
   `people/${id}/${place}/${key}.jpg`
 
 export type Profile = {
+  // Empty only for someone signed in with an account that gave no name, until they add one.
   name: string
   createdAt: string
   updatedAt: string
   passkey?: true
+  // The providers (lib/auth) this person has signed in with.
+  via?: string[]
 }
+
+// Someone who has proved who they are, with a passkey or another account, rather than only
+// typed a name on this browser.
+export const isVerified = (profile: Profile | null | undefined) =>
+  !!(profile?.passkey || profile?.via?.length)
 
 // No profile is null; a store that can't be reached throws, so it isn't mistaken for no name.
 export async function readProfile(id: string): Promise<Profile | null> {
@@ -64,18 +72,24 @@ export async function readProfile(id: string): Promise<Profile | null> {
   })
   if (!found || found.statusCode !== 200) return null
   const profile = JSON.parse(await new Response(found.stream).text())
-  return typeof profile?.name === "string" && profile.name ? profile : null
+  return typeof profile?.name === "string" &&
+    (profile.name || isVerified(profile))
+    ? profile
+    : null
 }
 
 export async function writeProfile(
   id: string,
-  change: { name?: string; passkey?: true }
+  change: { name?: string; passkey?: true; via?: string }
 ) {
   const now = new Date().toISOString()
   const before = await readProfile(id)
-  const name = change.name ?? before?.name
-  if (!name) return null
+  const name = change.name ?? before?.name ?? ""
   const passkey = change.passkey ?? before?.passkey
+  const via = [
+    ...new Set([...(before?.via ?? []), ...(change.via ? [change.via] : [])]),
+  ]
+  if (!name && !passkey && !via.length) return null
   await put(
     profilePath(id),
     JSON.stringify({
@@ -83,6 +97,7 @@ export async function writeProfile(
       createdAt: before?.createdAt ?? now,
       updatedAt: now,
       passkey,
+      ...(via.length ? { via } : {}),
     }),
     {
       access: "private",
@@ -93,7 +108,7 @@ export async function writeProfile(
       cacheControlMaxAge: 60,
     }
   )
-  return { name, passkey: !!passkey }
+  return { name: name || null, passkey: !!passkey }
 }
 
 export async function removeProfile(id: string) {

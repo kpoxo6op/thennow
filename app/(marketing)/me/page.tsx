@@ -3,7 +3,14 @@ import { cookies } from "next/headers"
 import Link from "next/link"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
-import { COOKIE, personId, photosPrefix, readProfile } from "@/lib/people"
+import { configured } from "@/lib/auth"
+import {
+  COOKIE,
+  isVerified,
+  personId,
+  photosPrefix,
+  readProfile,
+} from "@/lib/people"
 import { hasStore, list } from "@/lib/store"
 import { MeName } from "@/components/me-name"
 import { MeRenew } from "@/components/me-renew"
@@ -60,6 +67,7 @@ export default async function MePage() {
   let photos: Photo[] = []
   let name: string | null = null
   let passkey = false
+  let verified = false
   let failed = false
   if (valid) {
     const id = personId(cookie)
@@ -71,6 +79,7 @@ export default async function MePage() {
       photos = sent
       name = profile?.name ?? null
       passkey = !!profile?.passkey
+      verified = isVerified(profile)
     } catch (error) {
       console.error(`me failed ${String(error).slice(0, 300)}`)
       failed = true
@@ -104,7 +113,12 @@ export default async function MePage() {
                   .
                 </p>
               )}
-              <MeName name={name} passkey={passkey} />
+              <MeName
+                name={name || null}
+                passkey={passkey}
+                verified={verified}
+                providers={configured()}
+              />
             </>
           )}
         </div>
@@ -145,9 +159,8 @@ export default async function MePage() {
       )}
 
       <p className="mt-14 max-w-2xl border-t pt-6 text-[15px] leading-relaxed text-muted-foreground lg:ml-[calc(50%+1.25rem)]">
-        Signing up saves a passkey, so you can sign in on another device. No
-        email, no password. Your name is kept to credit your photos and to sign
-        what you write.{" "}
+        Signing in keeps only your name, to credit your photos and sign what you
+        write. No email, no password.{" "}
         <Link
           href="/about#your-photos"
           className="underline underline-offset-4"
