@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation"
 import { startRegistration } from "@simplewebauthn/browser"
 import { flushSync } from "react-dom"
 
-import { passkeySignIn, SignIn, useSignInFailed } from "@/components/sign-in"
+import {
+  passkeySignIn,
+  SignIn,
+  useOrder,
+  useSignInFailed,
+} from "@/components/sign-in"
 
 // Signing in is one tap on an account people already have (lib/auth), or a passkey. Without
 // either, a name alone still signs up: the phone then saves a passkey for it, which is how the
@@ -72,7 +77,9 @@ export function MeName({
   const [note, setNote] = useState("")
   // Without another account, a name and a passkey still sign someone up; that way waits behind a
   // link while the accounts are offered.
-  const [byPasskey, setByPasskey] = useState(!providers.length)
+  const [askedPasskey, setByPasskey] = useState(false)
+  const visible = useOrder(providers)
+  const byPasskey = askedPasskey || visible.length === 0
   const field = useRef<HTMLInputElement>(null)
   const signInFailed = useSignInFailed()
   const canSignIn = useSyncExternalStore(

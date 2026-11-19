@@ -46,7 +46,10 @@ let warned = false
 function secret(): Buffer | null {
   if (memoryStore) return createHash("sha256").update("tn-test-auth").digest()
   const raw = env("TN_AUTH_KEY")
-  const key = raw ? Buffer.from(raw, "base64") : null
+  const key =
+    raw && /^[A-Za-z0-9+/]+={0,2}$/.test(raw)
+      ? Buffer.from(raw, "base64")
+      : null
   if (key && key.length >= 32) return key.subarray(0, 32)
   if (
     !warned &&
@@ -149,12 +152,12 @@ function readCookieNamed(request: Request, name: string) {
 const isSecure = (request: Request) =>
   new URL(request.url).protocol === "https:"
 
-export const AUTH_COOKIES = ["tn_oa", "tn_ok"]
-
 // The trip out to a provider: which one, what it must say back, and where to return.
 const TRIP = "tn_oa"
 // What the provider said, carried for a moment to the step that signs this browser in.
 const LANDED = "tn_ok"
+// Both, for signing out.
+export const AUTH_COOKIES = [TRIP, LANDED]
 
 type Trip = { p: Provider; s: string; v: string; n: string; b: string }
 export type Landed = {

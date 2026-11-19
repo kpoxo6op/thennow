@@ -616,6 +616,16 @@ test("a provider's answer counts only for the trip this browser started, and onl
   expect(where(done)).toMatch(/#signin-failed$/)
   expect(done.headers()["set-cookie"] ?? "").not.toContain("tn_me=")
 
+  // Signing out calls off a sign-in still on its way.
+  const leaving = await visitor(playwright)
+  const out = await leaving.get(`/api/auth/test?as=${address()}&back=/me`, no)
+  expect(
+    (await leaving.post("/api/auth/signout", { headers: json })).status()
+  ).toBe(200)
+  const late = await leaving.get(where(out), no)
+  expect(where(late)).toMatch(/#signin-failed$/)
+  expect(late.headers()["set-cookie"] ?? "").not.toContain("tn_me=")
+
   // Only paths on this site are returned to.
   for (const back of ["https://evil.example/", "//evil.example/", "/\\evil"]) {
     const away = await visitor(playwright)

@@ -205,9 +205,16 @@ export function Comments({ place }: { place: string }) {
   useEffect(() => {
     if (!me || !open || open === NEW) return
     if (comments.some((c) => c.id === open && !c.to)) return
-    const words = texts[open] ?? ""
+    const words = (texts[open] ?? "").trim()
     /* eslint-disable react-hooks/set-state-in-effect */
-    setTexts((now) => ({ ...now, [NEW]: words || now[NEW] || "" }))
+    if (!words) {
+      setOpen(null)
+      return
+    }
+    setTexts((now) => ({
+      ...now,
+      [NEW]: [now[NEW]?.trim(), words].filter(Boolean).join("\n\n"),
+    }))
     setOpen(NEW)
     setNote("That comment was removed. Your words will be a new comment.")
     /* eslint-enable react-hooks/set-state-in-effect */

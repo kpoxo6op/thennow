@@ -109,7 +109,13 @@ const send = (
 
 const listed = async (who: APIRequestContext, place = PLACE) =>
   (await (await who.get(`/api/comments?place=${place}`)).json()) as {
-    comments: { id: string; name: string; text: string; canRemove: boolean }[]
+    comments: {
+      id: string
+      name: string
+      text: string
+      canRemove: boolean
+      to: string | null
+    }[]
     name: string | null
   }
 
@@ -644,10 +650,25 @@ test("a reply sits under the comment it answers, and outlives it", async ({
   ).toBe(404)
   expect((await send(a, { text: words(), to: "nonsense" })).status()).toBe(400)
 
+  // A reply being written when its comment goes becomes a new comment, and says so.
+  await thread.getByTestId("comment-reply").click()
+  const late = words("late")
+  await page.getByTestId("comment-text-input").fill(late)
+
   // The first comment goes; its replies stay, under a short "Removed".
   expect(
     (await a.delete(`/api/comments?place=${PLACE}&id=${firstId}`)).status()
   ).toBe(200)
+  await page.getByTestId("comment-post").click()
+  await expect(page.getByTestId("comment-note")).toHaveText(
+    "That comment was removed. Your words will be a new comment."
+  )
+  await expect(page.getByTestId("comment-text-input")).toHaveValue(late)
+  await page.getByTestId("comment-post").click()
+  await expect(rowWith(page, late)).toBeVisible()
+  expect((await listed(a)).comments.find((c) => c.text === late)).toMatchObject(
+    { to: null }
+  )
   await page.reload()
   await page.getByTestId("comments").scrollIntoViewIfNeeded()
   const orphan = page
