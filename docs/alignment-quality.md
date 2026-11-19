@@ -11,14 +11,14 @@ Use the existing photographs at their intended display geometry, not differently
 scaled image previews. These are reference examples, not pictures to delete or
 reframe to make a new algorithm look better.
 
-| Pair | What to inspect |
-| --- | --- |
-| Mission Bay Fountain | Bowl rim and centre, sculptural bases and basin outline. Ignore water jets and changed vegetation. |
+| Pair                              | What to inspect                                                                                                                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mission Bay Fountain              | Bowl rim and centre, sculptural bases and basin outline. Ignore water jets and changed vegetation.                                                                                                |
 | Historic Post Office, Helensville | Surviving front facade, entrance arch, window corners, pediment and roof edges. Ignore new foreground buildings, poles and cars. The archive's existing display crop is intentional; preserve it. |
-| Mission Bay Yacht Club | Surviving gable, roof pitch, front wall and seawall convergence. Distinguish additions and changed tide from alignment. |
-| Mission House | Both surviving gables, chimney and stone walls. Occluded features cannot count as confirming evidence. |
-| Mill House | Visible original roof, chimney and dormers; additions and trees limit the evidence. |
-| Rata Street / Commercial Road | Context and viewpoint reference only: too few unambiguously unchanged structures for a strict architectural precision threshold. |
+| Mission Bay Yacht Club            | Surviving gable, roof pitch, front wall and seawall convergence. Distinguish additions and changed tide from alignment.                                                                           |
+| Mission House                     | Both surviving gables, chimney and stone walls. Occluded features cannot count as confirming evidence.                                                                                            |
+| Mill House                        | Visible original roof, chimney and dormers; additions and trees limit the evidence.                                                                                                               |
+| Rata Street / Commercial Road     | Context and viewpoint reference only: too few unambiguously unchanged structures for a strict architectural precision threshold.                                                                  |
 
 The fountain and Post Office are the primary precision references. Do not use the
 least constrained pair to lower the bar for a clearly visible building.

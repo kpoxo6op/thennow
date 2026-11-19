@@ -22,6 +22,8 @@ export type Comment = {
   name: string
   by: string
   at: string
+  // A reply names the comment that starts its thread. Replies to a reply join the same thread.
+  to?: string
 }
 
 export const commentPath = (place: string, key: string) =>
@@ -86,6 +88,9 @@ function parse(key: string, raw: string): Comment | null {
       name: found.name,
       by: found.by,
       at: found.at,
+      ...(typeof found.to === "string" && KEY.test(found.to)
+        ? { to: found.to }
+        : {}),
     }
   } catch {
     return null
@@ -199,7 +204,12 @@ const mark = (by: string, place: string, key: string, at: string) =>
 
 export async function addComment(
   place: string,
-  { text, name, by }: { text: string; name: string; by: string }
+  {
+    text,
+    name,
+    by,
+    to,
+  }: { text: string; name: string; by: string; to?: string }
 ): Promise<Comment> {
   const key =
     String(Date.now()).padStart(13, "0") + "-" + randomBytes(4).toString("hex")
@@ -207,13 +217,17 @@ export async function addComment(
   // The note comes first: a note with no comment is harmless, but a comment with no note could
   // not follow its writer.
   await mark(by, place, key, at)
-  await put(commentPath(place, key), JSON.stringify({ text, name, by, at }), {
-    access: "private",
-    contentType: "application/json",
-    addRandomSuffix: false,
-  })
+  await put(
+    commentPath(place, key),
+    JSON.stringify({ text, name, by, at, ...(to ? { to } : {}) }),
+    {
+      access: "private",
+      contentType: "application/json",
+      addRandomSuffix: false,
+    }
+  )
   changed(place)
-  return { key, text, name, by, at }
+  return { key, text, name, by, at, ...(to ? { to } : {}) }
 }
 
 // Always from the store: whether someone may remove a comment is decided on what is kept.
@@ -247,10 +261,16 @@ export async function moveComments(from: string, to: string) {
           places.add(place)
           const comment = await readComment(place, key)
           if (comment && comment.by === from) {
-            const { text, name, at } = comment
+            const { text, name, at, to: thread } = comment
             await put(
               commentPath(place, key),
-              JSON.stringify({ text, name, by: to, at }),
+              JSON.stringify({
+                text,
+                name,
+                by: to,
+                at,
+                ...(thread ? { to: thread } : {}),
+              }),
               {
                 access: "private",
                 contentType: "application/json",

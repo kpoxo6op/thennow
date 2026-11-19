@@ -9,14 +9,17 @@ import {
 import {
   cookieHeader,
   isSecure,
+  isVerified,
   movePhotos,
   personId,
   readCookie,
+  readProfile,
 } from "@/lib/people"
 import { hasStore } from "@/lib/store"
 
 // Signing in with the passkey saved at sign-up: this browser gets the person's cookie, and any
-// photos it had already sent and comments it had already written on its own join theirs.
+// photos it had already sent and comments it had already written on its own join theirs. A
+// browser signed in as someone else is only switched: two people are never merged.
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -57,7 +60,11 @@ export async function POST(request: Request) {
     const cookie = await finishSignIn(request, JSON.parse(text))
     if (!cookie) return no(401, "not signed up")
     const before = readCookie(request)
-    if (before && before !== cookie) {
+    if (
+      before &&
+      before !== cookie &&
+      !isVerified(await readProfile(personId(before)))
+    ) {
       await movePhotos(personId(before), personId(cookie))
       await moveComments(personId(before), personId(cookie))
     }

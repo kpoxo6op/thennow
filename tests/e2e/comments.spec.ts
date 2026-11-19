@@ -35,19 +35,28 @@ const day = new Intl.DateTimeFormat("en-NZ", {
 
 type Playwright = PlaywrightWorkerArgs["playwright"]
 
-const visitor = (
+// Writing needs someone signed in. The test server has a pretend provider that signs anyone in
+// (lib/auth), here with an account of their own and no name, so each test's name is its own.
+const signInPath = () =>
+  `/api/auth/test?as=${address()}&back=${encodeURIComponent("/api/me")}`
+
+async function visitor(
   playwright: Playwright,
-  headers: Record<string, string> = {}
-) =>
-  playwright.request.newContext({
+  headers: Record<string, string> = {},
+  signedIn = true
+) {
+  const who = await playwright.request.newContext({
     baseURL: BASE,
     extraHTTPHeaders: { "x-real-ip": address(), ...headers },
   })
+  if (signedIn) expect((await who.get(signInPath())).status()).toBe(200)
+  return who
+}
 
 // Someone with a browser. The base map is blocked, as it is for every test that opens a map.
 async function person(
   browser: Browser,
-  options: { phone?: boolean; cookie?: string } = {}
+  options: { phone?: boolean; cookie?: string; signedIn?: boolean } = {}
 ) {
   const context = await browser.newContext({
     baseURL: BASE,
@@ -59,6 +68,8 @@ async function person(
     await context.addCookies([
       { name: "tn_me", value: options.cookie, url: BASE },
     ])
+  if (!options.cookie && options.signedIn !== false)
+    expect((await context.request.get(signInPath())).status()).toBe(200)
   const page = await context.newPage()
   return { context, page }
 }
@@ -98,7 +109,13 @@ const send = (
 
 const listed = async (who: APIRequestContext, place = PLACE) =>
   (await (await who.get(`/api/comments?place=${place}`)).json()) as {
-    comments: { id: string; name: string; text: string; canRemove: boolean }[]
+    comments: {
+      id: string
+      name: string
+      text: string
+      canRemove: boolean
+      to: string | null
+    }[]
     name: string | null
   }
 
@@ -117,23 +134,30 @@ test.beforeAll(async ({ playwright }) => {
   ).toBe("memory")
 })
 
-test("a new visitor posts with a name and sees it listed", async ({
+test("a new visitor writes, signs in, finds the words waiting, and posts with a name", async ({
   browser,
 }) => {
-  const { context, page } = await person(browser)
+  const { context, page } = await person(browser, { signedIn: false })
   const text = words()
   await open(page)
 
-  const nameField = page.getByTestId("comment-name-input")
-  const post = page.getByTestId("comment-post")
-  await expect(nameField).toBeVisible()
-  await expect(post).toBeDisabled()
+  // Not signed in: the editor offers the ways to sign in instead of a post button.
+  await expect(page.getByTestId("comment-post")).toHaveCount(0)
+  await expect(page.getByTestId("comment-name-input")).toHaveCount(0)
   await page.getByTestId("comment-text-input").fill(text)
   await page.getByRole("button", { name: "Cancel", exact: true }).click()
   await expect(page.getByTestId("comment-open")).toBeFocused()
-  await expect(page.getByTestId("comment-form")).toBeHidden()
+  await expect(page.getByTestId("comment-form")).toHaveCount(0)
   await page.getByTestId("comment-open").click()
+  await page.getByTestId("comment-text-input").fill(text)
+  await page.getByTestId("sign-in-test").click()
+
+  // Back on the place, signed in with an account that gave no name.
+  await expect(page).toHaveURL(new RegExp(`/${PLACE}$`))
   await expect(page.getByTestId("comment-text-input")).toHaveValue(text)
+  const nameField = page.getByTestId("comment-name-input")
+  const post = page.getByTestId("comment-post")
+  await expect(nameField).toBeVisible()
   await expect(post).toBeDisabled()
   await nameField.fill("Margaret")
   await expect(post).toBeEnabled()
@@ -150,10 +174,12 @@ test("a new visitor posts with a name and sees it listed", async ({
   await expect(row).toBeFocused()
   await expect(page.getByTestId("comment-text-input")).toHaveValue("")
   await expect(nameField).toHaveCount(0)
+  await expect(post).toHaveText("Post as Margaret")
 
   await page.reload()
   await page.getByTestId("comments").scrollIntoViewIfNeeded()
   await expect(rowWith(page, text)).toBeVisible()
+  await page.getByTestId("comment-open").click()
   await expect(nameField).toHaveCount(0)
   // The name was saved to the profile, as on Your photos.
   expect((await (await context.request.get("/api/me")).json()).name).toBe(
@@ -196,7 +222,7 @@ test("the list never says who wrote what, and sets no cookie", async ({
     expect(raw).not.toContain(idB)
   }
 
-  const stranger = await visitor(playwright)
+  const stranger = await visitor(playwright, {}, false)
   const read = await stranger.get(`/api/comments?place=${PLACE}`)
   expect(read.status()).toBe(200)
   expect(read.headers()["set-cookie"]).toBeUndefined()
@@ -275,8 +301,16 @@ test("what is refused is refused, and what is only unusual is allowed", async ({
     headers: { "content-type": "text/plain" },
   })
   expect(plain.status()).toBe(415)
-  // Nothing refused was kept, and the refusals gave no cookie.
-  expect(await cookieOf(who)).toBe("")
+  // Someone not signed in can't write, and is given no cookie for trying.
+  const stranger = await visitor(playwright, {}, false)
+  const unsigned = await send(stranger, good)
+  expect([unsigned.status(), (await unsigned.json()).error]).toEqual([
+    401,
+    "sign in",
+  ])
+  expect(unsigned.headers()["set-cookie"]).toBeUndefined()
+  await stranger.dispose()
+  // Nothing refused was kept.
   expect(JSON.stringify(await listed(who))).not.toContain(refused)
 
   const start = words("exact")
@@ -578,4 +612,72 @@ test("what one visitor posts or removes, the next read shows another", async ({
   expect((await listed(reader)).comments.map((c) => c.id)).not.toContain(id)
   await reader.dispose()
   await writer.dispose()
+})
+
+test("a reply sits under the comment it answers, and outlives it", async ({
+  browser,
+  playwright,
+}) => {
+  const a = await visitor(playwright)
+  const first = words("first")
+  const sent = await send(a, { text: first, name: "Mary Hēnare" })
+  const firstId = (await sent.json()).comment.id as string
+
+  const { context, page } = await person(browser, { phone: true })
+  await page.goto(`/${PLACE}`)
+  const thread = page
+    .getByTestId("comment-thread")
+    .filter({ has: rowWith(page, first) })
+  await thread.getByTestId("comment-reply").click()
+  const reply = words("reply")
+  await expect(page.getByTestId("comment-text-input")).toHaveAttribute(
+    "placeholder",
+    "Reply to Mary…"
+  )
+  await write(page, reply, "John")
+  await expect(
+    thread.getByTestId("comment-replies").getByTestId("comment")
+  ).toHaveText(new RegExp(reply))
+
+  // Answering a reply joins the same thread.
+  const replyId = (await listed(a)).comments.find((c) => c.text === reply)!.id
+  const again = words("again")
+  const answered = await send(a, { text: again, to: replyId })
+  expect(answered.status()).toBe(200)
+  expect((await answered.json()).comment.to).toBe(firstId)
+  expect(
+    (await send(a, { text: words(), to: "0000000000000-00000000" })).status()
+  ).toBe(404)
+  expect((await send(a, { text: words(), to: "nonsense" })).status()).toBe(400)
+
+  // A reply being written when its comment goes becomes a new comment, and says so.
+  await thread.getByTestId("comment-reply").click()
+  const late = words("late")
+  await page.getByTestId("comment-text-input").fill(late)
+
+  // The first comment goes; its replies stay, under a short "Removed".
+  expect(
+    (await a.delete(`/api/comments?place=${PLACE}&id=${firstId}`)).status()
+  ).toBe(200)
+  await page.getByTestId("comment-post").click()
+  await expect(page.getByTestId("comment-note")).toHaveText(
+    "That comment was removed. Your words will be a new comment."
+  )
+  await expect(page.getByTestId("comment-text-input")).toHaveValue(late)
+  await page.getByTestId("comment-post").click()
+  await expect(rowWith(page, late)).toBeVisible()
+  expect((await listed(a)).comments.find((c) => c.text === late)).toMatchObject(
+    { to: null }
+  )
+  await page.reload()
+  await page.getByTestId("comments").scrollIntoViewIfNeeded()
+  const orphan = page
+    .getByTestId("comment-thread")
+    .filter({ has: rowWith(page, reply) })
+  await expect(orphan.getByTestId("comment-removed")).toHaveText("Removed")
+  await expect(orphan.getByTestId("comment-replies")).toContainText(again)
+  await expect(orphan.getByTestId("comment-reply")).toHaveCount(0)
+  await expect(rowWith(page, first)).toHaveCount(0)
+  await context.close()
+  await a.dispose()
 })
