@@ -44,18 +44,12 @@ export async function GET(request: Request) {
 
   try {
     const before = readCookie(request)
+    const wasVerified = before
+      ? isVerified(await readProfile(personId(before)))
+      : false
     let cookie = await linkedCookie(landed.p, landed.sub)
-    if (cookie) {
-      if (before && before !== cookie) {
-        const was = await readProfile(personId(before))
-        if (!isVerified(was)) {
-          await movePhotos(personId(before), personId(cookie))
-          await moveComments(personId(before), personId(cookie))
-        }
-      }
-    } else {
-      const was = before ? await readProfile(personId(before)) : null
-      cookie = before && !isVerified(was) ? before : newCookie()
+    if (!cookie) {
+      cookie = before && !wasVerified ? before : newCookie()
       try {
         await link(landed.p, landed.sub, cookie)
       } catch {
@@ -65,6 +59,11 @@ export async function GET(request: Request) {
         if (!won) throw new Error("link failed")
         cookie = won
       }
+    }
+    // Anything this browser did before signing in, while nobody, joins the person it is now.
+    if (before && before !== cookie && !wasVerified) {
+      await movePhotos(personId(before), personId(cookie))
+      await moveComments(personId(before), personId(cookie))
     }
     const id = personId(cookie)
     const profile = await readProfile(id)

@@ -4,6 +4,7 @@ import {
   createHash,
   createHmac,
   createPrivateKey,
+  hkdfSync,
   randomBytes,
   sign,
   timingSafeEqual,
@@ -41,12 +42,31 @@ const env = (name: string) => process.env[name]?.trim() || ""
 
 // The key that signs the short-lived sign-in cookies and seals the cookie kept in each link. It must
 // never change, or every link stops opening. The test suite's server has a fixed one of its own.
+let warned = false
 function secret(): Buffer | null {
   if (memoryStore) return createHash("sha256").update("tn-test-auth").digest()
   const raw = env("TN_AUTH_KEY")
-  if (!raw) return null
-  const key = Buffer.from(raw, "base64")
-  return key.length >= 32 ? key.subarray(0, 32) : null
+  const key = raw ? Buffer.from(raw, "base64") : null
+  if (key && key.length >= 32) return key.subarray(0, 32)
+  if (
+    !warned &&
+    (env("GOOGLE_CLIENT_ID") ||
+      env("APPLE_CLIENT_ID") ||
+      env("FACEBOOK_APP_ID") ||
+      env("MICROSOFT_CLIENT_ID"))
+  ) {
+    warned = true
+    console.error(
+      "sign in: TN_AUTH_KEY is missing or shorter than 32 bytes, so no provider is shown"
+    )
+  }
+  return null
+}
+
+// One key for signing, another for sealing, both drawn from the same secret.
+const subkey = (use: string) => {
+  const key = secret()
+  return key ? Buffer.from(hkdfSync("sha256", key, "thennow", use, 32)) : null
 }
 
 export function isConfigured(provider: Provider): boolean {
@@ -88,7 +108,7 @@ const b64 = (data: Buffer | string) => Buffer.from(data).toString("base64url")
 
 // Each cookie says what it is for inside its signature, so one can never stand in for another.
 function seal(purpose: string, value: unknown, maxAgeSec: number): string {
-  const key = secret()
+  const key = subkey("sign")
   if (!key) throw new Error("no auth key")
   const body = b64(
     JSON.stringify({ v: value, e: Date.now() + maxAgeSec * 1000 })
@@ -100,7 +120,7 @@ function seal(purpose: string, value: unknown, maxAgeSec: number): string {
 }
 
 function unseal<T>(purpose: string, token: string | null): T | null {
-  const key = secret()
+  const key = subkey("sign")
   if (!key || !token) return null
   const [body, mac] = token.split(".")
   if (!body || !mac) return null
@@ -128,6 +148,8 @@ function readCookieNamed(request: Request, name: string) {
 
 const isSecure = (request: Request) =>
   new URL(request.url).protocol === "https:"
+
+export const AUTH_COOKIES = ["tn_oa", "tn_ok"]
 
 // The trip out to a provider: which one, what it must say back, and where to return.
 const TRIP = "tn_oa"
@@ -573,7 +595,8 @@ const linkPath = (provider: Provider, sub: string) =>
   `links/${provider}/${createHash("sha256").update(`${provider}:${sub}`).digest("hex").slice(0, 32)}.json`
 
 function encrypt(cookie: string) {
-  const key = secret()!
+  const key = subkey("seal")
+  if (!key) throw new Error("no auth key")
   const iv = randomBytes(12)
   const cipher = createCipheriv("aes-256-gcm", key, iv)
   const body = Buffer.concat([cipher.update(cookie, "utf8"), cipher.final()])
@@ -581,7 +604,7 @@ function encrypt(cookie: string) {
 }
 
 function decrypt(sealed: string): string | null {
-  const key = secret()
+  const key = subkey("seal")
   if (!key) return null
   try {
     const raw = Buffer.from(sealed, "base64url")

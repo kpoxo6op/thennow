@@ -127,14 +127,14 @@ export default async function AboutPage() {
           <Link href="/me" className="underline underline-offset-4">
             Your photos
           </Link>
-          , where you can sign in with Google, Apple or another account you
-          already have, or with a passkey, to be credited. We keep your name and
-          which account you used, never an email or a password; the account you
-          choose learns that you signed in to then|now. Photos and names are
-          kept in then|now’s private store, with Vercel in Sydney. The camera
-          also sends anonymous reports of how it worked, never the pictures.
-          What you write on a place’s page is public: it shows your name and
-          your words, and you can remove it there.
+          , where you can sign in with an account you already have, or with a
+          passkey, to be credited. We keep your name and which account you used,
+          never an email or a password; the account you choose learns that you
+          signed in to then|now. Photos and names are kept in then|now’s private
+          store, with Vercel in Sydney. The camera also sends anonymous reports
+          of how it worked, never the pictures. What you write on a place’s page
+          is public: it shows your name and your words, and you can remove it
+          there.
         </p>
       </section>
     </article>

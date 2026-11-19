@@ -75,7 +75,7 @@ const noStore = () => () => {}
 
 // Apple first on Apple's own devices, Google first elsewhere. Google refuses to sign in inside
 // the browsers built into apps like Facebook and Instagram, so it isn't offered there.
-function useOrder(providers: string[]) {
+export function useOrder(providers: string[]) {
   const agent = useSyncExternalStore(
     noStore,
     () => navigator.userAgent,

@@ -629,3 +629,55 @@ test("a provider's answer counts only for the trip this browser started, and onl
   expect((await who.get("/api/auth/google", no)).status()).toBe(404)
   expect((await who.get("/api/auth/nope", no)).status()).toBe(404)
 })
+
+test("a passkey used on a browser signed in as someone else switches it, and takes nothing along", async ({
+  browser,
+}) => {
+  const a = await device(browser)
+  await signUp(a, "Passkey Owner")
+  const [passkey] = await a.passkeys()
+
+  // Someone else is signed in on this browser with an account of their own, and has written.
+  const c = await device(browser)
+  await c.page.goto(`/api/auth/test?as=${address()}:Other%20Person&back=/me`)
+  const text = `Written by the other person ${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const posted = await c.context.request.post("/api/comments", {
+    data: { place: PLACE, text },
+  })
+  expect(posted.status()).toBe(200)
+  const other = await c.cookie()
+
+  // The passkey's owner signs in there, straight through the passkey's own questions.
+  await c.cdp.send("WebAuthn.addCredential", {
+    authenticatorId: c.authenticatorId,
+    credential: passkey,
+  })
+  const status = await c.page.evaluate(async () => {
+    const options = await (await fetch("/api/me/signin")).json()
+    const credential = (await navigator.credentials.get({
+      publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(options),
+    })) as PublicKeyCredential
+    const done = await fetch("/api/me/signin", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(credential.toJSON()),
+    })
+    return done.status
+  })
+  expect(status).toBe(200)
+  expect(await c.cookie()).toBe(await a.cookie())
+
+  // The other person's comment is still theirs, not the passkey owner's.
+  const mine = async (who: typeof a) =>
+    (
+      (await (
+        await who.context.request.get(`/api/comments?place=${PLACE}`)
+      ).json()) as { comments: { text: string; canRemove: boolean }[] }
+    ).comments.find((comment) => comment.text === text)?.canRemove
+  expect(await mine(a)).toBe(false)
+  const before = await device(browser)
+  await before.context.addCookies([
+    { name: "tn_me", value: other!, url: LOCAL },
+  ])
+  expect(await mine(before)).toBe(true)
+})

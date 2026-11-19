@@ -6,6 +6,7 @@ import Link from "next/link"
 import {
   passkeySignIn,
   SignIn,
+  useOrder,
   usePasskeyWorks,
   useSignInFailed,
 } from "@/components/sign-in"
@@ -52,7 +53,9 @@ type Draft = { place: string; text: string; to: string }
 function readDraft(place: string): Draft | null {
   try {
     const draft = JSON.parse(sessionStorage.getItem(DRAFT) ?? "null")
-    return draft?.place === place && typeof draft.text === "string"
+    return draft?.place === place &&
+      typeof draft.text === "string" &&
+      typeof draft.to === "string"
       ? draft
       : null
   } catch {
@@ -96,6 +99,7 @@ export function Comments({ place }: { place: string }) {
   } | null>(null)
   const signInFailed = useSignInFailed()
   const passkeyWorks = usePasskeyWorks()
+  const visibleProviders = useOrder(me?.providers ?? [])
 
   const signedIn = !!me?.signedIn
   // Until the list says otherwise, the reader is taken to be signed in: the server answers a
@@ -196,6 +200,19 @@ export function Comments({ place }: { place: string }) {
     if (fresh) freshRow.current?.focus()
   }, [fresh])
 
+  // A reply whose comment has been removed meanwhile (while its writer was away signing in, or
+  // just now) becomes a new comment at the end, with its words, and says so.
+  useEffect(() => {
+    if (!me || !open || open === NEW) return
+    if (comments.some((c) => c.id === open && !c.to)) return
+    const words = texts[open] ?? ""
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setTexts((now) => ({ ...now, [NEW]: words || now[NEW] || "" }))
+    setOpen(NEW)
+    setNote("That comment was removed. Your words will be a new comment.")
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [me, open, comments, texts])
+
   useEffect(() => {
     if (askName) nameField.current?.focus()
   }, [askName])
@@ -236,7 +253,7 @@ export function Comments({ place }: { place: string }) {
           place,
           text,
           name: showName ? name : undefined,
-          to: open === NEW || !byId.has(open) ? undefined : open,
+          to: open === NEW ? undefined : open,
           website: trap.current?.value ?? "",
         }),
       })
@@ -275,9 +292,14 @@ export function Comments({ place }: { place: string }) {
           }))
         } else if (response.status === 429)
           setNote("Not posted. Please try again later.")
-        else if (response.status === 404 && error === "no such comment")
-          setNote("That comment has just been removed.")
-        else if (response.status === 400 && error === "links")
+        else if (response.status === 404 && error === "no such comment") {
+          // The comment being answered has gone: the words move to a new comment (see below).
+          const parent = open
+          if (parent && parent !== NEW) {
+            gone.current.add(parent)
+            setComments((now) => now.filter((c) => c.id !== parent))
+          }
+        } else if (response.status === 400 && error === "links")
           setNote("Please leave out links and web addresses.")
         else if (response.status === 400 && error === "name") {
           setAskName(true)
@@ -456,7 +478,7 @@ export function Comments({ place }: { place: string }) {
               onLeave={() => keepDraft({ place, text, to: target })}
             />
             <div className="flex flex-wrap gap-x-6">
-              {me.providers.length === 0 && (
+              {visibleProviders.length === 0 && (
                 <Link
                   href="/me"
                   onClick={() => keepDraft({ place, text, to: target })}
