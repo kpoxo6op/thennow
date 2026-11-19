@@ -286,9 +286,12 @@ export function RephotoReview({
               rotation: placed.rotation,
             })
             const scored = alignmentScore(check, trace)
-            const value = scoreUsable(scored)
-              ? scored.score
-              : (shot.liveScore ?? null)
+            // Only what this shot itself shows: no borrowed live number (19 Nov: an 81 came from
+            // the live score while the shot could be checked in one region only).
+            const value =
+              scoreUsable(scored) && scored.measured >= scored.regions
+                ? scored.score
+                : null
             const lined = linedUp(scored, false)
             setScore({ value, check })
             const worst =

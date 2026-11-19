@@ -67,7 +67,7 @@ export function ReferenceTrace({
         <polyline
           key={`shift-${index}`}
           data-testid="line-shift"
-          className="transition-transform duration-500 ease-out"
+          className="transition-transform duration-100 ease-linear"
           style={{ transform: `translate(${dx * 1000}px, ${dy * 1000}px)` }}
           points={guide.features[index].points
             .map(([x, y]) => `${x * 1000},${y * 1000}`)
