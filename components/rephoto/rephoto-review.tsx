@@ -266,6 +266,13 @@ export function RephotoReview({
             placed = found.crop
             setCrop(found.crop)
           }
+          // Neither matched now nor framed by the camera's match: the crop is just the resting
+          // guide, and scoring it would blame lines that were never placed (20 Nov 2026: a 0).
+          if (
+            !(found && fits(found.crop, archive.aspect, photo)) &&
+            !shot.locked
+          )
+            throw new Error("Unplaced")
           const k = Math.min(1, SCORE_WIDTH / placed.width)
           const live = await grayOf(
             shot.canvas,
