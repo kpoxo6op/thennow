@@ -481,7 +481,12 @@ export function RephotoCamera({
   // Every reference line checked on its own edge before "Lined up": one rotation, zoom and
   // shift can fit the wall and leave the canopy off when the viewpoint differs.
   const [lines, setLines] = useState<
-    (LineCheck & { lock: object; held: boolean; score: Score | null }) | null
+    | (LineCheck & {
+        lock: NonNullable<typeof lock>
+        held: boolean
+        score: Score | null
+      })
+    | null
   >(null)
   // How each line looks, settled over checks: green once on twice running, amber once off twice
   // running, kept between, and back to plain after 1.5 s unseen. Nothing flashes per check.
@@ -1424,7 +1429,7 @@ export function RephotoCamera({
                     nowAt - settledAt >= 750 &&
                     fits(crop, archive.aspect, photo)
                   guide(
-                    steady ? "steady" : "held",
+                    steady ? "steady" : held ? "held" : "candidate",
                     "agreement",
                     Number.isFinite(motion) ? motion : null
                   )
@@ -1619,12 +1624,21 @@ export function RephotoCamera({
     // and still shows it held, or else the resting guide, levelled. The review refines it from the full picture.
     const now = performance.now()
     // What the screen shows is what is shot: a snapped view keeps its crop.
+    // With lines the screen already shows the crop the shot keeps, so the shot keeps it whenever
+    // the view is tracked, confirmed or not. Requiring a confirmed match threw away a "Lined up"
+    // framing taken between two matches (20 Nov 2026: Lined up at 84, the shot kept the plain
+    // centre crop and scored 0).
+    // Lined up was judged on the crop the last line check used; keep that one.
+    const shown = trace && snapped && linesNow ? linesNow.lock : lock
     const held =
-      lock?.held &&
-      now - lock.at < Math.max(lockLife.current, TRACKED_LIFE) &&
-      (snapped || (lock.trackedAt != null && now - lock.trackedAt < 600)) &&
-      fits(lock.crop, aspect, photo)
-        ? lock.crop
+      shown &&
+      (trace ||
+        (shown.held &&
+          (snapped ||
+            (shown.trackedAt != null && now - shown.trackedAt < 600)))) &&
+      now - shown.at < Math.max(lockLife.current, TRACKED_LIFE) &&
+      fits(shown.crop, aspect, photo)
+        ? shown.crop
         : null
     const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
     let crop =
