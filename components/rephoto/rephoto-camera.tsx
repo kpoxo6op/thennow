@@ -1606,6 +1606,16 @@ export function RephotoCamera({
   const autoZoom =
     zoomNeeded > 0 ? Math.min(2.5, Math.max(0.85, zoomNeeded)) : 0
 
+  // The label explains the jump when the zoom first takes over, then gets out of the way
+  // (council, 20 Nov 2026): shown for 3 s each camera session.
+  const zoomOn = autoZoom > 1.02
+  const [zoomLabel, setZoomLabel] = useState(true)
+  useEffect(() => {
+    if (!zoomOn || !zoomLabel) return
+    const timer = setTimeout(() => setZoomLabel(false), 3000)
+    return () => clearTimeout(timer)
+  }, [zoomOn, zoomLabel])
+
   const capture = async () => {
     const video = videoRef.current
     if (
@@ -1930,14 +1940,18 @@ export function RephotoCamera({
           </div>
         )}
 
-        {trace && autoZoom > 1.02 && status === "live" && !interrupted && (
-          <div
-            data-testid="auto-zoom"
-            className="pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))] rounded-full bg-black/65 px-2.5 py-1 text-xs tabular-nums text-white/90"
-          >
-            Auto zoom {autoZoom.toFixed(1)}×
-          </div>
-        )}
+        {trace &&
+          autoZoom > 1.02 &&
+          zoomLabel &&
+          status === "live" &&
+          !interrupted && (
+            <div
+              data-testid="auto-zoom"
+              className="pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))] rounded-full bg-black/65 px-2.5 py-1 text-xs tabular-nums text-white/90"
+            >
+              Auto zoom {autoZoom.toFixed(1)}×
+            </div>
+          )}
         {debugText && (
           <pre className="pointer-events-none absolute inset-x-2 top-16 whitespace-pre-wrap break-all text-[10px] text-lime-300">
             {debugText}
