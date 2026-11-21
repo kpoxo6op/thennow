@@ -593,7 +593,7 @@ export function RephotoCamera({
         }
         lineLooks.current = next
         setLooks(next)
-        const summary = `${run.held}:${result.worst}:${Math.round((score?.score ?? -10) / 10)}`
+        const summary = `${run.held}:${result.worst}:${Math.round((score?.score ?? -10) / 10)}:${raw?.measured}:${run.passes}`
         if (summary !== linesLogged.current) {
           linesLogged.current = summary
           diagnostic("lines", {
@@ -604,6 +604,13 @@ export function RephotoCamera({
             off: result.lines.filter((line) => line.state === "off").length,
             worstOffset:
               result.worst == null ? null : result.lines[result.worst].offset,
+            // Why "Lined up" did or didn't come (21 Nov 2026: two 94s in a row and no
+            // "Lined up", with nothing logged to say which rule held it back).
+            raw: raw?.score ?? null,
+            weakest: raw?.weakest ?? null,
+            measured: raw?.measured ?? null,
+            regions: raw?.regions ?? null,
+            passes: run.passes,
           })
         }
       } catch {
