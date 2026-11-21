@@ -63,6 +63,30 @@ export function shrinkToFit(crop: Crop, aspect: number, photo: Size): Crop {
   return next
 }
 
+// Brings a crop that hangs a little off the photograph back inside it: slid in by its overhang,
+// then shrunk only if it still doesn't fit. Keeps the shot as close as it can to what the screen
+// showed (21 Nov 2026: a "Lined up" view 2% over the edge was thrown away for the centre crop).
+export function nudgeInside(crop: Crop, aspect: number, photo: Size): Crop {
+  if (fits(crop, aspect, photo)) return crop
+  const points = corners(crop, aspect)
+  const xs = points.map((p) => p.x)
+  const ys = points.map((p) => p.y)
+  const slide = (lo: number, hi: number, size: number) =>
+    hi - lo > size
+      ? size / 2 - (lo + hi) / 2
+      : lo < 0
+        ? -lo
+        : hi > size
+          ? size - hi
+          : 0
+  const moved = {
+    ...crop,
+    cx: crop.cx + slide(Math.min(...xs), Math.max(...xs), photo.width),
+    cy: crop.cy + slide(Math.min(...ys), Math.max(...ys), photo.height),
+  }
+  return shrinkToFit(moved, aspect, photo)
+}
+
 // Wide enough for a full-screen comparison, small enough to send over a phone connection.
 export const MAX_OUTPUT_WIDTH = 2560
 

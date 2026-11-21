@@ -361,8 +361,9 @@ for (const [orientation, viewport] of Object.entries({
     ).toBe(true)
     expect(batches.length).toBeLessThan(events().length)
     // Curated traces are fixed aiming targets. A match now drives the live sign (here the
-    // matched view is wider than the target, so: step back), but a framing that isn't close
-    // enough to snap keeps the photographer's manual crop.
+    // matched view is wider than the target, so: step back). The shot keeps what the screen
+    // showed: the tracked crop, brought back inside the photo (21 Nov 2026: falling back to the
+    // centre crop saved a photo unlike the screen).
     await runtime(
       page,
       ort
@@ -471,10 +472,12 @@ for (const [orientation, viewport] of Object.entries({
       const crop = JSON.parse(
         (await page.getByTestId("rephoto-review").getAttribute("data-crop"))!
       )
-      expect(crop.width).toBeCloseTo(expectedWidth, 0)
-      expect(crop.cx).toBeCloseTo(size.width / 2, 0)
-      expect(crop.cy).toBeCloseTo(size.height / 2, 0)
-      expect(crop.rotation).toBe(0)
+      // Wider than the resting target (the matched view is), yet inside the photo.
+      expect(crop.width).toBeGreaterThan(expectedWidth)
+      expect(crop.width).toBeLessThanOrEqual(
+        Math.min(size.width, size.height / (2 / 3)) + 1
+      )
+      expect(Math.abs(crop.rotation)).toBeLessThan(0.1)
       expect(
         events()
           .slice(eventStart)
@@ -500,12 +503,8 @@ for (const [orientation, viewport] of Object.entries({
           }),
           expect.objectContaining({
             event: "shot",
-            framing: "traced",
+            framing: "live",
             how: "manual",
-            cropX: 0.5,
-            cropY: 0.5,
-            cropWidth: 0.9,
-            cropRotation: 0,
           }),
         ])
       )
