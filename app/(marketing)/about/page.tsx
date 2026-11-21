@@ -134,7 +134,14 @@ export default async function AboutPage() {
           store, with Vercel in Sydney. The camera also sends anonymous reports
           of how it worked, never the pictures. What you write on a place’s page
           is public: it shows your name and your words, and you can remove it
-          there.
+          there. To have everything deleted, write to{" "}
+          <a
+            href="mailto:boris@thennow.nz"
+            className="underline underline-offset-4"
+          >
+            boris@thennow.nz
+          </a>
+          .
         </p>
       </section>
     </article>
