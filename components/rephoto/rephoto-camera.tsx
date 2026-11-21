@@ -29,6 +29,7 @@ import {
 } from "@/lib/rephoto/align"
 import {
   fits,
+  nudgeInside,
   releaseCanvas,
   shrinkToFit,
   type Crop,
@@ -1645,8 +1646,8 @@ export function RephotoCamera({
     // the view is tracked, confirmed or not. Requiring a confirmed match threw away a "Lined up"
     // framing taken between two matches (20 Nov 2026: Lined up at 84, the shot kept the plain
     // centre crop and scored 0).
-    // Lined up was judged on the crop the last line check used; keep that one.
-    const shown = trace && snapped && linesNow ? linesNow.lock : lock
+    // The crop the screen is showing right now (the preview uses the same one).
+    const shown = trace ? (lock ?? lastPlacement) : lock
     const held =
       shown &&
       (trace ||
@@ -1654,8 +1655,8 @@ export function RephotoCamera({
           (snapped ||
             (shown.trackedAt != null && now - shown.trackedAt < 600)))) &&
       now - shown.at < Math.max(lockLife.current, TRACKED_LIFE) &&
-      fits(shown.crop, aspect, photo)
-        ? shown.crop
+      (trace || fits(shown.crop, aspect, photo))
+        ? nudgeInside(shown.crop, aspect, photo)
         : null
     const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
     let crop =
@@ -1692,6 +1693,15 @@ export function RephotoCamera({
         mediaTime,
         reveal: trace ? 100 : Math.round(reveal),
         overlay: trace ? TRACE_OVERLAY_OPACITY : 1,
+        // What the screen showed, and how far the shot had to move it to stay in the photo.
+        shownX: shown ? shown.crop.cx / photo.width : null,
+        shownWidth: shown ? shown.crop.width / photo.width : null,
+        lockAge: shown ? now - shown.at : null,
+        nudged:
+          shown && held
+            ? Math.hypot(held.cx - shown.crop.cx, held.cy - shown.crop.cy) /
+              photo.width
+            : null,
       },
       {
         framing: snapped

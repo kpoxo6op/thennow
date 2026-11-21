@@ -79,6 +79,10 @@ const fields: Record<string, string[]> = {
     "mediaTime",
     "reveal",
     "overlay",
+    "shownX",
+    "shownWidth",
+    "lockAge",
+    "nudged",
   ],
   retake: ["capture"],
   review: [

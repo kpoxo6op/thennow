@@ -45,7 +45,8 @@ function inside(crop: Crop, aspect: number, photo: Size) {
   const sin = Math.sin(crop.rotation)
   const hw = crop.width / 2
   const hh = (crop.width * aspect) / 2
-  const slack = photo.width * 0.01
+  // The same as the shot's own test (crop.ts fits): "hold" only for a framing the shot can keep.
+  const slack = 0.5
   return [
     [-hw, -hh],
     [hw, -hh],
