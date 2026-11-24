@@ -1,43 +1,27 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import type PostType from "@/interfaces/post"
 import { ArrowRight } from "lucide-react"
 
-import { siteConfig } from "@/config/site"
-import { fetchPending, fetchPosts, toPendingSummary } from "@/lib/api"
+import { fetchHomeStories, fetchPending, toPendingSummary } from "@/lib/api"
 import { PENDING_HEADING } from "@/lib/places"
-import { SOURCE_LINE, toSections } from "@/components/Desc"
+import { toSections } from "@/components/Desc"
 import { HomeHero } from "@/components/home-hero"
 import { PendingTile } from "@/components/pending-tile"
 import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 import { StoryTile } from "@/components/story-tile"
 
-const HERO_SLUG = siteConfig.heroSlug
-
 export const metadata: Metadata = {
   alternates: { canonical: "/", types: { "application/rss+xml": "/feed.xml" } },
 }
 
-// Dated, written sections only: several stories are still "Coming soon...".
-function datedSections(story: PostType) {
-  return toSections(story.description)
-    .filter((section) => section.year)
-    .map((section) => ({
-      year: section.year as string,
-      lines: section.lines.filter((line) => !SOURCE_LINE.test(line)),
-    }))
-}
-
 export default async function IndexPage() {
-  const posts = await fetchPosts()
+  const [hero, ...rest] = await fetchHomeStories()
   const pending = await fetchPending()
-  const hero = posts.find((post) => post.slug === HERO_SLUG) ?? posts[0]
-  const originals = posts.filter((post) => !post.sample)
-  const rest = originals.filter((post) => post !== hero)
-  const heroSections = datedSections(hero)
-  const thenYear = heroSections[0]?.year
-  const nowYear = heroSections[heroSections.length - 1]?.year
+  const dated = toSections(hero.description).filter((section) => section.year)
+  const thenYear = dated[0]?.year
+  const nowYear = dated.length > 1 ? dated.at(-1)?.year : undefined
+  const yearsApart = Number(nowYear) - Number(thenYear)
   return (
     <>
       <SiteHeader />
@@ -67,9 +51,11 @@ export default async function IndexPage() {
           />
           <div className="flex flex-col gap-4 px-4 pb-6 pt-2 md:min-h-[var(--hero-band-h)] md:flex-row md:items-center md:gap-12 md:py-0">
             <h1 className="text-balance font-serif text-[2.125rem] leading-[1.04] min-[360px]:text-[2.4rem] md:text-[clamp(2.5rem,4.25vw,5.25rem)]">
-              <span className="md:block">The same corner, </span>
+              <span className="md:block">The same place, </span>
               <span className="md:block">
-                ninety<span className="mx-[-0.05em]">-</span>three years apart.
+                {yearsApart > 0
+                  ? `${yearsApart} ${yearsApart === 1 ? "year" : "years"} apart.`
+                  : "photographed again."}
               </span>
             </h1>
             <p className="text-[17px] leading-snug text-muted-foreground md:w-[20rem] md:shrink-0 lg:w-[26rem]">

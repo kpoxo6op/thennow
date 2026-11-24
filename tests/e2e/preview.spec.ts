@@ -16,6 +16,32 @@ const entries = fs
 const SITE = "https://thennow.nz"
 
 test.describe("a link sent to someone", () => {
+  // Story previews have their own photo. Only the homepage must choose the latest
+  // published pair for both the shared link and the comparison a visitor opens.
+  test("the homepage opens on its shared photograph and shows older pairs in order", async ({
+    page,
+  }) => {
+    const [latest, ...older] = entries
+      .filter((entry) => entry.status !== "pending" && entry.a_imageUrl)
+      .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    await page.goto("/")
+    await expect(
+      page.getByRole("slider", { name: `Compare ${latest.name} then and now` })
+    ).toBeVisible()
+    await expect(
+      page.getByRole("link", { name: latest.name, exact: true })
+    ).toHaveAttribute("href", `/${latest.slug}`)
+    const preview = await page
+      .locator('meta[property="og:image"]')
+      .getAttribute("content")
+    expect(new URL(preview!).searchParams.get("url")).toBe(latest.ba_imageUrl)
+    expect(
+      await page
+        .getByTestId("story-card")
+        .evaluateAll((cards) => cards.map((card) => card.getAttribute("href")))
+    ).toEqual(older.map((entry) => `/${entry.slug}`))
+  })
+
   for (const entry of [
     entries.find((p) => p.a_imageUrl),
     entries.find((p) => !p.a_imageUrl),

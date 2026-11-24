@@ -28,6 +28,7 @@ type PostFields = {
 // A story with both photographs.
 type PostType = PostFields & {
   status: "complete"
+  publishedAt: string
   a_imageUrl: string
   ba_imageUrl: string
 }
