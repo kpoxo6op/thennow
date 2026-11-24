@@ -136,6 +136,24 @@ test.describe("simulated camera application and API boundaries", () => {
     await expect(sweep).toHaveAttribute("data-sweeping", "true")
     await expect(sweep).not.toHaveAttribute("data-sweeping")
     await expect(sweep.locator("img")).toHaveCSS("opacity", "0")
+    // On an untraced place the photographer can park the split, peek, and return
+    // to that exact comparison. The automatic wipe alone cannot exercise this.
+    const frame = page.getByRole("slider", { name: "Old photo reveal" })
+    const ghost = page.getByTestId("rephoto-review-ghost")
+    const box = (await frame.boundingBox())!
+    const y = box.y + box.height / 2
+    await page.mouse.move(box.x + box.width / 4, y)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * 0.75, y)
+    await page.mouse.up()
+    await expect(ghost).toHaveCSS("clip-path", "inset(0px 25% 0px 0px)")
+    await frame.press("ArrowLeft")
+    await expect(frame).toHaveAttribute("aria-valuenow", "70")
+    await page.mouse.down()
+    await expect(ghost).toHaveCSS("clip-path", "none")
+    await expect(ghost).toHaveCSS("opacity", "1")
+    await page.mouse.up()
+    await expect(ghost).toHaveCSS("clip-path", "inset(0px 30% 0px 0px)")
     const send = page.getByTestId("rephoto-send")
     await expect(send).toHaveText("Send photo")
     await expect(send).toBeEnabled()
