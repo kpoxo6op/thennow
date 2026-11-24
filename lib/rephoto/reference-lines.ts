@@ -17,6 +17,111 @@ export type ReferenceLines = {
   zones?: Zones
 }
 const guides: Record<string, ReferenceLines> = {
+  "mayfair-place": {
+    image: "/posts/0013-mayfair-place/then-mayfair-place.jpg",
+    features: [
+      {
+        name: "Left bird, head and neck",
+        points: [
+          [0.20222, 0.13833],
+          [0.19333, 0.10167],
+          [0.18222, 0.065],
+          [0.17, 0.05333],
+          [0.16333, 0.05667],
+          [0.15889, 0.075],
+          [0.16, 0.09333],
+          [0.17, 0.11167],
+          [0.17778, 0.12667],
+          [0.17889, 0.14333],
+          [0.17444, 0.165],
+          [0.16444, 0.18667],
+        ],
+      },
+      {
+        name: "Left bird, curved back to tail",
+        points: [
+          [0.16444, 0.18667],
+          [0.13444, 0.195],
+          [0.11333, 0.215],
+          [0.09556, 0.24833],
+          [0.08556, 0.28333],
+          [0.08111, 0.30833],
+        ],
+      },
+      {
+        name: "Second bird, body above tail",
+        points: [
+          [0.18889, 0.18833],
+          [0.19889, 0.21167],
+          [0.21778, 0.255],
+          [0.23889, 0.3],
+          [0.25556, 0.32667],
+        ],
+      },
+      {
+        name: "Left shop parapet and corner",
+        region: "shops",
+        points: [
+          [0.00222, 0.275],
+          [0.05556, 0.3],
+          [0.05333, 0.40833],
+        ],
+      },
+      {
+        name: "Left shop window sill",
+        points: [
+          [0.00222, 0.455],
+          [0.04778, 0.46],
+        ],
+      },
+      {
+        name: "Pergola beam across the passage",
+        region: "passage",
+        points: [
+          [0.41333, 0.54333],
+          [0.50556, 0.54167],
+        ],
+      },
+      {
+        name: "Pergola post beside the opening",
+        region: "passage",
+        points: [
+          [0.50556, 0.55],
+          [0.50556, 0.625],
+        ],
+      },
+      {
+        name: "Far shop roof above the cafe",
+        region: "shops",
+        points: [
+          [0.54444, 0.50167],
+          [0.60778, 0.50167],
+        ],
+      },
+      {
+        name: "Front rim of the round stage",
+        points: [
+          [0.61444, 0.64833],
+          [0.66, 0.655],
+          [0.73111, 0.66],
+          [0.82556, 0.66167],
+          [0.88444, 0.65833],
+          [0.92, 0.65167],
+        ],
+      },
+      {
+        name: "Play surface edge in foreground",
+        points: [
+          [0.37, 0.79167],
+          [0.43444, 0.82],
+          [0.49444, 0.865],
+          [0.53111, 0.90833],
+          [0.55667, 0.95333],
+          [0.57333, 0.995],
+        ],
+      },
+    ],
+  },
   "bradley-lane-line-road": {
     image: "/posts/0014-bradley-lane-line-road/then-bradley-lane-line-road.jpg",
     // The mural wall a few metres away; the shopfronts and awnings down the street.
