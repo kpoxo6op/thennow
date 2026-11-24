@@ -639,7 +639,7 @@ export function RephotoReview({
             aria-valuenow={peek ? 100 : split}
             tabIndex={0}
             aria-label="Old photo reveal"
-            aria-description="Drag or use the arrow keys to compare. Hold the photo or Space to see the old photo."
+            title="Drag or use the arrow keys to compare. Hold the photo or Space to see the old photo."
             data-testid="rephoto-review-frame"
             className="absolute touch-none select-none overflow-hidden bg-black focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white [-webkit-touch-callout:none]"
             style={{
