@@ -173,6 +173,10 @@ export function RephotoReview({
   // Once the photo has been held to compare, the wipe has nothing left to show.
   const heldRef = useRef(false)
   const [peek, setPeek] = useState(false)
+  const [split, setSplit] = useState(0)
+  const press = useRef<{ id: number; x: number; dragging: boolean } | null>(
+    null
+  )
   const [note, setNote] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [renders, setRenders] = useState(0)
@@ -300,16 +304,22 @@ export function RephotoReview({
             const value = scoreUsable(scored) ? scored.score : null
             const lined = linedUp(scored, false)
             setScore({ value, check })
-            const worst =
-              check.worst != null ? trace.features[check.worst] : null
-            // No line names: the coloured lines show which are off.
-            setNote(lined ? "Lined up." : "Hold the photo to compare.")
+            const off = check.lines.filter(
+              (line) => line.state === "off"
+            ).length
+            setNote(
+              lined && off
+                ? "Some edges differ. Drag to compare."
+                : lined
+                  ? "Lined up. Drag to compare."
+                  : "Drag to compare edges."
+            )
             diagnostic("score", {
               score: value,
               ok: lined,
               worst: check.worst,
               on: check.lines.filter((line) => line.state === "on").length,
-              off: check.lines.filter((line) => line.state === "off").length,
+              off,
               worstOffset:
                 check.worst == null ? null : check.lines[check.worst].offset,
             })
@@ -322,8 +332,8 @@ export function RephotoReview({
         }
         setNote(
           shot.assisted
-            ? "Framing adjusted. Hold to compare."
-            : "Your framing. Hold the photo to compare."
+            ? "Framing adjusted. Drag to compare."
+            : "Your framing. Drag to compare edges."
         )
         setPhase("unchecked")
         done("unchecked", { moved: 0 })
@@ -362,7 +372,7 @@ export function RephotoReview({
         const whole = fits(found.crop, archive.aspect, photo)
         setNote(
           whole
-            ? "Hold the photo to compare. Retake if the edges differ."
+            ? "Drag to compare edges. Retake if the edges differ."
             : "Step back to include the whole view."
         )
         done("framed", {
@@ -395,7 +405,7 @@ export function RephotoReview({
         setNote(
           partial
             ? "Step back to include the whole view."
-            : "Couldn’t check alignment. Hold the photo to compare."
+            : "Couldn’t check alignment. Drag to compare edges."
         )
         setPhase("unchecked")
       }
@@ -610,7 +620,8 @@ export function RephotoReview({
       })()
     : null
   const k = box ? box.width / crop.width : 1
-  const ghostOpacity = peek ? 1 : !settled ? 0.5 : 0
+  const comparing = split > 0 && !peek
+  const ghostOpacity = peek || comparing ? 1 : !settled ? 0.5 : 0
 
   return (
     <div
@@ -622,23 +633,82 @@ export function RephotoReview({
       <div ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden">
         {box && (
           <div
-            role="button"
+            role="slider"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={peek ? 100 : split}
             tabIndex={0}
-            aria-label="Hold to see the old photo"
+            aria-label="Old photo reveal"
+            title="Drag or use the arrow keys to compare. Hold the photo or Space to see the old photo."
             data-testid="rephoto-review-frame"
-            className="absolute touch-none select-none overflow-hidden bg-black outline-none [-webkit-touch-callout:none]"
+            className="absolute touch-none select-none overflow-hidden bg-black focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white [-webkit-touch-callout:none]"
             style={{
               left: box.left,
               top: box.top,
               width: box.width,
               height: box.height,
             }}
-            onPointerDown={hold}
-            onPointerUp={release}
-            onPointerCancel={release}
-            onPointerLeave={release}
-            onKeyDown={(event) => event.key === " " && hold()}
-            onKeyUp={release}
+            onPointerDown={(event) => {
+              if (!event.isPrimary || event.button !== 0) return
+              press.current = {
+                id: event.pointerId,
+                x: event.clientX,
+                dragging: false,
+              }
+              event.currentTarget.setPointerCapture(event.pointerId)
+              hold()
+            }}
+            onPointerMove={(event) => {
+              const start = press.current
+              if (!start || start.id !== event.pointerId) return
+              if (!start.dragging && Math.abs(event.clientX - start.x) < 6)
+                return
+              start.dragging = true
+              const rect = event.currentTarget.getBoundingClientRect()
+              setPeek(false)
+              setSplit(
+                Math.round(
+                  100 *
+                    Math.max(
+                      0,
+                      Math.min(1, (event.clientX - rect.left) / rect.width)
+                    )
+                )
+              )
+            }}
+            onLostPointerCapture={(event) => {
+              if (press.current?.id !== event.pointerId) return
+              press.current = null
+              release()
+            }}
+            onKeyDown={(event) => {
+              if (event.key === " ") {
+                event.preventDefault()
+                hold()
+                return
+              }
+              const step = {
+                ArrowRight: 5,
+                ArrowUp: 5,
+                ArrowLeft: -5,
+                ArrowDown: -5,
+              }[event.key]
+              if (step === undefined && !["Home", "End"].includes(event.key))
+                return
+              event.preventDefault()
+              heldRef.current = true
+              setSweeping(false)
+              release()
+              setSplit((current) =>
+                event.key === "Home"
+                  ? 0
+                  : event.key === "End"
+                    ? 100
+                    : Math.max(0, Math.min(100, current + (step ?? 0)))
+              )
+            }}
+            onKeyUp={(event) => event.key === " " && release()}
+            onBlur={release}
             onContextMenu={(event) => event.preventDefault()}
           >
             <div
@@ -658,9 +728,21 @@ export function RephotoReview({
               aria-hidden
               draggable={false}
               data-testid="rephoto-review-ghost"
-              className={`pointer-events-none absolute inset-0 size-full ${sweeping || cut ? "" : "transition-opacity duration-500"}`}
-              style={{ opacity: ghostOpacity }}
+              className={`pointer-events-none absolute inset-0 size-full ${sweeping || cut || comparing ? "" : "transition-opacity duration-500"}`}
+              style={{
+                opacity: ghostOpacity,
+                clipPath: comparing
+                  ? `inset(0 ${100 - split}% 0 0)`
+                  : undefined,
+              }}
             />
+            {comparing && split < 100 && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 w-px bg-white"
+                style={{ left: `${split}%` }}
+              />
+            )}
             {/* Mounted ahead, so the wipe starts on an already decoded picture. */}
             <div
               aria-hidden
@@ -683,7 +765,7 @@ export function RephotoReview({
                 </div>
               )}
             </div>
-            {trace && !peek && settled && !sweeping && (
+            {trace && !peek && !comparing && settled && !sweeping && (
               <ReferenceTrace
                 guide={trace}
                 confirmed={
@@ -713,9 +795,9 @@ export function RephotoReview({
             <div
               className={`text-2xl font-semibold tabular-nums ${score.value >= 85 ? "text-lime-300" : score.value >= 60 ? "text-amber-300" : "text-red-400"}`}
             >
-              {score.value}%
+              {score.value}/100
             </div>
-            <div className="text-xs text-white/75">lined up</div>
+            <div className="text-xs text-white/75">Guide score</div>
           </div>
         )}
         {status && (

@@ -82,3 +82,134 @@ verified; submissions carry `checked=false`. A failed still match offers Retake,
 even after a held live placement. A runtime failure remains unchecked and retains
 the photograph for manual review. These changes remove false assurance; they do
 not establish automatic photographic accuracy.
+
+## Run the cross-place outline baseline
+
+From the repository root, with Python 3, Pillow, NumPy, SciPy and the public Git
+history available, run:
+
+```sh
+python3 scripts/rephoto/evaluate_outlines.py
+```
+
+The default run reads every current catalogue entry with a modern image and the
+two November 11 published pairs from commit
+`d9e53835de2e0ed41c594439137a28c39a09615d`. It reads the historical JPEGs into
+memory. It needs no camera logs, submissions, service credentials or network.
+To score an unseen pair, append `--pair ARCHIVE.jpg MODERN.jpg`. Supply
+display-oriented exports. Local-pair mode uses the modern aspect ratio. Catalogue
+mode uses the declared comparison aspect ratio, including the Helensville crop.
+
+Both images receive the same centre-cover treatment at 640 px display width.
+The baseline extracts strong intensity gradients in four orientation bins and
+counts archive edge points with a modern edge of the same orientation within
+3 px. Each cell of a 3-column, 2-row grid also compares the displayed position
+with eight alternatives displaced by 16 px horizontally, vertically or both.
+The 24 px margin keeps all samples in frame. Votes read across the top row,
+then the bottom. A 1 means the displayed position strictly beat every shift;
+0 includes ties. A dash means no archive samples in that cell. Scores describe
+the supplied framing. There is no fitted transform or pass/retake threshold.
+
+| Pair (24 Nov 2026 run) | Outline agreement | Regional votes |
+| --- | ---: | --- |
+| Mill House | 12.8% | 010001 |
+| Rata Street (context only) | 16.5% | 100100 |
+| Helensville Post Office | 18.0% | 010000 |
+| Mission Bay Fountain | 36.5% | 000111 |
+| Mission Bay Yacht Club | 28.6% | 111000 |
+| Mission House | 25.6% | 010100 |
+| Bradley Lane, published Nov 24 | 54.9% | 111110 |
+| St Heliers Library, rejected Nov 11 | 26.2% | 000000 |
+| Bradley Lane, rejected Nov 11 | 48.7% | 110110 |
+
+The rejected Bradley capture beats all five manual architectural references on
+both measures. A grid can count one mural several times. Requiring upper and
+lower votes would also discard both the Fountain and the Yacht Club.
+
+### Independent landmarks and place holdout
+
+The landmarks in the reference and rejection sections above were assessed by
+comparing the photographs independently of the edge extractor. For example,
+at native 1000 × 675 Yacht Club scale, the clubhouse gable peak and far ridge
+end are approximately (175,223) and (340,235) in the archive, and (175,225)
+and (341,238) in the modern image. They give two checks on one roof. The
+seawall joint leading to the bottom edge checks another depth. At the Fountain,
+the bowl rim and basin lip survive the changes to trees and water jets. At
+rejected Bradley the mural corner is close while the hanging TAKEAWAY sign is
+displaced sideways. At rejected St Heliers compare the right roof hip against
+the facade below. These observations are evaluation evidence only. The baseline
+takes no landmark coordinates. These examples do not constitute a complete
+point-labelled dataset or measured tolerances for every structure.
+
+Use the following protocol to compare a future candidate:
+
+1. Group by place. Use leave-one-place-out folds for development: exclude every
+   capture, crop and variant of the scored place when fitting or choosing
+   thresholds. In particular, keep both Bradley dates together. Aggregate
+   decisions per place and also show each capture. All places above are now
+   known regression examples. Reserve additional whole places with independently
+   judged good and bad captures for a blind run after freezing the candidate.
+2. Before viewing candidate output, mark corresponding visible landmarks on
+   independent surviving structures or depths. Withhold those annotations from
+   fitting. Record annotation repeatability at the evaluation display width.
+   Report each structure's worst landmark displacement after the allowed
+   transform, in pixels at 640 px width. Set tolerances on development places
+   using manual-pair residuals and annotation uncertainty, then freeze them.
+3. As a minimum regression hurdle, accept both primary manual references,
+   accept neither historical rejection, and report decisions on all other
+   places. Count accept, retake and unverified separately for each label.
+   Report usable coverage (decisive calls / eligible pairs) alongside false
+   accepts and false retakes. Keep Rata Street as context only. An unsupported
+   fit, missing independent structure or ambiguous landmark warrants abstention.
+   An abstention on a good pair contributes no successful acceptance.
+4. Before promotion, predeclare the required coverage and allowable error rates
+   for the new-place run. Report numerators, denominators and place-level
+   uncertainty against those targets. An accepted capture fails the geometry
+   check if any held-out structure exceeds its frozen tolerance. Two known
+   negatives cannot establish a deployment false-accept rate. Passing this
+   local comparison qualifies a candidate for further evaluation only.
+
+Treat publication as provenance. A new public pair enters the comparison as
+unlabelled until its independent landmarks have been assessed. Adding it to a
+run increases the catalogue of examples without changing the five manual
+reference labels or the two known rejection labels.
+
+### Public catalogue run summaries
+
+The **Public alignment benchmark** workflow runs on relevant pushes to main and
+on manual dispatch. Each GitHub Actions run summary records a row for every
+current public pair and each pinned historical rejection. Compare summaries
+across revisions using the commit attached to each run.
+
+Run `python3 scripts/rephoto/evaluate_outlines.py --public-report` to reproduce
+the summary after installing the repository’s pnpm dependencies and the Python packages pinned in
+[the workflow](../.github/workflows/public-alignment.yml). This mode supplies
+the catalogue's displayed frames to the offline junction diagnostic as well as
+the outline baseline. It shows how many corners were found in each image, how
+many were matched, and how many matched displacements exceeded 8 px at 1000 px
+width. Read the displacement count together with its denominator. In the
+24 November run, the junction check abstained on all nine pairs, including both
+rejections. Zero matched corners leaves the displacement unmeasured.
+
+The last two columns replay the shipped LoFTR model and production crop fitter
+on each pair. A second pass embeds the same modern pixels in a larger, asymmetrically
+padded frame. The reported error is the largest difference between corresponding
+crop corners after undoing that known offset, in pixels per 1,000 pixels of crop width.
+A missing fit in either pass is reported explicitly. This measures repeatability
+under a framing change. A repeatably wrong fit can still miss the subject.
+
+### What the MoneyGram fascia taught us
+
+The four front corners of the fascia are roughly 14–17 px left in the 24 November
+export, at 1,000 px display width. Its top-right corner is about 6 px low. Fitting
+a single similarity transform to the four corners reduced their RMS error from
+15.6 to 1.5 px, but increased the error of the recessed TAKEAWAY lettering from
+4.4 to 16.3 px. Keep the front and recessed structures independent when judging
+a proposed correction. The changed lettering alone cannot identify the cause.
+
+An automatic junction check on a model-aligned replay located the top-right tip
+within about 2 px of the independent measurement. The same check abstained on
+the directly resized export and on the other places tested. Joining nearby
+collinear segments produced no additional matches in the six other fitted places.
+Keep these as development observations. Automatic steering or recropping needs
+new-place coverage and independent evidence from more than one structure.

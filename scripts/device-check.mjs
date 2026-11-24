@@ -144,7 +144,7 @@ try {
   record.checks.push("camera has enabled shutter")
   await call("tap", { desc: "Take photo" })
   state = await waitFor("Retake", "review")
-  if (!has(state, "Hold to see the old photo"))
+  if (!has(state, "Old photo reveal"))
     throw new Error(
       "Retake appeared without the captured-photo review control."
     )
