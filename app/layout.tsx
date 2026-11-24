@@ -5,18 +5,15 @@ import "@/styles/globals.css"
 import { Metadata, Viewport } from "next"
 
 import { siteConfig } from "@/config/site"
-import { fetchPosts } from "@/lib/api"
+import { fetchHomeStories } from "@/lib/api"
 import { fontSans, fontSerif } from "@/lib/fonts"
 import { linkPreview } from "@/lib/preview"
 import { cn } from "@/lib/utils"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 
-const HERO_SLUG = siteConfig.heroSlug
-
 // Pages without a photograph of their own are sent with the homepage's pair.
 export async function generateMetadata(): Promise<Metadata> {
-  const posts = await fetchPosts()
-  const hero = posts.find((post) => post.slug === HERO_SLUG) ?? posts[0]
+  const [hero] = await fetchHomeStories()
   const preview = linkPreview({
     path: "/",
     title: siteConfig.name,

@@ -54,7 +54,7 @@ any unrun physical/field checks; a green desktop run is not phone-ready proof.
 
 Each place has a folder under `public/posts/NNNN-slug/` holding its photographs and `NNNN-slug.json`. The file has `name`, `slug`, `description`, `location` (`lat`, `lng`), `w` and `h` (the photographs' pixel size) and `b_imageUrl` (the old photograph). A finished story also has `a_imageUrl` (the modern photograph) and `ba_imageUrl` (the pair, for previews). An upcoming place has `"status": "pending"` and an `archive` record (`date`, `photographer`, `credit`, `rights`, `sourceUrl`, `sourceId`). `lib/api.ts` reads these files at build time.
 
-To finish a story, add the modern photograph and the pair to the upcoming place's file and remove `"status"`.
+To finish a story, add the modern photograph and the pair to the upcoming place's file, remove `"status"`, and set `publishedAt` to the UTC time the pair is published (for example, `2026-11-24T05:02:43Z`). The homepage opens with the most recently published pair. Update this timestamp when publishing a replacement retake. Keep it for caption edits and image re-encodes.
 
 ## Sent photos
 

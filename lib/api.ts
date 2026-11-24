@@ -67,6 +67,15 @@ function check(file: string, json: Record<string, unknown>) {
     }
   } else if (typeof json.ba_imageUrl !== "string" || !json.ba_imageUrl) {
     fail(`a finished story needs "ba_imageUrl"`)
+  } else {
+    const value = json.publishedAt
+    const time = typeof value === "string" ? Date.parse(value) : NaN
+    if (
+      !Number.isFinite(time) ||
+      new Date(time).toISOString().slice(0, 19) + "Z" !== value
+    ) {
+      fail('a finished story needs "publishedAt" in UTC (YYYY-MM-DDTHH:mm:ssZ)')
+    }
   }
 }
 
@@ -104,6 +113,7 @@ function readAll() {
     return {
       ...shared,
       status: "complete",
+      publishedAt: jsonContent.publishedAt,
       a_imageUrl: jsonContent.a_imageUrl,
       ba_imageUrl: jsonContent.ba_imageUrl,
     }
@@ -123,6 +133,12 @@ export async function fetchPending(): Promise<PendingPost[]> {
   return readAll().filter(
     (post): post is PendingPost => post.status === "pending"
   )
+}
+
+export async function fetchHomeStories(): Promise<PostType[]> {
+  return (await fetchPosts())
+    .filter((post) => !post.sample)
+    .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
 }
 
 export function toSummary({
