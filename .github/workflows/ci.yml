@@ -8,8 +8,9 @@ on:
 
 jobs:
   test:
-    # ubuntu-latest moved to 26.04 (19 Nov 2026), which Playwright's browsers don't support yet.
     runs-on: ubuntu-24.04
+    # Keep this image in step with @playwright/test. It includes Chromium, WebKit and their OS libraries.
+    container: mcr.microsoft.com/playwright:v1.59.1-noble@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53
     timeout-minutes: 20
 
     steps:
@@ -28,14 +29,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium webkit
-
-      # The browsers came from the cache; the system libraries they need did not.
-      - name: Install Playwright system libraries
-        if: steps.browsers.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
 
       - name: Lint
         run: pnpm lint
