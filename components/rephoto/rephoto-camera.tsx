@@ -525,6 +525,10 @@ export function RephotoCamera({
           rotation: crop.rotation,
         })
         const raw = alignmentScore(result, trace)
+        const definiteMiss = result.lines.some(
+          (line) => line.votes && line.state === "off"
+        )
+        if (definiteMiss) recentScores.current = []
         let score: Score | null = null
         if (scoreUsable(raw)) {
           recentScores.current = [...recentScores.current, raw.score].slice(-3)
@@ -532,11 +536,11 @@ export function RephotoCamera({
           score = { ...raw, score: sorted[Math.floor(sorted.length / 2)] }
         }
         const run = lineRun.current
-        const now = linedUp(score, run.held)
+        const now = !definiteMiss && linedUp(score, run.held)
         run.passes = now ? run.passes + 1 : 0
         run.fails = now ? 0 : run.fails + 1
         if (!run.held && run.passes >= 2) run.held = true
-        if (run.held && run.fails >= 2) run.held = false
+        if (definiteMiss || run.fails >= 2) run.held = false
         setLines({
           ...result,
           checkedAt: lock.at,
@@ -1606,6 +1610,7 @@ export function RephotoCamera({
     setShot({
       canvas,
       crop,
+      aspect,
       locked: !!lock?.held,
       archive: archiveRef.current,
       takenAt: new Date(),
@@ -1618,7 +1623,6 @@ export function RephotoCamera({
         name={name}
         slug={slug}
         thenSrc={thenSrc}
-        aspect={aspect}
         shot={shot}
         onRetake={() => {
           // iPhone frees canvas memory late; hand it back now.

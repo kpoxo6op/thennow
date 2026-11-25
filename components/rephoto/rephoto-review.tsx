@@ -35,6 +35,7 @@ export type Shot = {
   canvas: HTMLCanvasElement
   // The exact rectangle composed in the viewfinder.
   crop: Crop
+  aspect: number
   // The camera recognized the scene before capture.
   locked: boolean
   archive: Archive | null
@@ -45,7 +46,6 @@ interface Props {
   name: string
   slug: string
   thenSrc: string
-  aspect: number
   shot: Shot
   onRetake: () => void
 }
@@ -132,16 +132,9 @@ function stamp(date: Date) {
 // The same as the live check's, so the number after the shot matches the one shown before it.
 const SCORE_WIDTH = 480
 
-export function RephotoReview({
-  name,
-  slug,
-  thenSrc,
-  aspect: listedAspect,
-  shot,
-  onRetake,
-}: Props) {
+export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
   const trace = referenceLines(slug, thenSrc)
-  const aspect = listedAspect
+  const aspect = shot.aspect
   const stageRef = useRef<HTMLDivElement>(null)
   const [stage, setStage] = useState({ width: 0, height: 0 })
   const crop = shot.crop
@@ -263,7 +256,7 @@ export function RephotoReview({
           const old = await grayOf(
             image,
             placed.width * k,
-            placed.width * k * archive.aspect
+            placed.width * k * shot.aspect
           )
           controller.signal.throwIfAborted()
           if (live && old) {

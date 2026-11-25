@@ -21,6 +21,18 @@ const guides: Record<string, ReferenceLines> = {
     image: "/posts/0001-sheep/then-sheep-4018x2298.jpg",
     features: [
       {
+        name: "Uphill power pole above the street corner",
+        points: [
+          [0.195, 0.1441],
+          [0.19875, 0.13755],
+          [0.205, 0.13755],
+          [0.2075, 0.14847],
+          [0.20125, 0.14847],
+          [0.2025, 0.29039],
+          [0.205, 0.41703],
+        ],
+      },
+      {
         name: "Near kerb from foreground around street corner",
         points: [
           [0.0025, 0.80349],
@@ -48,6 +60,25 @@ const guides: Record<string, ReferenceLines> = {
   "mill-house": {
     image: "/posts/0000-mill-house/t1-mill-house-750x580.jpg",
     features: [
+      {
+        name: "Chimney above the left end of the ridge",
+        points: [
+          [0.41655, 0.3193],
+          [0.41791, 0.29825],
+          [0.42334, 0.29298],
+          [0.43419, 0.29474],
+          [0.43962, 0.30351],
+          [0.43962, 0.31754],
+        ],
+      },
+      {
+        name: "Right wing roof ridge above the low windows",
+        points: [
+          [0.69878, 0.38246],
+          [0.74355, 0.38246],
+          [0.7924, 0.3807],
+        ],
+      },
       {
         name: "Main roof left slope and ridge",
         points: [

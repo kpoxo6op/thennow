@@ -107,8 +107,18 @@ test.describe("simulated camera application and API boundaries", () => {
   test("while the photo is being lined up, the main button says so and can't send yet", async ({
     page,
   }) => {
+    const post = archive("historic-post-office")
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route("**" + post.b_imageUrl, async (route) => {
+      await gate
+      await route.continue()
+    })
     await page.route("**/api/align", () => {})
-    await openCamera(page, "mission-house")
+    await openCamera(page, "historic-post-office")
+    const visible = await page.getByTestId("rephoto-frame").boundingBox()
     await shoot(page)
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
       "data-phase",
@@ -118,6 +128,25 @@ test.describe("simulated camera application and API boundaries", () => {
     await expect(send).toHaveText("Lining up…")
     await expect(send).toBeDisabled()
     await expect(page.getByTestId("rephoto-retake")).toBeEnabled()
+    // The archive scan is taller than the listed pair. A late decode must not
+    // change the bounds already composed and captured by the photographer.
+    release()
+    await page.getByTestId("rephoto-review-ghost").evaluate(async (img) => {
+      await (img as HTMLImageElement).decode()
+    })
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve))
+        )
+    )
+    const reviewed = await page
+      .getByTestId("rephoto-review-frame")
+      .boundingBox()
+    expect(reviewed!.height / reviewed!.width).toBeCloseTo(
+      visible!.height / visible!.width,
+      3
+    )
   })
 
   test("a photo that couldn't be compared, for want of a signal, can still be sent", async ({
