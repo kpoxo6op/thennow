@@ -789,11 +789,36 @@ test("landmarks react to a moved foreground and clear on an empty frame without 
   )
   await show("moved")
   await expect(slide).toHaveAttribute("data-state", "off")
+  let releaseRecognition!: () => void
+  const pending = new Promise<void>((resolve) => {
+    releaseRecognition = resolve
+  })
+  await page.route("**/api/align", async (route) => {
+    await pending
+    await route.abort()
+  })
   await page.getByTestId("rephoto-shutter").click()
+  try {
+    await expect(slide).toHaveAttribute("data-state", "off")
+    await expect(bird).toHaveAttribute("data-state", "on")
+    await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+      "data-phase",
+      "aligning"
+    )
+  } finally {
+    releaseRecognition()
+  }
   await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
     "data-phase",
     "unchecked"
   )
   await expect(slide).toHaveAttribute("data-state", "off", { timeout: 10000 })
   await expect(bird).toHaveAttribute("data-state", "on")
+  await page.addInitScript(() => {
+    window.Worker = class extends Worker {
+      override postMessage() {}
+    }
+  })
+  await page.reload()
+  await expect(slide).toHaveAttribute("data-state", "on", { timeout: 10000 })
 })

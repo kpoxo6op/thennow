@@ -363,10 +363,25 @@ export function checkLines(
       moves.filter(([x, y]) => x * mx + y * my > 0).length / moves.length
     const coherent =
       support >= 0.6 && agree >= 0.7 && Math.hypot(mx, my) / w > LINE_ON
-    if (!votes && offset > LINE_OFF && !coherent) return { ...unknown, support }
+    const distinctive = unique >= 3 && unique >= total * 0.6
+    // A scene lock cannot identify this particular edge. A plain regional
+    // landmark needs multiple samples agreeing on its own displacement.
+    const inliers = moves.filter(
+      ([x, y]) => Math.hypot(x - mx, y - my) <= LINE_ON * w
+    ).length
+    if (
+      !distinctive &&
+      (!recognized ||
+        !votes ||
+        inliers < Math.max(4, 0.7 * total) ||
+        inliers < 0.4 * samples)
+    ) {
+      return { ...unknown, support }
+    }
+    if (offset > LINE_OFF && !coherent) return { ...unknown, support }
     return {
       index,
-      distinctive: unique >= 3 && unique >= total * 0.6,
+      distinctive,
       state: offset <= LINE_ON ? "on" : offset > LINE_OFF ? "off" : "unknown",
       offset,
       support,

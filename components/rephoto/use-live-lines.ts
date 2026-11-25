@@ -36,6 +36,7 @@ export function useLiveLines(
   useEffect(() => {
     identity.current = recognized
   }, [recognized])
+  const rotation = crop?.rotation ?? 0
   const width = crop?.width,
     cx = crop?.cx,
     cy = crop?.cy
@@ -51,6 +52,7 @@ export function useLiveLines(
     let sampleGeneration = 0
     let timer: ReturnType<typeof setTimeout>
     let expire: ReturnType<typeof setTimeout>
+    let deadline: ReturnType<typeof setTimeout>
     let previousTime = -1
     let held = false,
       passes = 0
@@ -65,12 +67,25 @@ export function useLiveLines(
       setReading(null)
     }
     const k = Math.min(1, 480 / width)
-    const target = { cx: cx * k, cy: cy * k, width: width * k, rotation: 0 }
+    const target = { cx: cx * k, cy: cy * k, width: width * k, rotation }
     let sampled = 0,
       known = false
     const later = () => {
       if (!cancelled)
         timer = setTimeout(() => void sample(), worker ? 250 : 500)
+    }
+    function useMainThread() {
+      if (cancelled) return
+      clearTimeout(timer)
+      clearTimeout(deadline)
+      if (worker) {
+        worker.onmessage = null
+        worker.onerror = null
+        worker.terminate()
+        worker = undefined
+      }
+      reset()
+      later()
     }
     async function sample() {
       if (cancelled || !video || !archive) return
@@ -99,6 +114,7 @@ export function useLiveLines(
           return
         }
         if (worker) {
+          deadline = setTimeout(useMainThread, 1500)
           worker.postMessage({ live, crop: target, recognized: known }, [
             live.data.buffer,
           ])
@@ -114,6 +130,7 @@ export function useLiveLines(
     }
     function accept(check: LineCheck) {
       if (cancelled) return
+      clearTimeout(deadline)
       const trusted = known && identity.current
       if (
         document.hidden ||
@@ -219,14 +236,7 @@ export function useLiveLines(
           )
           worker.onmessage = (event: MessageEvent<LineCheck>) =>
             accept(event.data)
-          worker.onerror = () => {
-            if (cancelled) return
-            clearTimeout(timer)
-            worker?.terminate()
-            worker = undefined
-            reset()
-            later()
-          }
+          worker.onerror = useMainThread
           // Keep the one reference buffer for browsers that fail to load the module worker.
           worker.postMessage({ archive, guide: targetGuide })
         } catch {
@@ -248,12 +258,13 @@ export function useLiveLines(
     document.addEventListener("visibilitychange", visibility)
     return () => {
       cancelled = true
+      clearTimeout(deadline)
       clearTimeout(timer)
       clearTimeout(expire)
       worker?.terminate()
       document.removeEventListener("visibilitychange", visibility)
       reset()
     }
-  }, [videoRef, guide, width, cx, cy, aspect, enabled])
+  }, [videoRef, guide, width, cx, cy, rotation, aspect, enabled])
   return enabled && (!reading?.recognized || recognized) ? reading : null
 }

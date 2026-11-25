@@ -458,20 +458,19 @@ export function RephotoCamera({
   const near = verdicts
     .filter((l) => l.state === "unknown" && l.offset != null)
     .map((l) => l.index)
-  const focus = lines && trace ? focusLine(lines.check) : undefined
+  const focus = lines && trace ? focusLine(lines.check, trace) : undefined
   const possible = lines?.possible ?? []
   const shifts = [...verdicts.filter((l) => l.state === "off"), ...possible]
     .filter((l) => l.shift)
     .map((l) => ({ index: l.index, dx: l.shift![0], dy: l.shift![1] }))
-  const snapped = recognized && !!lines?.held && cue?.kind === "hold"
+  const snapped = recognized && !!lines?.held
   const liveScore = recognized ? lines?.score : null
-  // An identified foreground anchor is more useful than a distance inferred
-  // from the scale of far buildings. Let the person keep it while fixing the far edge.
-  const foreground = confirmed.includes(0) ? 0 : undefined
-  const showCoarse =
-    !!(confirmed.length || near.length) &&
-    !focus &&
-    !(foreground != null && (cue?.kind === "back" || cue?.kind === "closer"))
+  const foreground = confirmed.find(
+    (i) => trace?.features[i].name === trace?.foreground
+  )
+  // Traced routes use the gap on the named edge. A model fit alone cannot
+  // distinguish a step, a turn or parallax between the slide and distant shops.
+  const showCoarse = !trace && recognized
   useEffect(() => {
     // Without lines the follower's own "steady" buzz already marks this.
     if (snapped && trace) navigator.vibrate?.(15)
@@ -1553,7 +1552,9 @@ export function RephotoCamera({
           <div
             data-testid="handheld-guide"
             data-state={snapped ? "adjusted" : lock ? "found" : "searching"}
-            data-cue={showCoarse ? (cue?.kind ?? "none") : "none"}
+            data-cue={
+              snapped ? "hold" : showCoarse ? (cue?.kind ?? "none") : "none"
+            }
           >
             <MatcherGuide
               hidden={status !== "live" || interrupted}

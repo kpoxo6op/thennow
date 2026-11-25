@@ -17,10 +17,13 @@ if (!slug || !photo) {
   )
   process.exit(2)
 }
-const dir = fs.readdirSync("public/posts").find((d) => d.endsWith(`-${slug}`))
-const post = JSON.parse(
-  fs.readFileSync(`public/posts/${dir}/${dir}.json`, "utf8")
-)
+const post = fs
+  .readdirSync("public/posts")
+  .map((dir) =>
+    JSON.parse(fs.readFileSync(`public/posts/${dir}/${dir}.json`, "utf8"))
+  )
+  .find((record) => record.slug === slug)
+if (!post) throw new Error(`Unknown place: ${slug}`)
 const guide = referenceLines(slug, post.b_imageUrl)
 if (!guide) throw new Error(`No reference lines for ${slug}`)
 
@@ -49,17 +52,23 @@ const result = checkLines(guide, archive, live, {
   width: width * k,
   rotation,
 })
-const score = alignmentScore(result, guide)
+const { corroborated, lineInstruction } =
+  await import("../lib/rephoto/line-feedback.ts")
+const aspect = archive.height / archive.width
+const supported = corroborated(result, guide, aspect)
+const score = supported ? alignmentScore(result, guide) : null
 for (const line of result.lines) {
   const feature = guide.features[line.index]
   console.log(
     `${feature.name.padEnd(44)} ${(feature.region ?? "-").padEnd(10)} ${line.state.padEnd(8)} ${
-      line.offset == null ? "" : `${(line.offset * 100).toFixed(1)}%`
+      line.offset == null
+        ? ""
+        : `${(line.offset * 100).toFixed(1)}%${line.state === "off" && line.shift ? " · " + lineInstruction(guide, aspect, line) : ""}`
     }`
   )
 }
 console.log(
   score
-    ? `score ${score.score}, ${score.measured} of ${score.regions} regions, lined up: ${linedUp(score, false)}`
+    ? `score ${score.score}, ${score.measured} of ${score.regions} regions, lined up: ${result.ok && linedUp(score, false)}`
     : "score: nothing measured"
 )

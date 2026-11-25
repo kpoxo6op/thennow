@@ -55,10 +55,15 @@ export function corroborated(
   )
 }
 
-export function focusLine(check: LineCheck) {
+export function focusLine(check: LineCheck, guide: ReferenceLines) {
   // Give the foreground reference priority when multiple edges need work.
   return (
-    check.lines.find((l) => l.state === "off" && l.index === 0 && l.shift) ??
+    check.lines.find(
+      (l) =>
+        l.state === "off" &&
+        guide.features[l.index].name === guide.foreground &&
+        l.shift
+    ) ??
     check.lines.find((l) => l.votes && l.state === "off" && l.shift) ??
     check.lines.find((l) => l.state === "off" && l.shift) ??
     check.lines.find((l) => l.votes && l.state === "off")

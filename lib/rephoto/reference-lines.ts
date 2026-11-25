@@ -6,6 +6,7 @@ export const TRACE_OVERLAY_OPACITY = 0.16
 // of that image, not detections or a claim that the modern scene is unchanged.
 export type ReferenceLines = {
   image: string
+  foreground?: string
   features: {
     name: string
     points: [number, number][]
@@ -990,6 +991,7 @@ const guides: Record<string, ReferenceLines> = {
   },
   "mayfair-place": {
     image: "/posts/0013-mayfair-place/then-mayfair-place.jpg",
+    foreground: "Slide lip",
     features: [
       {
         name: "Slide lip",
@@ -1096,9 +1098,8 @@ const guides: Record<string, ReferenceLines> = {
         name: "Right blue lamp shaft",
         region: "far lamp",
         points: [
-          [0.73333, 0.44167],
-          [0.73444, 0.515],
-          [0.73556, 0.60833],
+          [0.73389, 0.44167],
+          [0.73444, 0.53],
         ],
       },
       {

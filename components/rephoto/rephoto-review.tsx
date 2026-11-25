@@ -284,7 +284,7 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
                       shift: undefined,
                     })),
                   }
-              const focus = focusLine(shown)
+              const focus = focusLine(shown, trace)
               const matched = shown.lines.find((l) => l.state === "on")
               const possible = supported
                 ? []
@@ -563,7 +563,7 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
     : null
   const k = box ? box.width / crop.width : 1
   const comparing = split > 0 && !peek
-  const ghostOpacity = peek || comparing ? 1 : !settled ? 0.5 : 0
+  const ghostOpacity = peek || comparing ? 1 : !settled && !score ? 0.5 : 0
 
   return (
     <div
