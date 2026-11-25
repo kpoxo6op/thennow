@@ -36,12 +36,7 @@ test("a showing sign stays until well past its threshold", () => {
   expect(sign({ cx: 2016 + 0.04 * 3628.8 })).toBe("hold")
   expect(
     cueFor(
-      cueErrors(
-        { ...target, cx: 2016 + 0.04 * 3628.8 },
-        target,
-        aspect,
-        photo
-      ),
+      cueErrors({ ...target, cx: 2016 + 0.04 * 3628.8 }, target, aspect, photo),
       "right"
     ).kind
   ).toBe("right")
