@@ -236,9 +236,8 @@ export function checkLines(
   const cos = Math.cos(crop.rotation)
   const sin = Math.sin(crop.rotation)
   const reach = Math.max(4, Math.round(REACH * w))
-  const anyRegion = guide.features.some((feature) => feature.region)
   const lines: LineVerdict[] = guide.features.map((feature, index) => {
-    if (anyRegion && !feature.region)
+    if (!feature.region)
       return { index, state: "unknown", offset: null, support: 0, votes: false }
     // Offsets in thirds of the line, so one matching stretch can't hide the rest.
     const sections: number[][] = [[], [], []]
@@ -361,7 +360,7 @@ export function checkLines(
     .filter((line) => line.state === "off")
     .sort((a, b) => (b.offset ?? 0) - (a.offset ?? 0))
   const voting = guide.features.flatMap((feature, index) =>
-    !anyRegion || feature.region ? [index] : []
+    feature.region ? [index] : []
   )
   const regions = new Set(
     voting.map((index) => guide.features[index].region ?? "all")

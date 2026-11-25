@@ -17,6 +17,508 @@ export type ReferenceLines = {
   zones?: Zones
 }
 const guides: Record<string, ReferenceLines> = {
+  "riddell-road-waimarie-street": {
+    image:
+      "/posts/0009-riddell-road-waimarie-street/then-riddell-road-waimarie-street.jpg",
+    features: [
+      {
+        name: "Distant rise of Riddell Road, left edge",
+        points: [
+          [0.19893, 0.56167],
+          [0.20561, 0.54333],
+          [0.21896, 0.51],
+        ],
+      },
+      {
+        name: "Opposite edge of the distant rise",
+        points: [
+          [0.21896, 0.56],
+          [0.2243, 0.53],
+          [0.23231, 0.505],
+        ],
+      },
+      {
+        name: "Far ridge beyond the junction",
+        points: [
+          [0.24566, 0.505],
+          [0.28037, 0.50167],
+          [0.29907, 0.505],
+          [0.33645, 0.49833],
+          [0.36315, 0.50333],
+        ],
+      },
+      {
+        name: "Left footpath approaching the junction",
+        points: [
+          [0.01335, 0.625],
+          [0.06142, 0.61167],
+          [0.11348, 0.595],
+          [0.16689, 0.58333],
+        ],
+      },
+      {
+        name: "Shop-side return into Waimarie Street",
+        points: [
+          [0.39252, 0.59],
+          [0.43925, 0.60833],
+          [0.49666, 0.62833],
+          [0.53004, 0.64333],
+          [0.53939, 0.65333],
+          [0.53405, 0.665],
+        ],
+      },
+      {
+        name: "Near curve at the footpath",
+        points: [
+          [0.5247, 0.68167],
+          [0.51402, 0.71],
+          [0.50601, 0.745],
+          [0.51001, 0.77],
+          [0.53271, 0.81167],
+          [0.57276, 0.865],
+          [0.62483, 0.91833],
+          [0.6996, 0.99333],
+        ],
+      },
+    ],
+  },
+  "st-heliers-beach-gower-point": {
+    image:
+      "/posts/0008-st-heliers-beach-gower-point/then-st-heliers-beach-gower-point.jpg",
+    features: [
+      {
+        name: "Gower Point slope above the water",
+        points: [
+          [0.32036, 0.49833],
+          [0.33852, 0.51167],
+          [0.35798, 0.51833],
+          [0.38003, 0.52167],
+          [0.40597, 0.52833],
+        ],
+      },
+      {
+        name: "Foot of the point",
+        points: [
+          [0.32425, 0.545],
+          [0.36446, 0.54333],
+          [0.39948, 0.54],
+          [0.42023, 0.53333],
+        ],
+      },
+      {
+        name: "Open harbour horizon",
+        points: [
+          [0.4358, 0.535],
+          [0.50065, 0.53333],
+          [0.53956, 0.52833],
+          [0.59533, 0.53],
+          [0.67315, 0.52667],
+        ],
+      },
+      {
+        name: "Low island summit",
+        points: [
+          [0.68482, 0.525],
+          [0.70298, 0.51833],
+          [0.71595, 0.51333],
+          [0.73152, 0.515],
+          [0.74838, 0.52333],
+        ],
+      },
+      {
+        name: "Right island ridge",
+        points: [
+          [0.77302, 0.52667],
+          [0.79767, 0.52],
+          [0.8275, 0.51333],
+          [0.85084, 0.51167],
+          [0.87678, 0.51667],
+          [0.89364, 0.52333],
+        ],
+      },
+      {
+        name: "Edge of the promenade above the sand",
+        points: [
+          [0.53178, 0.68667],
+          [0.62516, 0.69],
+          [0.6978, 0.69667],
+          [0.75616, 0.70667],
+          [0.85603, 0.71667],
+          [0.97536, 0.735],
+        ],
+      },
+    ],
+  },
+  "tamaki-drive-from-long-drive": {
+    image:
+      "/posts/0007-tamaki-drive-from-long-drive/then-tamaki-drive-from-long-drive.jpg",
+    features: [
+      {
+        name: "Seawall sweeping in from left",
+        points: [
+          [0.0025, 0.59667],
+          [0.1214, 0.57167],
+          [0.23154, 0.54833],
+          [0.34168, 0.525],
+        ],
+      },
+      {
+        name: "Seawall returning into bay",
+        points: [
+          [0.36671, 0.52],
+          [0.4418, 0.50333],
+          [0.51064, 0.49167],
+          [0.53567, 0.48167],
+        ],
+      },
+      {
+        name: "Headland at the left of the bay",
+        points: [
+          [0.00125, 0.33333],
+          [0.03004, 0.32],
+          [0.05632, 0.315],
+          [0.0826, 0.315],
+          [0.10763, 0.31833],
+          [0.14894, 0.32833],
+        ],
+      },
+      {
+        name: "Headland toe at the water",
+        points: [
+          [0.00375, 0.385],
+          [0.02253, 0.39333],
+          [0.07009, 0.39667],
+          [0.11014, 0.39667],
+        ],
+      },
+      {
+        name: "Promenade edge on the bend",
+        points: [
+          [0.37171, 0.56167],
+          [0.45432, 0.54167],
+          [0.5194, 0.52167],
+          [0.57822, 0.5],
+          [0.60451, 0.485],
+        ],
+      },
+      {
+        name: "Inside curve of the old junction",
+        points: [
+          [0.29662, 0.995],
+          [0.27534, 0.92833],
+          [0.26783, 0.88],
+          [0.27284, 0.83667],
+          [0.28786, 0.79167],
+          [0.31039, 0.75],
+          [0.34293, 0.72167],
+          [0.39299, 0.69167],
+          [0.46934, 0.64],
+        ],
+      },
+    ],
+  },
+  "northcote-post-office": {
+    image: "/posts/0011-northcote-post-office/then-northcote-post-office.jpg",
+    features: [
+      {
+        name: "Cornice across the front, left of pole",
+        points: [
+          [0.1325, 0.35616],
+          [0.24125, 0.35616],
+        ],
+      },
+      {
+        name: "Front cornice towards corner",
+        points: [
+          [0.265, 0.35616],
+          [0.355, 0.35812],
+        ],
+      },
+      {
+        name: "Tall left window and sill",
+        points: [
+          [0.12, 0.43249],
+          [0.11875, 0.5499],
+          [0.13, 0.5499],
+        ],
+      },
+      {
+        name: "Front window beside the pole",
+        points: [
+          [0.26875, 0.42466],
+          [0.28875, 0.42466],
+          [0.2875, 0.52642],
+          [0.27, 0.52642],
+        ],
+      },
+      {
+        name: "Cornice along the side wing",
+        points: [
+          [0.47, 0.37378],
+          [0.6375, 0.41683],
+        ],
+      },
+      {
+        name: "Side window group",
+        points: [
+          [0.53125, 0.44814],
+          [0.53125, 0.55186],
+        ],
+      },
+      {
+        name: "Entrance porch gable",
+        points: [
+          [0.6325, 0.47358],
+          [0.65, 0.41292],
+          [0.67, 0.48141],
+        ],
+      },
+      {
+        name: "Roof hip above the corner",
+        points: [
+          [0.44125, 0.29354],
+          [0.5275, 0.36008],
+        ],
+      },
+    ],
+  },
+  "bridgeway-cinema": {
+    image: "/posts/0010-bridgeway-cinema/then-bridgeway-cinema.jpg",
+    features: [
+      {
+        name: "Gable at the right of the roof",
+        region: "roof",
+        points: [
+          [0.71375, 0.22996],
+          [0.7675, 0.11181],
+        ],
+      },
+      {
+        name: "Lower roof ridge behind the verandah",
+        region: "roof",
+        points: [
+          [0.61625, 0.19831],
+          [0.7125, 0.20253],
+        ],
+      },
+      {
+        name: "Top of the old verandah",
+        points: [
+          [0.00625, 0.41983],
+          [0.70125, 0.2827],
+          [0.98375, 0.30169],
+        ],
+      },
+      {
+        name: "Far left arched shop window",
+        region: "shops",
+        points: [
+          [0.10625, 0.6308],
+          [0.10625, 0.50633],
+          [0.11375, 0.48945],
+          [0.12875, 0.48101],
+          [0.1425, 0.48734],
+          [0.14875, 0.5],
+        ],
+      },
+      {
+        name: "Middle shop window arch",
+        region: "shops",
+        points: [
+          [0.35375, 0.48734],
+          [0.3625, 0.47046],
+          [0.37875, 0.45781],
+          [0.40125, 0.45359],
+          [0.41625, 0.46203],
+          [0.42375, 0.47679],
+        ],
+      },
+      {
+        name: "Middle shop window sill",
+        region: "shops",
+        points: [
+          [0.35375, 0.64346],
+          [0.4225, 0.64768],
+        ],
+      },
+      {
+        name: "Large right-hand shop arch",
+        region: "shops",
+        points: [
+          [0.7775, 0.45148],
+          [0.8, 0.43671],
+          [0.8325, 0.42616],
+          [0.865, 0.42616],
+          [0.89875, 0.43671],
+          [0.92625, 0.46203],
+        ],
+      },
+      {
+        name: "Outer shop pier and sill",
+        region: "shops",
+        points: [
+          [0.93125, 0.47468],
+          [0.93125, 0.66667],
+          [0.78, 0.66034],
+        ],
+      },
+    ],
+  },
+  "northcote-tavern": {
+    image: "/posts/0012-northcote-tavern/then-northcote-tavern.jpg",
+    features: [
+      {
+        name: "Left gable above Queen Street",
+        region: "queen",
+        points: [
+          [0.29375, 0.2936],
+          [0.3375, 0.21634],
+          [0.375, 0.24062],
+        ],
+      },
+      {
+        name: "King Street gable to the right",
+        region: "verandah",
+        points: [
+          [0.72, 0.37969],
+          [0.76, 0.32671],
+          [0.8025, 0.4128],
+        ],
+      },
+      {
+        name: "Main front gable",
+        region: "queen",
+        points: [
+          [0.4175, 0.24503],
+          [0.4925, 0.1766],
+          [0.56125, 0.30684],
+        ],
+      },
+      {
+        name: "Corner where the two faces meet",
+        region: "queen",
+        points: [
+          [0.41875, 0.29139],
+          [0.41875, 0.70861],
+        ],
+      },
+      {
+        name: "Left pair of ground-floor windows",
+        region: "queen",
+        points: [
+          [0.32375, 0.57174],
+          [0.32375, 0.72185],
+          [0.375, 0.72185],
+          [0.375, 0.56071],
+        ],
+      },
+      {
+        name: "Upper verandah eaves",
+        region: "verandah",
+        points: [
+          [0.54625, 0.31347],
+          [0.70875, 0.38631],
+        ],
+      },
+      {
+        name: "Upper verandah rail",
+        region: "verandah",
+        points: [
+          [0.54375, 0.49669],
+          [0.7075, 0.53863],
+        ],
+      },
+      {
+        name: "Outer upstairs window",
+        points: [
+          [0.73375, 0.43267],
+          [0.73375, 0.54084],
+          [0.7625, 0.55408],
+          [0.7625, 0.44371],
+        ],
+      },
+    ],
+  },
+  "apirana-avenue-shops": {
+    image: "/posts/0021-apirana-avenue-shops/then-apirana-avenue-shops.jpg",
+    features: [
+      {
+        name: "High sawtooth roof and upright",
+        region: "roof",
+        points: [
+          [0.28333, 0.40667],
+          [0.48556, 0.34167],
+          [0.48667, 0.44],
+        ],
+      },
+      {
+        name: "Clerestory roof receding to the right",
+        region: "roof",
+        points: [
+          [0.49111, 0.37833],
+          [0.60889, 0.41333],
+        ],
+      },
+      {
+        name: "Post office parapet, left of the lamp",
+        region: "frontage",
+        points: [
+          [0.03222, 0.36833],
+          [0.24222, 0.40667],
+        ],
+      },
+      {
+        name: "Post office parapet beyond the lamp",
+        region: "frontage",
+        points: [
+          [0.26222, 0.41],
+          [0.52667, 0.45833],
+        ],
+      },
+      {
+        name: "Verandah soffit beside the entrance",
+        region: "frontage",
+        points: [
+          [0.01556, 0.50667],
+          [0.21111, 0.52333],
+        ],
+      },
+      {
+        name: "Recessed shopfront jamb",
+        points: [
+          [0.01333, 0.56333],
+          [0.01222, 0.73833],
+        ],
+      },
+      {
+        name: "Upper window at the far end",
+        points: [
+          [0.81444, 0.48167],
+          [0.84111, 0.48833],
+          [0.84111, 0.535],
+          [0.81444, 0.52833],
+          [0.81444, 0.48167],
+        ],
+      },
+      {
+        name: "Lamp shaft near the pavement end",
+        points: [
+          [0.25667, 0.165],
+          [0.25, 0.465],
+        ],
+      },
+      {
+        name: "Curve at the end of the footpath",
+        points: [
+          [0.31444, 0.825],
+          [0.30222, 0.87333],
+          [0.28667, 0.925],
+          [0.27778, 0.97167],
+          [0.27444, 0.99667],
+        ],
+      },
+    ],
+  },
   "mayfair-place": {
     image: "/posts/0013-mayfair-place/then-mayfair-place.jpg",
     features: [

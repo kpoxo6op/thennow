@@ -157,6 +157,8 @@ edges, including a visible horizon and surviving mural details such as Bradley
 Lane's cowboy foot. Spread guides across the composition to help framing and
 scale; do not restrict them to a central cluster or an arbitrary three features.
 
+Ship every new pending place with its own hand-drawn camera and review guide in the same change. Bind the guide to the exact archive asset and check it at phone size before listing the place. When modern evidence cannot support two independent regions, keep all strokes visual-only.
+
 For every new reference, apply the documented field-feedback lessons and
 per-image procedure, including long building lines and recognizable edge windows.
 Keep the faint archive for context. Review whole-frame coverage and record useful
