@@ -1,6 +1,6 @@
 # Reference guides
 
-Every pending place has hand-drawn lines bound to its archive image. Camera and
+Every place with a camera has hand-drawn lines bound to its archive image. Camera and
 capture review share the same guide. Some guides contain only visual references:
 without independently identifiable surviving regions, all strokes stay unscored.
 A faint full archive underneath supplies context beyond the selected lines,
@@ -146,7 +146,7 @@ Every region should be measured, and a visually good shot should score highest.
 
 ## Neighbourhood guides, November 2026
 
-- **Mayfair Place.** The suspended birds locate the upper left. The passage beam and post sit across the square, and the stage rim and play-surface curve frame the foreground. The business association shows the birds from a different angle. Benches, vegetation and lettering stay outside the score. [Local photo gallery](https://www.gleninnesvillage.co.nz/gallery)
+- **Mayfair Place.** The 25 November field recording shows the yellow slide exit in the foreground, the bench on three block feet beyond it, then the passage across the square. Aim from beside the exit. Its upper lip is a separate scoring region. The underside, foot and bench help judge distance by eye. The birds help locate the viewing side. Keep foliage and changed lettering out of the guide.
 - **Apirana Avenue.** Auckland Transport's right-hand ramp photo on page one shows the post office frontage, high white sawtooth, long verandah and pavement end from the other side of the approach. Use the roof and frontage to aim. The far window, lamp and kerb are visual references. Parked cars and shop signs change. [Auckland Transport, June 2024](https://at.govt.nz/media/0nspxrxh/links-to-glen-innes-june-2024-newsletter.pdf) · [Kura archive record](https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/284852)
 - **Bridgeway and Northcote Tavern.** Compare the shop arches and right roof at the cinema, and the gables, windows and upper verandah on the two faces of the tavern. The modern cinema fascia is deeper. The tavern gained a wing, hedge and fence. [October 2026 photographs](https://tmrowe.com/2026/10/26/how-to-time-travel-without-leaving-home/)
 - **Northcote Post Office.** Use the front cornice, tall windows and receding side elevation. The 1929 crowd hides the base. The restaurant conversion leaves the exact window correspondence uncertain, so these lines are visual only. [Auckland Council heritage review, Fig. 12](https://new.aucklandcouncil.govt.nz/content/dam/ac/docs/arts-culture-heritage/north-shore-heritage-thematic-review-volume-2.2.pdf)

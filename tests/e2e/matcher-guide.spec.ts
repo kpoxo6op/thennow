@@ -136,9 +136,7 @@ for (const [orientation, viewport] of Object.entries({
     const guide = page.getByTestId("matcher-guide")
     await expect(guide).toHaveAttribute("data-state", "loading")
     await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
-    await expect(
-      page.getByTestId("rephoto-camera").getByRole("button")
-    ).toHaveCount(1)
+    await expect(page.getByRole("button", { name: "Old photo" })).toBeVisible()
     const pill = await guide.locator("div").boundingBox()
     const close = await page
       .getByRole("link", { name: "Close camera" })
@@ -172,36 +170,14 @@ for (const [orientation, viewport] of Object.entries({
     // This reproduces the field jump at the model/browser boundary, not source text.
     const frame = page.getByTestId("rephoto-frame")
     const before = await frame.boundingBox()
-    const divider = page.getByRole("slider", {
-      name: "Compare old photo with live camera",
-    })
-    const handle = await divider.boundingBox()
-    await page.mouse.move(
-      handle!.x + handle!.width / 2,
-      handle!.y + handle!.height / 2
-    )
-    await page.mouse.down()
-    await page.mouse.move(
-      handle!.x + handle!.width / 2 + 70,
-      handle!.y + handle!.height / 2,
-      { steps: 8 }
-    )
-    await page.mouse.up()
-    expect(Number(await divider.getAttribute("aria-valuenow"))).toBeGreaterThan(
-      60
-    )
+    const video = page.getByTestId("rephoto-video")
+    await expect(page.getByRole("slider")).toHaveCount(0)
+    await expect(video).toHaveCSS("transform", "none")
+    await page.getByRole("button", { name: "Old photo" }).click()
     await expect(page.getByTestId("rephoto-ghost")).toHaveCSS("opacity", "1")
-    expect(await frame.boundingBox()).toEqual(before)
-    await divider.press("Home")
-    await expect(divider).toHaveAttribute("aria-valuenow", "0")
-    await divider.tap()
-    await expect(divider).toHaveAttribute("aria-valuenow", "0")
-    await divider.press("End")
-    await expect(divider).toHaveAttribute("aria-valuenow", "100")
-    await divider.tap()
-    await expect(divider).toHaveAttribute("aria-valuenow", "100")
-    for (let i = 0; i < 10; i++) await divider.press("ArrowLeft")
-    await expect(divider).toHaveAttribute("aria-valuenow", "50")
+    await expect(video).toHaveCSS("transform", "none")
+    await page.getByRole("button", { name: "Live camera" }).click()
+    await expect(page.getByTestId("rephoto-ghost")).toHaveCSS("opacity", "0.16")
     await page.evaluate(() => Object.assign(window, { __matchShift: 0.15 }))
     await expect
       .poll(() =>
@@ -245,11 +221,12 @@ for (const [orientation, viewport] of Object.entries({
       "0"
     )
     await page.evaluate(() => Object.assign(window, { __matcherDown: false }))
-    const captureGuide = page.getByTestId("capture-guide")
+
     await expect(stage).toHaveAttribute("data-lock", "steady", {
       timeout: 30_000,
     })
-    await expect(captureGuide).toContainText("Scene found · Slide to compare")
+    await expect(video).toHaveCSS("transform", "none")
+    expect(await frame.boundingBox()).toEqual(before)
     // A stable coarse fit must never fire the shutter. The former 1.2-second
     // countdown is a credible regression only this live-lock journey exercises.
     await page.waitForTimeout(1800)
@@ -360,10 +337,7 @@ for (const [orientation, viewport] of Object.entries({
       )
     ).toBe(true)
     expect(batches.length).toBeLessThan(events().length)
-    // Curated traces are fixed aiming targets. A match now drives the live sign (here the
-    // matched view is wider than the target, so: step back). The shot keeps what the screen
-    // showed: the tracked crop, brought back inside the photo (21 Nov 2026: falling back to the
-    // centre crop saved a photo unlike the screen).
+    // A displaced fit may suggest a physical move, but the guide and saved crop stay fixed.
     await runtime(
       page,
       ort
@@ -472,12 +446,10 @@ for (const [orientation, viewport] of Object.entries({
       const crop = JSON.parse(
         (await page.getByTestId("rephoto-review").getAttribute("data-crop"))!
       )
-      // Wider than the resting target (the matched view is), yet inside the photo.
-      expect(crop.width).toBeGreaterThan(expectedWidth)
-      expect(crop.width).toBeLessThanOrEqual(
-        Math.min(size.width, size.height / (2 / 3)) + 1
-      )
-      expect(Math.abs(crop.rotation)).toBeLessThan(0.1)
+      expect(Math.abs(crop.width - expectedWidth)).toBeLessThan(1)
+      expect(crop.cx).toBe(size.width / 2)
+      expect(crop.cy).toBe(size.height / 2)
+      expect(crop.rotation).toBe(0)
       expect(
         events()
           .slice(eventStart)
@@ -503,7 +475,7 @@ for (const [orientation, viewport] of Object.entries({
           }),
           expect.objectContaining({
             event: "shot",
-            framing: "live",
+            framing: "traced",
             how: "manual",
           }),
         ])

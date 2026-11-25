@@ -144,7 +144,18 @@ try {
   record.checks.push("camera has enabled shutter")
   await call("tap", { desc: "Take photo" })
   state = await waitFor("Retake", "review")
-  if (!has(state, "Old photo reveal"))
+  // Chrome can expose the review slider as an unnamed Android SeekBar.
+  const sliders = (state.nodes ?? []).filter(
+    (n) =>
+      n.class === "android.widget.SeekBar" &&
+      n.enabled === "true" &&
+      n.bounds &&
+      n.bounds !== "[0,0][0,0]"
+  )
+  if (
+    !has(state, "Old photo reveal") &&
+    !(sliders.length === 1 && has(state, "Send photo"))
+  )
     throw new Error(
       "Retake appeared without the captured-photo review control."
     )

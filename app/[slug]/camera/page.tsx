@@ -2,6 +2,7 @@ import { Metadata, Viewport } from "next"
 import { notFound } from "next/navigation"
 
 import { fetchPending, fetchPosts } from "@/lib/api"
+import { referenceLines } from "@/lib/rephoto/reference-lines"
 import { RephotoCamera } from "@/components/rephoto/rephoto-camera"
 
 interface Props {
@@ -42,6 +43,10 @@ export default async function CameraPage({ params }: Props) {
 
   if (!place) {
     notFound()
+  }
+
+  if (!referenceLines(place.slug, place.b_imageUrl)) {
+    throw new Error(`Missing camera guide for ${place.slug}`)
   }
 
   return (

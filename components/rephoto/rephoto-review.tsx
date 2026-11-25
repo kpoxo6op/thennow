@@ -10,14 +10,8 @@ import {
 import Link from "next/link"
 import { X } from "lucide-react"
 
+import { align, prepareArchive, type Archive } from "@/lib/rephoto/align"
 import {
-  align,
-  NEAR_REACH,
-  prepareArchive,
-  type Archive,
-} from "@/lib/rephoto/align"
-import {
-  fits,
   MAX_OUTPUT_WIDTH,
   releaseCanvas,
   renderCrop,
@@ -39,16 +33,10 @@ import { ReferenceTrace } from "@/components/rephoto/reference-trace"
 export type Shot = {
   // The real photograph, at the camera's full resolution.
   canvas: HTMLCanvasElement
-  // Where the old photograph sat on screen when it was taken, kept if the matcher can't place it.
+  // The exact rectangle composed in the viewfinder.
   crop: Crop
-  // Whether that was the matcher's own placement, rather than the resting guide.
+  // The camera recognized the scene before capture.
   locked: boolean
-  // Fixed trace geometry must survive review and export unchanged.
-  traced?: boolean
-  assisted?: boolean
-  assistanceLost?: boolean
-  // The live score shown when the shot was taken, used if the shot itself can't be scored.
-  liveScore?: number | null
   archive: Archive | null
   takenAt: Date
 }
@@ -65,7 +53,7 @@ interface Props {
 // Unchecked: the photo couldn't be compared with the old one (no signal, matcher busy), which
 // says nothing about the photo, so it can still be sent. Unmatched: it was compared and isn't
 // the same view, so it can only be taken again.
-type Phase = "aligning" | "framed" | "unchecked" | "unmatched"
+type Phase = "aligning" | "unchecked" | "unmatched"
 type Sending =
   | "idle"
   | "sending"
@@ -118,8 +106,6 @@ async function encode(source: HTMLCanvasElement, crop: Crop, aspect: number) {
 const SETTLE_MS = 350
 const SWEEP_MS = 1100
 
-class NoMatch extends Error {}
-
 // The name already given on this phone, if any. Asking also gives the phone its cookie. Only one
 // question is out at a time, so two answers can never bring two different cookies.
 let asking: Promise<string | null> | null = null
@@ -154,11 +140,11 @@ export function RephotoReview({
   shot,
   onRetake,
 }: Props) {
-  const trace = shot.traced ? referenceLines(slug, thenSrc) : null
-  const [aspect, setAspect] = useState(listedAspect)
+  const trace = referenceLines(slug, thenSrc)
+  const aspect = listedAspect
   const stageRef = useRef<HTMLDivElement>(null)
   const [stage, setStage] = useState({ width: 0, height: 0 })
-  const [crop, setCrop] = useState<Crop>(shot.crop)
+  const crop = shot.crop
   const [phase, setPhase] = useState<Phase>("aligning")
   // How well the reference lines sit on their edges in this shot, line by line.
   const [score, setScore] = useState<{
@@ -230,7 +216,6 @@ export function RephotoReview({
   useEffect(() => {
     const controller = new AbortController()
     const photo = { width: shot.canvas.width, height: shot.canvas.height }
-    let slow: ReturnType<typeof setTimeout> | undefined
     const began = performance.now()
     const done = (
       result: string,
@@ -245,16 +230,9 @@ export function RephotoReview({
         }
       )
     const run = async () => {
-      if (shot.assistanceLost) {
-        setNote("Framing changed while shooting. Try again.")
-        setPhase("unmatched")
-        done("unmatched")
-        return
-      }
-      if (shot.traced && trace) {
-        // Checked line by line against the shot, at the framing that fits it best: the human
-        // eye sees a canopy off its line at once, so the score has to as well.
-        let placed = shot.crop
+      if (trace) {
+        // Measure the captured composition, preserving the photographer’s frame.
+        const placed = shot.crop
         try {
           const image = await loadImage(thenSrc)
           controller.signal.throwIfAborted()
@@ -266,17 +244,16 @@ export function RephotoReview({
             controller.signal,
             { server: true }
           )
-          if (found && fits(found.crop, archive.aspect, photo)) {
-            placed = found.crop
-            setCrop(found.crop)
+          controller.signal.throwIfAborted()
+          if (!found) {
+            if (shot.locked) {
+              setNote("The views don’t line up. Try another nearby viewpoint.")
+              setPhase("unmatched")
+              done("unmatched")
+              return
+            }
+            throw new Error("Scene unconfirmed")
           }
-          // Neither matched now nor framed by the camera's match: the crop is just the resting
-          // guide, and scoring it would blame lines that were never placed (20 Nov 2026: a 0).
-          if (
-            !(found && fits(found.crop, archive.aspect, photo)) &&
-            !shot.locked
-          )
-            throw new Error("Unplaced")
           const k = Math.min(1, SCORE_WIDTH / placed.width)
           const live = await grayOf(
             shot.canvas,
@@ -330,92 +307,16 @@ export function RephotoReview({
         } catch {
           if (controller.signal.aborted) return
         }
-        setNote(
-          shot.assisted
-            ? "Framing adjusted. Drag to compare."
-            : "Your framing. Drag to compare edges."
-        )
-        setPhase("unchecked")
-        done("unchecked", { moved: 0 })
-        return
       }
-      try {
-        const archive =
-          shot.archive ??
-          prepareArchive(
-            await Promise.race([
-              loadImage(thenSrc),
-              new Promise<never>(
-                (_, reject) =>
-                  (slow = setTimeout(
-                    () => reject(new Error("Slow archive")),
-                    10_000
-                  ))
-              ),
-            ])
-          )
-        controller.signal.throwIfAborted()
-        setAspect(archive.aspect)
-        // A view too far away to be found in the whole photo is looked for in its middle.
-        const found =
-          (await align(archive, shot.canvas, photo, controller.signal, {
-            server: true,
-          })) ??
-          (await align(archive, shot.canvas, photo, controller.signal, {
-            server: true,
-            reach: NEAR_REACH,
-          }))
-        if (!found) throw new NoMatch()
-        // The crop stays exactly on the old view, so the two line up. Where that view runs off
-        // the photograph the corner is left black, never filled in, and the note says why.
-        setCrop(found.crop)
-        const whole = fits(found.crop, archive.aspect, photo)
-        setNote(
-          whole
-            ? "Drag to compare edges. Retake if the edges differ."
-            : "Step back to include the whole view."
-        )
-        done("framed", {
-          whole,
-          moved: Math.round(
-            (Math.hypot(
-              found.crop.cx - shot.crop.cx,
-              found.crop.cy - shot.crop.cy
-            ) /
-              shot.crop.width) *
-              100
-          ),
-          zoom: Math.round((found.crop.width / photo.width) * 100),
-          turn: Math.round((found.crop.rotation * 180) / Math.PI),
-        })
-        setPhase("framed")
-      } catch (error) {
-        if (controller.signal.aborted) return
-        done(error instanceof NoMatch ? "unmatched" : "unchecked", {
-          why: String(error).slice(0, 120),
-        })
-        const listed = shot.archive?.aspect ?? listedAspect
-        const partial = !fits(shot.crop, listed, photo)
-        if (error instanceof NoMatch) {
-          setPhase("unmatched")
-          setNote("The views don’t line up. Try another nearby viewpoint.")
-          return
-        }
-        // Not compared at all: the photo is kept as framed, and may still be sent.
-        setNote(
-          partial
-            ? "Step back to include the whole view."
-            : "Couldn’t check alignment. Drag to compare edges."
-        )
-        setPhase("unchecked")
-      }
+      setNote("Your framing. Drag to compare edges.")
+      setPhase("unchecked")
+      done("unchecked", { moved: 0 })
     }
     void run()
     return () => {
-      clearTimeout(slow)
       controller.abort()
     }
-  }, [shot, thenSrc, listedAspect, trace])
+  }, [shot, thenSrc, trace])
 
   useEffect(() => {
     if (phase === "aligning") return
@@ -605,7 +506,7 @@ export function RephotoReview({
     sending === "busy" ||
     sending === "limited" ||
     sending === "refused"
-  const sendable = phase === "framed" || phase === "unchecked"
+  const sendable = phase === "unchecked"
   const status = saveNote || (failed ? NOT_SENT[sending] : note)
 
   const box = stage.width

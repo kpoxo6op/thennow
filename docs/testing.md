@@ -207,17 +207,7 @@ and an agent's approval are not evidence of real device behaviour.
 
 ## Camera framing and capture
 
-The matcher-guide journey owns the observed St Heliers regression: an inconsistent
-model placement must not move the accepted overlay; lost tracking fades it in
-place. A stable coarse fit is only framing assistance and must not fire the
-shutter or certify alignment. Manual capture remains available while loading,
-searching and with an unsupported matcher. The same journey supplies a deliberately
-positive simulated model answer over an unrelated camera frame for traced places:
-regional evidence must refuse assistance, the aiming target stays fixed, and a
-manual burst falls back to its first frame and exact composed crop. The download
-journey also takes an unchecked traced photo while identity assistance is loading. A failed still-frame match must revoke
-a live placement; runtime failures remain unchecked. Coarse framing never marks a
-submission as geometrically verified.
+The matcher-guide journey follows recognition, loss, reacquisition and archive inspection with a stationary camera. The video and archive target stay fixed, and a displaced model fit leaves the captured crop at the visible frame. The send journey compares the actual JPEG to the corresponding area of the viewfinder. Manual capture remains available while the matcher is loading or unavailable. A failed still-frame recognition after a live lock asks for a retake. Runtime failures allow the photographer to review and send their composition.
 
 These existing journeys protect control flow with simulated inference. The manual
 photo baseline in [alignment-quality.md](alignment-quality.md) and real field
