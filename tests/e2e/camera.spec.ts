@@ -107,8 +107,18 @@ test.describe("simulated camera application and API boundaries", () => {
   test("while the photo is being lined up, the main button says so and can't send yet", async ({
     page,
   }) => {
+    const post = archive("historic-post-office")
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route("**" + post.b_imageUrl, async (route) => {
+      await gate
+      await route.continue()
+    })
     await page.route("**/api/align", () => {})
-    await openCamera(page, "mission-house")
+    await openCamera(page, "historic-post-office")
+    const visible = await page.getByTestId("rephoto-frame").boundingBox()
     await shoot(page)
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
       "data-phase",
@@ -118,6 +128,25 @@ test.describe("simulated camera application and API boundaries", () => {
     await expect(send).toHaveText("Lining up…")
     await expect(send).toBeDisabled()
     await expect(page.getByTestId("rephoto-retake")).toBeEnabled()
+    // The archive scan is taller than the listed pair. A late decode must not
+    // change the bounds already composed and captured by the photographer.
+    release()
+    await page.getByTestId("rephoto-review-ghost").evaluate(async (img) => {
+      await (img as HTMLImageElement).decode()
+    })
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve))
+        )
+    )
+    const reviewed = await page
+      .getByTestId("rephoto-review-frame")
+      .boundingBox()
+    expect(reviewed!.height / reviewed!.width).toBeCloseTo(
+      visible!.height / visible!.width,
+      3
+    )
   })
 
   test("a photo that couldn't be compared, for want of a signal, can still be sent", async ({
@@ -159,7 +188,7 @@ test.describe("simulated camera application and API boundaries", () => {
     await expect(send).toBeEnabled()
   })
 
-  test("a phone whose own matcher can't load lines the shot up on the server", async ({
+  test("a phone whose matcher cannot load checks the shot on the server", async ({
     page,
   }) => {
     await page.addInitScript(() => {
@@ -179,7 +208,7 @@ test.describe("simulated camera application and API boundaries", () => {
     await shoot(page)
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
       "data-phase",
-      "framed",
+      "unchecked",
       { timeout: 30_000 }
     )
     expect(serverCalls).toBe(1)
@@ -203,10 +232,15 @@ test.describe("simulated camera application and API boundaries", () => {
     )
   })
 
-  test("a server that takes over ten seconds to match still lines the shot up", async ({
+  test("review waits for a slow server to check the captured scene", async ({
     page,
   }) => {
     // The site's server took 9-11 s a match, and the camera gave up at 10 (Glen Innes, Nov 2026).
+    let responseReceived = false
+    page.on("response", (response) => {
+      if (response.url().endsWith("/api/align") && response.ok())
+        responseReceived = true
+    })
     await page.route("**/api/align", async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 12_000))
       await route.continue()
@@ -215,9 +249,10 @@ test.describe("simulated camera application and API boundaries", () => {
     await shoot(page)
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
       "data-phase",
-      "framed",
+      "unchecked",
       { timeout: 45_000 }
     )
+    expect(responseReceived).toBe(true)
   })
 
   test("the matcher refuses anything but two pictures of the agreed size", async ({
@@ -348,10 +383,50 @@ test.describe("simulated camera application and API boundaries", () => {
       await route.fulfill({ json: { ok: true } })
     })
     await openCamera(page, "mission-house")
+    // Sample the actual stationary sensor under the visible archive rectangle.
+    const expectedPixels = await page
+      .getByTestId("rephoto-video")
+      .evaluate((video: HTMLVideoElement) => {
+        const videoBox = video.getBoundingClientRect()
+        const frame = document
+          .querySelector('[data-testid="rephoto-frame"]')!
+          .getBoundingClientRect()
+        const scale = Math.min(
+          videoBox.width / video.videoWidth,
+          videoBox.height / video.videoHeight
+        )
+        const x =
+          (frame.x -
+            videoBox.x -
+            (videoBox.width - video.videoWidth * scale) / 2) /
+          scale
+        const y =
+          (frame.y -
+            videoBox.y -
+            (videoBox.height - video.videoHeight * scale) / 2) /
+          scale
+        const canvas = document.createElement("canvas")
+        canvas.width = 32
+        canvas.height = 24
+        const ctx = canvas.getContext("2d")!
+        ctx.imageSmoothingQuality = "high"
+        ctx.drawImage(
+          video,
+          x,
+          y,
+          frame.width / scale,
+          frame.height / scale,
+          0,
+          0,
+          32,
+          24
+        )
+        return Array.from(ctx.getImageData(0, 0, 32, 24).data)
+      })
     await shoot(page)
     await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
       "data-phase",
-      "framed",
+      "unchecked",
       { timeout: 30_000 }
     )
     await expect(page.getByTestId("rephoto-consent")).toBeVisible()
@@ -381,8 +456,24 @@ test.describe("simulated camera application and API boundaries", () => {
       const image = new Image()
       image.src = `data:image/jpeg;base64,${base64}`
       await image.decode()
-      return { width: image.naturalWidth, height: image.naturalHeight }
+      const canvas = document.createElement("canvas")
+      canvas.width = 32
+      canvas.height = 24
+      const ctx = canvas.getContext("2d")!
+      ctx.imageSmoothingQuality = "high"
+      ctx.drawImage(image, 0, 0, 32, 24)
+      return {
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+        pixels: Array.from(ctx.getImageData(0, 0, 32, 24).data),
+      }
     }, body.toString("base64"))
+    const difference =
+      size.pixels.reduce(
+        (sum, value, i) => sum + Math.abs(value - expectedPixels[i]),
+        0
+      ) / size.pixels.length
+    expect(difference).toBeLessThan(4)
     expect(size.height / size.width).toBeCloseTo(place.h / place.w, 2)
 
     await expect(page.getByTestId("rephoto-done")).toHaveAttribute(

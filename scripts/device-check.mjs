@@ -123,11 +123,11 @@ async function observe(name) {
   if (state.screenshot) record.screenshots.push(state.screenshot)
   return state
 }
-async function waitFor(label, name) {
+async function waitFor(label, name, ready = () => true) {
   // Read-only observations may wait for rendering/inference; mutations are never replayed.
   for (let i = 0; i < 6; i++) {
     const state = await observe(`${name}-${i}`)
-    if (has(state, label)) return state
+    if (has(state, label) && ready(state)) return state
     await new Promise((resolve) => setTimeout(resolve, 2000))
   }
   throw new Error(`Expected visible enabled ${label} was not observed.`)
@@ -143,11 +143,20 @@ try {
   await waitFor("Take photo", "camera")
   record.checks.push("camera has enabled shutter")
   await call("tap", { desc: "Take photo" })
-  state = await waitFor("Retake", "review")
-  if (!has(state, "Old photo reveal"))
-    throw new Error(
-      "Retake appeared without the captured-photo review control."
+  state = await waitFor("Retake", "review", (view) => {
+    // Chrome can expose the review slider as an unnamed Android SeekBar.
+    const sliders = (view.nodes ?? []).filter(
+      (n) =>
+        n.class === "android.widget.SeekBar" &&
+        n.enabled === "true" &&
+        n.bounds &&
+        n.bounds !== "[0,0][0,0]"
     )
+    return (
+      has(view, "Old photo reveal") ||
+      (sliders.length === 1 && has(view, "Send photo"))
+    )
+  })
   record.checks.push("capture reaches photo review")
   await call("tap", { text: "Retake" })
   state = await waitFor("Take photo", "retaken")

@@ -27,14 +27,7 @@ import {
   type AlignDiagnostic,
   type Archive,
 } from "@/lib/rephoto/align"
-import {
-  fits,
-  nudgeInside,
-  releaseCanvas,
-  shrinkToFit,
-  type Crop,
-  type Size,
-} from "@/lib/rephoto/crop"
+import { fits, releaseCanvas, type Crop, type Size } from "@/lib/rephoto/crop"
 import {
   cueErrors,
   CueFilter,
@@ -74,7 +67,6 @@ import {
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { slide, thumb, type Thumb } from "@/lib/rephoto/track"
 import { releaseScreen } from "@/components/rephoto/camera-link"
-import { LiveDivider } from "@/components/rephoto/live-divider"
 import { MatcherGuide } from "@/components/rephoto/matcher-guide"
 import { ReferenceTrace } from "@/components/rephoto/reference-trace"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
@@ -142,6 +134,15 @@ const MAX_TILT_RADIANS = (15 * Math.PI) / 180
 function fit(aspect: number, width: number, height: number, fill = 1) {
   const w = Math.min(width, height / aspect) * fill
   return { width: w, height: w * aspect }
+}
+
+function frameCrop(aspect: number, width: number, height: number): Crop {
+  return {
+    cx: width / 2,
+    cy: height / 2,
+    width: fit(aspect, width, height, GHOST_FILL).width,
+    rotation: 0,
+  }
 }
 
 function explain(error: unknown) {
@@ -332,26 +333,16 @@ export function RephotoCamera({
     }
   }, [])
   const [showArchive, setShowArchive] = useState(false)
-  const [reveal, setReveal] = useState(50)
-  // Debounce drag/resize updates; no per-frame or per-pointer log stream.
   useEffect(() => {
     if (shot || status !== "live") return
-    const record = () => {
-      diagnostic("guide view", {
-        view: trace ? (showArchive ? "archive" : "traces") : "split",
-        overlay: trace ? (showArchive ? 1 : TRACE_OVERLAY_OPACITY) : 1,
-        reveal: trace ? 100 : Math.round(reveal),
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-      })
-    }
-    if (trace) {
-      record()
-      return
-    }
-    const timer = setTimeout(record, 300)
-    return () => clearTimeout(timer)
-  }, [shot, status, trace, showArchive, reveal, stage.width, stage.height])
+    diagnostic("guide view", {
+      view: showArchive ? "archive" : "traces",
+      overlay: showArchive ? 1 : TRACE_OVERLAY_OPACITY,
+      reveal: 100,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    })
+  }, [shot, status, showArchive, stage.width, stage.height])
   const capturing = useRef(false)
   const [captureBusy, setCaptureBusy] = useState(false)
   // Where the archive view sits in the live picture, once the matcher has found it.
@@ -369,17 +360,6 @@ export function RephotoCamera({
     confirmedAt?: number
     settledAt?: number
   } | null>(null)
-
-  // A lost match fades at its last position instead of sweeping back to centre.
-  const [lastPlacement, setLastPlacement] = useState<typeof lock>(null)
-  if (lock && lastPlacement !== lock) setLastPlacement(lock)
-  useEffect(() => {
-    if (lock || !lastPlacement) return
-    // Fade out where it was, then mount the resting reference without travelling
-    // across the scene. Manual framing remains possible if matching never returns.
-    const timer = setTimeout(() => setLastPlacement(null), 400)
-    return () => clearTimeout(timer)
-  }, [lock, lastPlacement])
 
   // One sign at a time telling which way to move, from where the view sits in the live picture.
   // A sign stays at least 1.5 s, so the words don't change faster than they can be read.
@@ -402,17 +382,11 @@ export function RephotoCamera({
     const now = performance.now()
     let next: Cue | null = null
     let errors: ReturnType<typeof cueErrors> | null = null
-    if (lock && video?.videoWidth) {
+    if (lock?.held && video?.videoWidth) {
       const photo = { width: video.videoWidth, height: video.videoHeight }
-      const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
       errors = cueErrors(
         lock.crop,
-        {
-          cx: photo.width / 2,
-          cy: photo.height / 2,
-          width: target.width,
-          rotation: 0,
-        },
+        frameCrop(aspect, photo.width, photo.height),
         aspect,
         photo
       )
@@ -421,13 +395,8 @@ export function RephotoCamera({
           errors,
           cueFilter.current.current?.kind ?? null,
           step && now - step.at < TRACKED_LIFE && now >= stepMutedUntil.current
-            ? // With lines, the zoom takes care of size: never "step closer" or "back" from
-              // parallax, only sideways and up or down.
-              trace
-              ? { ...step, depth: 0 }
-              : step
-            : null,
-          !trace
+            ? step
+            : null
         ),
         now
       )
@@ -477,13 +446,13 @@ export function RephotoCamera({
       })
       cueLogged.current = { kind, at: now }
     }
-  }, [lock, aspect, step, trace])
+  }, [lock, aspect, step])
   // Close enough: the crop does the rest, and the live picture snaps onto the old photograph.
   // Every reference line checked on its own edge before "Lined up": one rotation, zoom and
   // shift can fit the wall and leave the canopy off when the viewpoint differs.
   const [lines, setLines] = useState<
     | (LineCheck & {
-        lock: NonNullable<typeof lock>
+        checkedAt: number
         held: boolean
         score: Score | null
       })
@@ -511,8 +480,14 @@ export function RephotoCamera({
   const linesLogged = useRef("")
   // Checked about twice a second once the view is held, whatever the sign says: the score is how
   // the person sees whether a move helped.
-  const wantsLineCheck = !!trace && !!lock
+  const wantsLineCheck = !!trace && !!lock?.held
+  const lineSession = useRef(0)
   useEffect(() => {
+    lineSession.current++
+  }, [wantsLineCheck, aspect])
+  if (!wantsLineCheck && lines) setLines(null)
+  useEffect(() => {
+    const session = lineSession.current
     const video = videoRef.current
     const image = archiveImage.current
     if (!wantsLineCheck) {
@@ -528,10 +503,10 @@ export function RephotoCamera({
     lastLineCheck.current = performance.now()
     if (!video?.videoWidth || !image?.naturalWidth) return
     checkingLines.current = true
-    const placed = lock
+    const crop = frameCrop(aspect, video.videoWidth, video.videoHeight)
     void (async () => {
       try {
-        const k = Math.min(1, LINE_CHECK_WIDTH / placed.crop.width)
+        const k = Math.min(1, LINE_CHECK_WIDTH / crop.width)
         const live = await grayOf(
           video,
           Math.round(video.videoWidth * k),
@@ -539,17 +514,21 @@ export function RephotoCamera({
         )
         const archive = await grayOf(
           image,
-          Math.round(placed.crop.width * k),
-          Math.round(placed.crop.width * k * aspect)
+          Math.round(crop.width * k),
+          Math.round(crop.width * k * aspect)
         )
-        if (!live || !archive) return
+        if (!live || !archive || session !== lineSession.current) return
         const result = checkLines(trace, archive, live, {
-          cx: placed.crop.cx * k,
-          cy: placed.crop.cy * k,
-          width: placed.crop.width * k,
-          rotation: placed.crop.rotation,
+          cx: crop.cx * k,
+          cy: crop.cy * k,
+          width: crop.width * k,
+          rotation: crop.rotation,
         })
         const raw = alignmentScore(result, trace)
+        const definiteMiss = result.lines.some(
+          (line) => line.votes && line.state === "off"
+        )
+        if (definiteMiss) recentScores.current = []
         let score: Score | null = null
         if (scoreUsable(raw)) {
           recentScores.current = [...recentScores.current, raw.score].slice(-3)
@@ -557,12 +536,17 @@ export function RephotoCamera({
           score = { ...raw, score: sorted[Math.floor(sorted.length / 2)] }
         }
         const run = lineRun.current
-        const now = linedUp(score, run.held)
+        const now = !definiteMiss && linedUp(score, run.held)
         run.passes = now ? run.passes + 1 : 0
         run.fails = now ? 0 : run.fails + 1
         if (!run.held && run.passes >= 2) run.held = true
-        if (run.held && run.fails >= 2) run.held = false
-        setLines({ ...result, lock: placed, held: run.held, score })
+        if (definiteMiss || run.fails >= 2) run.held = false
+        setLines({
+          ...result,
+          checkedAt: lock.at,
+          held: run.held,
+          score,
+        })
         const at = performance.now()
         const next = new Map(lineLooks.current)
         for (const line of result.lines) {
@@ -585,7 +569,7 @@ export function RephotoCamera({
             look.onRun = 0
             look.seenAt = at
             look.shift = line.shift ?? look.shift
-            if (look.offRun >= 2) look.look = "off"
+            if (look.look === "on" || look.offRun >= 2) look.look = "off"
           } else if (at - look.seenAt > 1500) {
             look.look = "plain"
             look.shift = undefined
@@ -621,14 +605,11 @@ export function RephotoCamera({
       }
     })()
   }, [wantsLineCheck, lock, trace, aspect])
-  // The latest check is about the view now on screen: one follower step (250 ms) or two old.
   const linesNow =
-    lines && lock && wantsLineCheck && lines.lock !== null ? lines : null
-  // With lines, "Lined up" is the lines' score alone: aim, zoom and where to stand show in it, and
-  // the noisy where-to-stand measure no longer has to agree too. Without lines, the sign decides.
-  // The lines are measured where the matcher puts the view, so they say whether you stand in the
-  // right place, not whether you point at it: the view must also be in the picture, level and
-  // not too far off centre (any sign but a turn, a tilt or "back" because it doesn't fit).
+    lines && lock && wantsLineCheck && lock.at - lines.checkedAt < 1000
+      ? lines
+      : null
+  // Physical pointing and separate regions must agree before giving a positive cue.
   const framedEnough =
     !!cue &&
     ![
@@ -639,21 +620,16 @@ export function RephotoCamera({
       "clockwise",
       "anticlockwise",
       "back",
+      "closer",
     ].includes(cue.kind)
   const snapped = trace
     ? !!lock && !!linesNow?.held && framedEnough
     : !!lock?.held && cue?.kind === "hold"
-  // Lined up: every line green. Otherwise each line as it has settled; the two furthest-off lines
+  // Show only individually confirmed lines in green. The two furthest-off lines
   // get a dashed copy where their edge really is, so the gap to close is plain to see.
   const lineStyle = (() => {
     if (!trace || showArchive || !wantsLineCheck)
       return { confirmed: [], off: [], shifts: [] }
-    if (snapped)
-      return {
-        confirmed: trace.features.flatMap((f, i) => (f.region ? [i] : [])),
-        off: [],
-        shifts: [],
-      }
     const entries = [...looks.entries()]
     return {
       confirmed: entries.filter(([, l]) => l.look === "on").map(([i]) => i),
@@ -671,13 +647,6 @@ export function RephotoCamera({
     }
   })()
   const liveScore = snapped || linesNow?.score ? linesNow?.score?.score : null
-  // The last score shown, for the review when the shot itself can't be scored: pressing the
-  // shutter can land between two checks.
-  const shownScore = useRef<{ value: number; at: number } | null>(null)
-  useEffect(() => {
-    if (liveScore != null)
-      shownScore.current = { value: liveScore, at: performance.now() }
-  }, [liveScore])
   useEffect(() => {
     // Without lines the follower's own "steady" buzz already marks this.
     if (snapped && trace) navigator.vibrate?.(15)
@@ -687,8 +656,8 @@ export function RephotoCamera({
     startCameraSession()
     diagnostic("experiment", {
       reference: Number(thenSrc.match(/^\/posts\/(\d{4})-/)?.[1] ?? -1),
-      mode: trace ? "traces" : "split",
-      overlay: trace ? TRACE_OVERLAY_OPACITY : 1,
+      mode: "traces",
+      overlay: TRACE_OVERLAY_OPACITY,
       features: trace?.features.length ?? 0,
     })
     const loading = performance.now()
@@ -1578,51 +1547,15 @@ export function RephotoCamera({
       left: (stage.width - shown.width) / 2,
       top: (stage.height - shown.height) / 2,
     }
-    const scale = view.width / videoSize.width
-    const placement = trace ? null : (lock ?? lastPlacement)
-    if (placement) {
-      const width = placement.crop.width * scale
-      ghost = {
-        width,
-        height: width * aspect,
-        left: view.left + placement.crop.cx * scale - width / 2,
-        top: view.top + placement.crop.cy * scale - (width * aspect) / 2,
-        rotation: placement.crop.rotation,
-      }
-    } else {
-      const target = fit(aspect, view.width, view.height, GHOST_FILL)
-      ghost = {
-        ...target,
-        left: view.left + (view.width - target.width) / 2,
-        top: view.top + (view.height - target.height) / 2,
-        rotation: 0,
-      }
+    const crop = frameCrop(aspect, view.width, view.height)
+    ghost = {
+      width: crop.width,
+      height: crop.width * aspect,
+      left: view.left + crop.cx - crop.width / 2,
+      top: view.top + crop.cy - (crop.width * aspect) / 2,
+      rotation: 0,
     }
   }
-
-  // The camera sees wider than most old photos: once the view is matched, the live picture is
-  // zoomed (and turned) by the same amount the shot's crop will be, so its size matches the
-  // guide while you walk, and a small label says so.
-  // Held on while the view is tracked at all, and through a lost match's short fade: switching it
-  // off whenever a new match was still unconfirmed made the picture jump in and out every two
-  // seconds (Bradley Lane, 19 Nov 2026).
-  const zoomed = trace && !showArchive ? (lock ?? lastPlacement) : null
-  const zoomNeeded =
-    zoomed && ghost && view
-      ? ghost.width / ((zoomed.crop.width * view.width) / videoSize.width)
-      : 0
-  const autoZoom =
-    zoomNeeded > 0 ? Math.min(2.5, Math.max(0.85, zoomNeeded)) : 0
-
-  // The label explains the jump when the zoom first takes over, then gets out of the way
-  // (council, 20 Nov 2026): shown for 3 s each camera session.
-  const zoomOn = autoZoom > 1.02
-  const [zoomLabel, setZoomLabel] = useState(true)
-  useEffect(() => {
-    if (!zoomOn || !zoomLabel) return
-    const timer = setTimeout(() => setZoomLabel(false), 3000)
-    return () => clearTimeout(timer)
-  }, [zoomOn, zoomLabel])
 
   const capture = async () => {
     const video = videoRef.current
@@ -1638,39 +1571,8 @@ export function RephotoCamera({
     setCaptureBusy(true)
     const lean = tiltRef.current
     const photo = { width: video.videoWidth, height: video.videoHeight }
-    // The shot starts where the old photograph sat on screen: where the matcher had just put it
-    // and still shows it held, or else the resting guide, levelled. The review refines it from the full picture.
     const now = performance.now()
-    // What the screen shows is what is shot: a snapped view keeps its crop.
-    // With lines the screen already shows the crop the shot keeps, so the shot keeps it whenever
-    // the view is tracked, confirmed or not. Requiring a confirmed match threw away a "Lined up"
-    // framing taken between two matches (20 Nov 2026: Lined up at 84, the shot kept the plain
-    // centre crop and scored 0).
-    // The crop the screen is showing right now (the preview uses the same one).
-    const shown = trace ? (lock ?? lastPlacement) : lock
-    const held =
-      shown &&
-      (trace ||
-        (shown.held &&
-          (snapped ||
-            (shown.trackedAt != null && now - shown.trackedAt < 600)))) &&
-      now - shown.at < Math.max(lockLife.current, TRACKED_LIFE) &&
-      (trace || fits(shown.crop, aspect, photo))
-        ? nudgeInside(shown.crop, aspect, photo)
-        : null
-    const target = fit(aspect, photo.width, photo.height, GHOST_FILL)
-    let crop =
-      held ??
-      shrinkToFit(
-        {
-          cx: photo.width / 2,
-          cy: photo.height / 2,
-          width: target.width,
-          rotation: trace || lean == null ? 0 : -lean,
-        },
-        aspect,
-        photo
-      )
+    const crop = frameCrop(aspect, photo.width, photo.height)
     const frameAge = telemetry.current.frameAt
       ? now - telemetry.current.frameAt
       : null
@@ -1691,26 +1593,15 @@ export function RephotoCamera({
         aspect,
         frameAge,
         mediaTime,
-        reveal: trace ? 100 : Math.round(reveal),
-        overlay: trace ? TRACE_OVERLAY_OPACITY : 1,
-        // What the screen showed, and how far the shot had to move it to stay in the photo.
-        shownX: shown ? shown.crop.cx / photo.width : null,
-        shownWidth: shown ? shown.crop.width / photo.width : null,
-        lockAge: shown ? now - shown.at : null,
-        nudged:
-          shown && held
-            ? Math.hypot(held.cx - shown.crop.cx, held.cy - shown.crop.cy) /
-              photo.width
-            : null,
+        reveal: 100,
+        overlay: TRACE_OVERLAY_OPACITY,
+        shownX: crop.cx / photo.width,
+        shownWidth: crop.width / photo.width,
+        lockAge: lock ? now - lock.at : null,
+        nudged: 0,
       },
       {
-        framing: snapped
-          ? "snapped"
-          : held
-            ? "live"
-            : trace
-              ? "traced"
-              : "levelled",
+        framing: "traced",
         how: "manual",
       }
     )
@@ -1719,14 +1610,8 @@ export function RephotoCamera({
     setShot({
       canvas,
       crop,
-      locked: !!held,
-      traced: !!trace,
-      assisted: !!trace && !!held,
-      assistanceLost: false,
-      liveScore:
-        shownScore.current && now - shownScore.current.at < 3000
-          ? shownScore.current.value
-          : null,
+      aspect,
+      locked: !!lock?.held,
       archive: archiveRef.current,
       takenAt: new Date(),
     })
@@ -1738,7 +1623,6 @@ export function RephotoCamera({
         name={name}
         slug={slug}
         thenSrc={thenSrc}
-        aspect={aspect}
         shot={shot}
         onRetake={() => {
           // iPhone frees canvas memory late; hand it back now.
@@ -1746,7 +1630,6 @@ export function RephotoCamera({
           report("retake")
           capturing.current = false
           setCaptureBusy(false)
-          setLastPlacement(null)
           setShot(null)
         }}
       />
@@ -1780,38 +1663,14 @@ export function RephotoCamera({
           autoPlay
           muted
           playsInline
-          style={
-            autoZoom && zoomed && view
-              ? {
-                  // The screen shows exactly the crop the shot will keep: what's left between a
-                  // line and its edge is only what moving your feet can fix (19 Nov 2026: without
-                  // the shift, the dashed copies didn't match anything on screen).
-                  transform: `scale(${autoZoom}) rotate(${-zoomed.crop.rotation}rad) translate(${((videoSize.width / 2 - zoomed.crop.cx) * view.width) / videoSize.width}px, ${((videoSize.height / 2 - zoomed.crop.cy) * view.width) / videoSize.width}px)`,
-                  transition: "transform 250ms ease-out",
-                }
-              : undefined
-          }
           onLoadedMetadata={onVideoSize}
           onResize={onVideoSize}
         />
         {ghost && view && (
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              clipPath: trace
-                ? undefined
-                : `inset(${view.top}px ${stage.width - view.left - (view.width * reveal) / 100}px ${stage.height - view.top - view.height}px ${view.left}px)`,
-            }}
-          >
+          <div className="pointer-events-none absolute inset-0">
             <div
-              key={lock || lastPlacement ? "tracked" : "resting"}
               data-testid="rephoto-frame"
-              className={`tn-enter pointer-events-none absolute transition-[left,top,width,height,transform] motion-reduce:transition-none ${
-                // The follower's small steps run into each other; a new match's jump eases in.
-                lock?.followed
-                  ? "duration-[250ms] ease-linear"
-                  : "duration-300 ease-out"
-              }`}
+              className="pointer-events-none absolute"
               style={{
                 left: ghost.left,
                 top: ghost.top,
@@ -1829,13 +1688,7 @@ export function RephotoCamera({
                 data-testid="rephoto-ghost"
                 className="size-full transition-opacity duration-150"
                 style={{
-                  opacity: trace
-                    ? showArchive
-                      ? 1
-                      : TRACE_OVERLAY_OPACITY
-                    : !lock && lastPlacement
-                      ? 0
-                      : 1,
+                  opacity: showArchive ? 1 : TRACE_OVERLAY_OPACITY,
                 }}
               />
               {trace && (
@@ -1852,24 +1705,6 @@ export function RephotoCamera({
             </div>
           </div>
         )}
-        {!trace &&
-          view &&
-          status === "live" &&
-          !interrupted &&
-          !(!lock && lastPlacement) && (
-            <div
-              className="pointer-events-none absolute"
-              style={{
-                left: view.left,
-                top: view.top,
-                width: view.width,
-                height: view.height,
-              }}
-            >
-              <LiveDivider value={reveal} onChange={setReveal} />
-            </div>
-          )}
-
         {status === "error" && (
           <div className="absolute inset-x-6 top-1/2 mx-auto max-w-xs -translate-y-1/2 text-center">
             {error && (
@@ -1888,87 +1723,55 @@ export function RephotoCamera({
           </div>
         )}
 
-        {trace ? (
-          <>
-            {status === "live" && !interrupted && (
-              <div
-                data-testid="handheld-guide"
-                data-state={snapped ? "adjusted" : lock ? "found" : "searching"}
-                data-cue={cue?.kind ?? "none"}
-              >
-                <MatcherGuide
-                  hidden={false}
-                  icon={
-                    captureBusy ? undefined : snapped ? (
-                      cueIcon("hold")
-                    ) : cue && cue.kind !== "hold" ? (
-                      cueIcon(cue.kind)
-                    ) : !lock ? (
-                      <Search
-                        aria-hidden
-                        className="size-5 shrink-0 motion-safe:animate-pulse"
-                      />
-                    ) : undefined
-                  }
-                  badge={
-                    captureBusy || liveScore == null ? undefined : liveScore
-                  }
-                  lined={snapped}
-                  // Words only for a plain direction to move; the lines and the score say the rest.
-                  message={
-                    captureBusy
-                      ? "Taking photo…"
-                      : cue && cue.kind !== "hold" && !snapped
-                        ? cueText(cue.kind, false)
-                        : ""
-                  }
-                  label={
-                    snapped
-                      ? "Lined up"
-                      : lock
-                        ? "Line up the lines"
-                        : "Point at the view in the old photo"
-                  }
-                />
-              </div>
-            )}
-            <button
-              type="button"
-              aria-pressed={showArchive}
-              disabled={captureBusy}
-              onClick={() => setShowArchive(!showArchive)}
-              className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] min-h-11 rounded-full bg-black/65 px-3 text-sm"
-            >
-              {showArchive ? "Live camera" : "Old photo"}
-            </button>
-          </>
-        ) : (
-          <div data-cue={cue?.kind ?? "none"}>
+        <>
+          <div
+            data-testid="handheld-guide"
+            data-state={snapped ? "adjusted" : lock ? "found" : "searching"}
+            data-cue={cue?.kind ?? "none"}
+          >
             <MatcherGuide
               hidden={status !== "live" || interrupted}
-              found={!!lock?.held}
-              icon={cue ? cueIcon(cue.kind) : undefined}
+              icon={
+                captureBusy ? undefined : snapped ? (
+                  cueIcon("hold")
+                ) : cue && cue.kind !== "hold" ? (
+                  cueIcon(cue.kind)
+                ) : !lock ? (
+                  <Search
+                    aria-hidden
+                    className="size-5 shrink-0 motion-safe:animate-pulse"
+                  />
+                ) : undefined
+              }
+              badge={captureBusy || liveScore == null ? undefined : liveScore}
+              lined={snapped}
+              // Words only for a plain direction to move; the lines and the score say the rest.
               message={
-                cue && cue.kind !== "hold"
-                  ? cueText(cue.kind, false)
-                  : undefined
+                captureBusy
+                  ? "Taking photo…"
+                  : cue && cue.kind !== "hold" && !snapped
+                    ? cueText(cue.kind, false)
+                    : ""
+              }
+              label={
+                snapped
+                  ? "Lined up"
+                  : lock
+                    ? "Line up the lines"
+                    : "Point at the view in the old photo"
               }
             />
           </div>
-        )}
-
-        {trace &&
-          autoZoom > 1.02 &&
-          zoomLabel &&
-          status === "live" &&
-          !interrupted && (
-            <div
-              data-testid="auto-zoom"
-              className="pointer-events-none absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))] rounded-full bg-black/65 px-2.5 py-1 text-xs tabular-nums text-white/90"
-            >
-              Auto zoom {autoZoom.toFixed(1)}×
-            </div>
-          )}
+          <button
+            type="button"
+            aria-pressed={showArchive}
+            disabled={captureBusy}
+            onClick={() => setShowArchive(!showArchive)}
+            className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] min-h-11 rounded-full bg-black/65 px-3 text-sm"
+          >
+            {showArchive ? "Live camera" : "Old photo"}
+          </button>
+        </>
         {debugText && (
           <pre className="pointer-events-none absolute inset-x-2 top-16 whitespace-pre-wrap break-all text-[10px] text-lime-300">
             {debugText}
@@ -1990,10 +1793,7 @@ export function RephotoCamera({
           data-testid="rephoto-shutter"
           aria-label="Take photo"
           disabled={
-            status !== "live" ||
-            interrupted ||
-            captureBusy ||
-            (!!trace && showArchive)
+            status !== "live" || interrupted || captureBusy || showArchive
           }
           onClick={() => capture()}
           data-lined={snapped || undefined}

@@ -17,6 +17,475 @@ export type ReferenceLines = {
   zones?: Zones
 }
 const guides: Record<string, ReferenceLines> = {
+  sheep: {
+    image: "/posts/0001-sheep/then-sheep-4018x2298.jpg",
+    features: [
+      {
+        name: "Uphill power pole above the street corner",
+        points: [
+          [0.195, 0.1441],
+          [0.19875, 0.13755],
+          [0.205, 0.13755],
+          [0.2075, 0.14847],
+          [0.20125, 0.14847],
+          [0.2025, 0.29039],
+          [0.205, 0.41703],
+        ],
+      },
+      {
+        name: "Near kerb from foreground around street corner",
+        points: [
+          [0.0025, 0.80349],
+          [0.065, 0.77511],
+          [0.12625, 0.74454],
+          [0.16625, 0.72271],
+          [0.1825, 0.70961],
+          [0.18625, 0.69869],
+          [0.1825, 0.68996],
+          [0.17125, 0.68341],
+        ],
+      },
+      {
+        name: "Kerb returning up the side street",
+        points: [
+          [0.17125, 0.68341],
+          [0.14125, 0.66812],
+          [0.0975, 0.64192],
+          [0.06, 0.6179],
+          [0.005, 0.58515],
+        ],
+      },
+    ],
+  },
+  "mill-house": {
+    image: "/posts/0000-mill-house/t1-mill-house-750x580.jpg",
+    features: [
+      {
+        name: "Chimney above the left end of the ridge",
+        points: [
+          [0.41655, 0.3193],
+          [0.41791, 0.29825],
+          [0.42334, 0.29298],
+          [0.43419, 0.29474],
+          [0.43962, 0.30351],
+          [0.43962, 0.31754],
+        ],
+      },
+      {
+        name: "Right wing roof ridge above the low windows",
+        points: [
+          [0.69878, 0.38246],
+          [0.74355, 0.38246],
+          [0.7924, 0.3807],
+        ],
+      },
+      {
+        name: "Main roof left slope and ridge",
+        points: [
+          [0.36771, 0.43509],
+          [0.40706, 0.3193],
+          [0.64722, 0.30877],
+        ],
+      },
+      {
+        name: "Main roof right gable",
+        points: [
+          [0.62958, 0.43333],
+          [0.65129, 0.30877],
+          [0.66893, 0.38421],
+          [0.68657, 0.32456],
+          [0.70014, 0.38246],
+        ],
+      },
+      {
+        name: "Left dormer gable and window",
+        points: [
+          [0.4152, 0.43158],
+          [0.43555, 0.39123],
+          [0.45726, 0.42632],
+          [0.44369, 0.42807],
+          [0.44369, 0.45614],
+          [0.41791, 0.45965],
+          [0.41791, 0.42982],
+        ],
+      },
+      {
+        name: "Middle dormer gable and opening",
+        points: [
+          [0.48168, 0.42982],
+          [0.50746, 0.38947],
+          [0.52646, 0.42456],
+          [0.5156, 0.42632],
+          [0.5156, 0.4614],
+          [0.48711, 0.4614],
+          [0.48711, 0.42632],
+        ],
+      },
+      {
+        name: "Right dormer gable and window",
+        points: [
+          [0.54545, 0.42982],
+          [0.57531, 0.38772],
+          [0.5943, 0.42632],
+          [0.58209, 0.42807],
+          [0.58209, 0.45965],
+          [0.55224, 0.45965],
+          [0.55224, 0.42982],
+        ],
+      },
+      {
+        name: "Gutter to the right of dormers",
+        points: [
+          [0.5848, 0.43158],
+          [0.62687, 0.43333],
+        ],
+      },
+      {
+        name: "Veranda entrance gable",
+        points: [
+          [0.4654, 0.49298],
+          [0.49254, 0.47193],
+          [0.52239, 0.48772],
+        ],
+      },
+    ],
+  },
+  "historic-post-office": {
+    image:
+      "/posts/0002-historic-helensville-post-office/post1-then-2003x1241.jpg",
+    features: [
+      {
+        name: "Left masonry facade corner",
+        points: [
+          [0.425, 0.3498],
+          [0.4275, 0.43874],
+          [0.4275, 0.56917],
+        ],
+      },
+      {
+        name: "Parapet along front and side elevations",
+        points: [
+          [0.425, 0.3498],
+          [0.48375, 0.33202],
+        ],
+      },
+      {
+        name: "Central parapet crown",
+        points: [
+          [0.4825, 0.33004],
+          [0.485, 0.28656],
+          [0.51875, 0.27866],
+          [0.525, 0.31225],
+        ],
+      },
+      {
+        name: "Upper cornice turning onto right wall",
+        points: [
+          [0.525, 0.31818],
+          [0.57875, 0.3083],
+          [0.605, 0.31818],
+          [0.7025, 0.35771],
+        ],
+      },
+      {
+        name: "Lower cornice and facade corner",
+        points: [
+          [0.52625, 0.35178],
+          [0.58125, 0.34387],
+          [0.60375, 0.3498],
+          [0.705, 0.36561],
+        ],
+      },
+      {
+        name: "Centre gable and window",
+        points: [
+          [0.48125, 0.36364],
+          [0.5025, 0.33992],
+          [0.525, 0.35968],
+        ],
+      },
+      {
+        name: "Upper centre sash",
+        points: [
+          [0.4975, 0.37549],
+          [0.5125, 0.37154],
+          [0.5125, 0.42688],
+          [0.4975, 0.42885],
+          [0.4975, 0.37549],
+        ],
+      },
+      {
+        name: "Main arched entrance",
+        points: [
+          [0.49125, 0.56126],
+          [0.49125, 0.49407],
+          [0.49375, 0.47826],
+          [0.50125, 0.46838],
+          [0.50875, 0.46838],
+          [0.5175, 0.47826],
+          [0.52, 0.49012],
+          [0.52, 0.55929],
+        ],
+      },
+      {
+        name: "Right front sash",
+        points: [
+          [0.545, 0.36759],
+          [0.5625, 0.36364],
+          [0.5625, 0.42292],
+          [0.545, 0.42688],
+          [0.545, 0.36759],
+        ],
+      },
+      {
+        name: "Front bay ledge over entrance",
+        points: [
+          [0.4775, 0.44664],
+          [0.53375, 0.44071],
+        ],
+      },
+    ],
+  },
+  "mission-bay-fountain": {
+    image: "/posts/0003-mission-bay-fountain/fountain-then-1080x885.jpg",
+    features: [
+      {
+        name: "Front basin lip to plaque",
+        points: [
+          [0.03161, 0.76842],
+          [0.14655, 0.77193],
+          [0.28161, 0.77193],
+        ],
+      },
+      {
+        name: "Front basin lip curving around right end",
+        points: [
+          [0.40086, 0.77368],
+          [0.55747, 0.77193],
+          [0.71695, 0.76842],
+          [0.8204, 0.76316],
+          [0.88937, 0.75614],
+          [0.91523, 0.75088],
+        ],
+      },
+      {
+        name: "Outer basin base on either side of curve",
+        points: [
+          [0.40086, 0.81404],
+          [0.5546, 0.81404],
+          [0.69397, 0.80877],
+          [0.80603, 0.80351],
+          [0.87644, 0.79649],
+          [0.91379, 0.78772],
+        ],
+      },
+      {
+        name: "Left basin base",
+        points: [
+          [0.03161, 0.80526],
+          [0.14655, 0.81053],
+          [0.28017, 0.81404],
+        ],
+      },
+      {
+        name: "Front plaque surround",
+        points: [
+          [0.28161, 0.81404],
+          [0.28448, 0.76667],
+          [0.39799, 0.76667],
+          [0.39943, 0.81404],
+        ],
+      },
+      {
+        name: "Raised central bowl",
+        points: [
+          [0.38649, 0.67719],
+          [0.4023, 0.67018],
+          [0.44397, 0.66842],
+          [0.48994, 0.66842],
+          [0.50718, 0.67368],
+          [0.51006, 0.6807],
+          [0.5, 0.68772],
+          [0.39943, 0.69123],
+          [0.38649, 0.67719],
+        ],
+      },
+      {
+        name: "Central bowl pedestal",
+        points: [
+          [0.40086, 0.69123],
+          [0.41092, 0.74912],
+          [0.46552, 0.75263],
+          [0.49282, 0.69123],
+        ],
+      },
+      {
+        name: "Volcanic skyline beyond fountain",
+        points: [
+          [0.54741, 0.68596],
+          [0.59195, 0.67719],
+          [0.62213, 0.66491],
+          [0.64511, 0.65965],
+          [0.65805, 0.6614],
+          [0.67672, 0.67193],
+          [0.68966, 0.66667],
+          [0.70402, 0.67544],
+        ],
+      },
+    ],
+  },
+  "mission-bay-yacht-club": {
+    image:
+      "/posts/0004-mission-bay-yacht-club/then-mission-bay-yacht-club-1000x675.jpg",
+    features: [
+      {
+        name: "Walkway edge from clubhouse to foreground",
+        points: [
+          [0.125, 0.46667],
+          [0.12, 0.51481],
+          [0.10625, 0.58704],
+          [0.0825, 0.69074],
+          [0.0475, 0.83519],
+          [0.00875, 0.98519],
+        ],
+      },
+      {
+        name: "Beach side of seawall cap",
+        points: [
+          [0.13125, 0.46852],
+          [0.155, 0.54259],
+          [0.185, 0.62778],
+          [0.21625, 0.72222],
+          [0.2525, 0.82963],
+          [0.3075, 0.99444],
+        ],
+      },
+      {
+        name: "Clubhouse front roof",
+        points: [
+          [0.14, 0.38333],
+          [0.17375, 0.32963],
+          [0.21, 0.38519],
+        ],
+      },
+      {
+        name: "Long roof ridge and outer hip",
+        points: [
+          [0.175, 0.32963],
+          [0.34125, 0.34815],
+          [0.37125, 0.38889],
+        ],
+      },
+      {
+        name: "Clubhouse window bank",
+        points: [
+          [0.25875, 0.41111],
+          [0.33375, 0.41296],
+          [0.33375, 0.43704],
+          [0.25875, 0.43704],
+          [0.25875, 0.41111],
+        ],
+      },
+      {
+        name: "Clubhouse above the sea wall",
+        points: [
+          [0.14, 0.45556],
+          [0.2475, 0.45926],
+          [0.35125, 0.45741],
+        ],
+      },
+      {
+        name: "Headland beyond the sails",
+        points: [
+          [0.75375, 0.43333],
+          [0.78125, 0.41667],
+          [0.81125, 0.40556],
+          [0.84875, 0.4037],
+          [0.87625, 0.41481],
+        ],
+      },
+      {
+        name: "Sea below the headland between sails",
+        points: [
+          [0.75625, 0.46111],
+          [0.865, 0.46111],
+        ],
+      },
+    ],
+  },
+  "mission-house": {
+    image: "/posts/0005-mission-house/mission-house-then-768x512.jpg",
+    features: [
+      {
+        name: "Left roof rising from the eaves",
+        points: [
+          [0.15234, 0.50977],
+          [0.19922, 0.39453],
+        ],
+      },
+      {
+        name: "Roof ridge beyond the chimney",
+        points: [
+          [0.22005, 0.38672],
+          [0.3125, 0.35547],
+          [0.42057, 0.32422],
+        ],
+      },
+      {
+        name: "Left roof gutter",
+        points: [
+          [0.23177, 0.50195],
+          [0.31901, 0.49219],
+          [0.38021, 0.48242],
+        ],
+      },
+      {
+        name: "Main gable from eave to eave",
+        points: [
+          [0.3763, 0.48438],
+          [0.43229, 0.29297],
+          [0.52083, 0.46875],
+        ],
+      },
+      {
+        name: "Chimney on main roof",
+        points: [
+          [0.51562, 0.31445],
+          [0.51172, 0.24805],
+          [0.53125, 0.24414],
+          [0.54036, 0.35938],
+        ],
+      },
+      {
+        name: "Paired front window openings",
+        points: [
+          [0.41276, 0.48047],
+          [0.4388, 0.47852],
+          [0.4401, 0.53516],
+          [0.41536, 0.53711],
+          [0.41276, 0.48047],
+        ],
+      },
+      {
+        name: "Right gable and outer eaves",
+        points: [
+          [0.64583, 0.45312],
+          [0.71094, 0.31641],
+          [0.78255, 0.4375],
+          [0.84245, 0.44336],
+        ],
+      },
+      {
+        name: "Right roof ridge and side wall",
+        points: [
+          [0.71094, 0.31641],
+          [0.79036, 0.34961],
+          [0.84375, 0.44141],
+          [0.84245, 0.54297],
+        ],
+      },
+    ],
+  },
   "riddell-road-waimarie-street": {
     image:
       "/posts/0009-riddell-road-waimarie-street/then-riddell-road-waimarie-street.jpg",
@@ -523,6 +992,69 @@ const guides: Record<string, ReferenceLines> = {
     image: "/posts/0013-mayfair-place/then-mayfair-place.jpg",
     features: [
       {
+        name: "Slide upper lip from slope to flat runout",
+        region: "slide",
+        points: [
+          [0.0, 0.75],
+          [0.03889, 0.78167],
+          [0.06556, 0.80167],
+          [0.08333, 0.81],
+          [0.1, 0.81167],
+          [0.17222, 0.805],
+          [0.18111, 0.80667],
+          [0.18778, 0.81667],
+        ],
+      },
+      {
+        name: "Slide underside and squared discharge tip",
+        points: [
+          [0.0, 0.86833],
+          [0.03667, 0.89],
+          [0.07333, 0.905],
+          [0.10111, 0.90667],
+          [0.17444, 0.89667],
+          [0.20111, 0.89167],
+          [0.2, 0.86667],
+          [0.19556, 0.85167],
+        ],
+      },
+      {
+        name: "Slide foot below discharge tip",
+        points: [
+          [0.18556, 0.89833],
+          [0.18556, 0.92833],
+          [0.19333, 0.92833],
+          [0.19333, 0.895],
+        ],
+      },
+      {
+        name: "Bench seat behind slide, near edge and far tip",
+        points: [
+          [0.23333, 0.72667],
+          [0.28667, 0.72667],
+          [0.37, 0.735],
+          [0.44667, 0.745],
+          [0.52778, 0.75167],
+          [0.52667, 0.76],
+          [0.49111, 0.76833],
+          [0.41111, 0.75333],
+          [0.33444, 0.74333],
+          [0.23333, 0.73333],
+          [0.23333, 0.72667],
+        ],
+      },
+      {
+        name: "Right bench foot",
+        points: [
+          [0.44667, 0.77333],
+          [0.50444, 0.77],
+          [0.5, 0.815],
+          [0.47889, 0.82333],
+          [0.45, 0.81833],
+          [0.44667, 0.77333],
+        ],
+      },
+      {
         name: "Left bird, head and neck",
         points: [
           [0.20222, 0.13833],
@@ -762,6 +1294,40 @@ const guides: Record<string, ReferenceLines> = {
   "civic-theatre": {
     image: "/posts/0015-civic-theatre/then-civic-theatre.jpg",
     features: [
+      {
+        name: "Right canopy edge from entrance",
+        points: [
+          [0.74571, 0.50275],
+          [0.80857, 0.50092],
+          [0.88143, 0.50459],
+          [0.96143, 0.51376],
+        ],
+      },
+      {
+        name: "Left canopy edge rising to the entrance",
+        points: [
+          [0.04571, 0.55413],
+          [0.13143, 0.54128],
+          [0.25857, 0.52477],
+          [0.39, 0.51009],
+          [0.48286, 0.50459],
+        ],
+      },
+      {
+        name: "Central arch over the entrance",
+        points: [
+          [0.48286, 0.50642],
+          [0.50571, 0.47156],
+          [0.53571, 0.44404],
+          [0.56286, 0.42569],
+          [0.59714, 0.41651],
+          [0.62714, 0.41468],
+          [0.65714, 0.42202],
+          [0.68857, 0.43853],
+          [0.71571, 0.46055],
+          [0.74429, 0.50459],
+        ],
+      },
       {
         name: "Leftmost lattice screen",
         region: "left",

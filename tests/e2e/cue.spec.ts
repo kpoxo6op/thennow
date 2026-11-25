@@ -20,27 +20,27 @@ test("the view off to one side means turning the phone that way", () => {
 test("too big means stepping back, too small stepping closer", () => {
   expect(sign({ width: 4400 })).toBe("back")
   expect(sign({ width: 2000 })).toBe("closer")
-  // Somewhat smaller than the target is fine: the crop zooms in.
-  expect(sign({ width: 3000 })).toBe("hold")
+  // The fixed camera cannot magnify a subject that only fills 83% of the target.
+  expect(sign({ width: 3000 })).toBe("closer")
+  expect(sign({ width: 3600 })).toBe("hold")
+  const distant = cueErrors({ ...target, width: 2250 }, target, aspect, photo)
+  expect(
+    cueFor(distant, null, { sideways: 0, height: 0, depth: 0.16 }).kind
+  ).toBe("closer")
 })
 
 test("a view leaning clockwise means turning the phone clockwise", () => {
-  expect(sign({ rotation: 0.15, width: 3000 })).toBe("clockwise")
-  expect(sign({ rotation: -0.15, width: 3000 })).toBe("anticlockwise")
-  expect(sign({ rotation: 0.03, width: 3000 })).toBe("hold")
+  expect(sign({ rotation: 0.15 })).toBe("clockwise")
+  expect(sign({ rotation: -0.15 })).toBe("anticlockwise")
+  expect(sign({ rotation: 0.03 })).toBe("hold")
 })
 
 test("a showing sign stays until well past its threshold", () => {
   // 4% off: not enough to start a sign, but enough to keep one already showing.
-  expect(sign({ cx: 2016 + 0.04 * 3628.8, width: 3000 })).toBe("hold")
+  expect(sign({ cx: 2016 + 0.04 * 3628.8 })).toBe("hold")
   expect(
     cueFor(
-      cueErrors(
-        { ...target, cx: 2016 + 0.04 * 3628.8, width: 3000 },
-        target,
-        aspect,
-        photo
-      ),
+      cueErrors({ ...target, cx: 2016 + 0.04 * 3628.8 }, target, aspect, photo),
       "right"
     ).kind
   ).toBe("right")

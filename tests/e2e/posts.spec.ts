@@ -15,7 +15,7 @@ const KNOWN_ODD = new Set([
   "/posts/0002-historic-helensville-post-office/post1-then-2003x1241.jpg",
 ])
 
-test("place records describe their photographs and pending places have drawable guides", async () => {
+test("place records describe their photographs and all camera routes have drawable guides", async () => {
   for (const name of readdirSync(folder).sort()) {
     const place = JSON.parse(
       readFileSync(path.join(folder, name, `${name}.json`), "utf8")
@@ -24,8 +24,8 @@ test("place records describe their photographs and pending places have drawable 
     expect(place.slug).toMatch(/^[a-z0-9-]+$/)
     expect(Number.isInteger(place.w) && place.w > 0).toBe(true)
     expect(Number.isInteger(place.h) && place.h > 0).toBe(true)
-    if (place.status === "pending") {
-      // The camera falls back to a split view if a guide is absent or bound to an old scan.
+    if (!place.sample) {
+      // Every camera needs landmarks drawn for the exact archive, including completed places.
       // The capture journey exercises the renderer on representative places only.
       const guide = referenceLines(place.slug, place.b_imageUrl)
       expect(guide, place.slug).toBeTruthy()
