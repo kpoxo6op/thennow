@@ -131,6 +131,9 @@ export function cueFor(
       amount: Math.min(1, value / 0.4),
     }
   }
+  // Resolve a visible size mismatch before a competing parallax estimate.
+  if (e.scale < 1 - CUE_LIMITS.scale * keep("closer"))
+    return { kind: "closer", amount: Math.min(1, (1 - e.scale) * 2) }
   if (step) {
     // Turning can't fix these: they need the person to move. Near things shifted left mean
     // standing too far right; shifted down, holding the phone too high; too big, too close.
@@ -159,8 +162,6 @@ export function cueFor(
       )[0]
     if (pick) return { kind: pick.kind, amount: Math.min(1, pick.value / 0.1) }
   }
-  if (e.scale < 1 - CUE_LIMITS.scale * keep("closer"))
-    return { kind: "closer", amount: Math.min(1, (1 - e.scale) * 2) }
   // The whole reference must still fit inside the sensor image.
   if (!e.fits)
     return ax >= ay

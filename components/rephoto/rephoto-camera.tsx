@@ -569,7 +569,7 @@ export function RephotoCamera({
             look.onRun = 0
             look.seenAt = at
             look.shift = line.shift ?? look.shift
-            if (look.offRun >= 2) look.look = "off"
+            if (look.look === "on" || look.offRun >= 2) look.look = "off"
           } else if (at - look.seenAt > 1500) {
             look.look = "plain"
             look.shift = undefined

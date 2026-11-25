@@ -23,6 +23,10 @@ test("too big means stepping back, too small stepping closer", () => {
   // The fixed camera cannot magnify a subject that only fills 83% of the target.
   expect(sign({ width: 3000 })).toBe("closer")
   expect(sign({ width: 3600 })).toBe("hold")
+  const distant = cueErrors({ ...target, width: 2250 }, target, aspect, photo)
+  expect(
+    cueFor(distant, null, { sideways: 0, height: 0, depth: 0.16 }).kind
+  ).toBe("closer")
 })
 
 test("a view leaning clockwise means turning the phone clockwise", () => {
