@@ -154,7 +154,9 @@ export function useLiveLines(
           const measured = evidence || retained
           if (measured && l.state !== "unknown") nextTracked.add(i)
           const state =
-            !measured || (l.state === "on" && previous?.lines[i].state !== "on")
+            !measured ||
+            (l.state === "on" &&
+              (!tracked.has(i) || previous?.lines[i].state !== "on"))
               ? ("unknown" as const)
               : l.state
           return {
