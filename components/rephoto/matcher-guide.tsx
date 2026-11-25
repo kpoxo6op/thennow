@@ -94,10 +94,10 @@ export function MatcherGuide({
                 ? "Scene found · Slide to compare"
                 : "Point at the view in the old photo"))
             : notice.failed
-              ? "Live guide unavailable"
+              ? "Scene matcher unavailable"
               : status.phase === "starting"
-                ? "Starting guide…"
-                : "Loading guide…"}
+                ? "Starting scene matcher…"
+                : "Loading scene matcher…"}
         </span>
         {ready && badge != null && (
           <span

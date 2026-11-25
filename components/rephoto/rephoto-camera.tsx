@@ -36,14 +36,7 @@ import {
   type CueKind,
   type StepErrors,
 } from "@/lib/rephoto/cue"
-import {
-  alignmentScore,
-  checkLines,
-  linedUp,
-  scoreUsable,
-  type LineCheck,
-  type Score,
-} from "@/lib/rephoto/line-check"
+import { focusLine, lineInstruction } from "@/lib/rephoto/line-feedback"
 import {
   canMatchLocally,
   localMatcherReady,
@@ -51,7 +44,7 @@ import {
   saveData,
 } from "@/lib/rephoto/local-matcher"
 import { parallaxStep } from "@/lib/rephoto/parallax"
-import { grayOf, loadImage } from "@/lib/rephoto/pixels"
+import { loadImage } from "@/lib/rephoto/pixels"
 import {
   referenceLines,
   TRACE_OVERLAY_OPACITY,
@@ -70,6 +63,8 @@ import { releaseScreen } from "@/components/rephoto/camera-link"
 import { MatcherGuide } from "@/components/rephoto/matcher-guide"
 import { ReferenceTrace } from "@/components/rephoto/reference-trace"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
+
+import { useLiveLines } from "./use-live-lines"
 
 const CUE_TEXT: Record<CueKind, string> = {
   left: "Turn left",
@@ -203,7 +198,6 @@ const STRONG_INLIERS = 40
 // How long a match may be carried by the follower before a fresh match must confirm it.
 const TRACKED_LIFE = 6000
 // The view's width, in pixels, at which its lines are checked.
-const LINE_CHECK_WIDTH = 480
 
 // Width of the copy of the live picture the matcher looks at.
 const SAMPLE_WIDTH = 1280
@@ -447,206 +441,36 @@ export function RephotoCamera({
       cueLogged.current = { kind, at: now }
     }
   }, [lock, aspect, step])
-  // Close enough: the crop does the rest, and the live picture snaps onto the old photograph.
-  // Every reference line checked on its own edge before "Lined up": one rotation, zoom and
-  // shift can fit the wall and leave the canopy off when the viewpoint differs.
-  const [lines, setLines] = useState<
-    | (LineCheck & {
-        checkedAt: number
-        held: boolean
-        score: Score | null
-      })
-    | null
-  >(null)
-  // How each line looks, settled over checks: green once on twice running, amber once off twice
-  // running, kept between, and back to plain after 1.5 s unseen. Nothing flashes per check.
-  type LineLook = {
-    look: "on" | "off" | "plain"
-    onRun: number
-    offRun: number
-    seenAt: number
-    shift?: [number, number]
-  }
-  const lineLooks = useRef(new Map<number, LineLook>())
-  const [looks, setLooks] = useState<Map<number, LineLook>>(new Map())
-  // The last few scores, for a steady number (their median) instead of a jittery one.
-  const recentScores = useRef<number[]>([])
-  const lastLineCheck = useRef(0)
-  // "Lined up" starts after two passing checks running and ends on a line found off or two
-  // failing checks running, so it doesn't flicker on one noisy frame.
-  const lineRun = useRef({ passes: 0, fails: 0, held: false })
-  const checkingLines = useRef(false)
-  const archiveImage = useRef<HTMLImageElement | null>(null)
-  const linesLogged = useRef("")
-  // Checked about twice a second once the view is held, whatever the sign says: the score is how
-  // the person sees whether a move helped.
-  const wantsLineCheck = !!trace && !!lock?.held
-  const lineSession = useRef(0)
-  useEffect(() => {
-    lineSession.current++
-  }, [wantsLineCheck, aspect])
-  if (!wantsLineCheck && lines) setLines(null)
-  useEffect(() => {
-    const session = lineSession.current
-    const video = videoRef.current
-    const image = archiveImage.current
-    if (!wantsLineCheck) {
-      lineRun.current = { passes: 0, fails: 0, held: false }
-      recentScores.current = []
-      if (lineLooks.current.size) {
-        lineLooks.current = new Map()
-        setLooks(new Map())
-      }
-    }
-    if (!wantsLineCheck || !lock || !trace || checkingLines.current) return
-    if (performance.now() - lastLineCheck.current < 280) return
-    lastLineCheck.current = performance.now()
-    if (!video?.videoWidth || !image?.naturalWidth) return
-    checkingLines.current = true
-    const crop = frameCrop(aspect, video.videoWidth, video.videoHeight)
-    void (async () => {
-      try {
-        const k = Math.min(1, LINE_CHECK_WIDTH / crop.width)
-        const live = await grayOf(
-          video,
-          Math.round(video.videoWidth * k),
-          Math.round(video.videoHeight * k)
-        )
-        const archive = await grayOf(
-          image,
-          Math.round(crop.width * k),
-          Math.round(crop.width * k * aspect)
-        )
-        if (!live || !archive || session !== lineSession.current) return
-        const result = checkLines(trace, archive, live, {
-          cx: crop.cx * k,
-          cy: crop.cy * k,
-          width: crop.width * k,
-          rotation: crop.rotation,
-        })
-        const raw = alignmentScore(result, trace)
-        const definiteMiss = result.lines.some(
-          (line) => line.votes && line.state === "off"
-        )
-        if (definiteMiss) recentScores.current = []
-        let score: Score | null = null
-        if (scoreUsable(raw)) {
-          recentScores.current = [...recentScores.current, raw.score].slice(-3)
-          const sorted = [...recentScores.current].sort((a, b) => a - b)
-          score = { ...raw, score: sorted[Math.floor(sorted.length / 2)] }
-        }
-        const run = lineRun.current
-        const now = !definiteMiss && linedUp(score, run.held)
-        run.passes = now ? run.passes + 1 : 0
-        run.fails = now ? 0 : run.fails + 1
-        if (!run.held && run.passes >= 2) run.held = true
-        if (definiteMiss || run.fails >= 2) run.held = false
-        setLines({
-          ...result,
-          checkedAt: lock.at,
-          held: run.held,
-          score,
-        })
-        const at = performance.now()
-        const next = new Map(lineLooks.current)
-        for (const line of result.lines) {
-          if (!line.votes) continue
-          const was = next.get(line.index) ?? {
-            look: "plain" as const,
-            onRun: 0,
-            offRun: 0,
-            seenAt: 0,
-          }
-          const look = { ...was }
-          if (line.state === "on") {
-            look.onRun++
-            look.offRun = 0
-            look.seenAt = at
-            look.shift = undefined
-            if (look.onRun >= 2) look.look = "on"
-          } else if (line.state === "off") {
-            look.offRun++
-            look.onRun = 0
-            look.seenAt = at
-            look.shift = line.shift ?? look.shift
-            if (look.look === "on" || look.offRun >= 2) look.look = "off"
-          } else if (at - look.seenAt > 1500) {
-            look.look = "plain"
-            look.shift = undefined
-          }
-          next.set(line.index, look)
-        }
-        lineLooks.current = next
-        setLooks(next)
-        const summary = `${run.held}:${result.worst}:${Math.round((score?.score ?? -10) / 10)}:${raw?.measured}:${run.passes}`
-        if (summary !== linesLogged.current) {
-          linesLogged.current = summary
-          diagnostic("lines", {
-            ok: run.held,
-            score: score?.score ?? null,
-            worst: result.worst,
-            on: result.lines.filter((line) => line.state === "on").length,
-            off: result.lines.filter((line) => line.state === "off").length,
-            worstOffset:
-              result.worst == null ? null : result.lines[result.worst].offset,
-            // Why "Lined up" did or didn't come (21 Nov 2026: two 94s in a row and no
-            // "Lined up", with nothing logged to say which rule held it back).
-            raw: raw?.score ?? null,
-            weakest: raw?.weakest ?? null,
-            measured: raw?.measured ?? null,
-            regions: raw?.regions ?? null,
-            passes: run.passes,
-          })
-        }
-      } catch {
-        // A failed check never says "lined up".
-      } finally {
-        checkingLines.current = false
-      }
-    })()
-  }, [wantsLineCheck, lock, trace, aspect])
-  const linesNow =
-    lines && lock && wantsLineCheck && lock.at - lines.checkedAt < 1000
-      ? lines
-      : null
-  // Physical pointing and separate regions must agree before giving a positive cue.
-  const framedEnough =
-    !!cue &&
-    ![
-      "left",
-      "right",
-      "up",
-      "down",
-      "clockwise",
-      "anticlockwise",
-      "back",
-      "closer",
-    ].includes(cue.kind)
-  const snapped = trace
-    ? !!lock && !!linesNow?.held && framedEnough
-    : !!lock?.held && cue?.kind === "hold"
-  // Show only individually confirmed lines in green. The two furthest-off lines
-  // get a dashed copy where their edge really is, so the gap to close is plain to see.
-  const lineStyle = (() => {
-    if (!trace || showArchive || !wantsLineCheck)
-      return { confirmed: [], off: [], shifts: [] }
-    const entries = [...looks.entries()]
-    return {
-      confirmed: entries.filter(([, l]) => l.look === "on").map(([i]) => i),
-      off: entries.filter(([, l]) => l.look === "off").map(([i]) => i),
-      // From the latest check alone (no waiting for a second), so the copy keeps up.
-      shifts: (linesNow?.lines ?? [])
-        .filter((line) => line.votes && line.shift)
-        .map((line) => ({
-          index: line.index,
-          dx: line.shift![0],
-          dy: line.shift![1],
-        }))
-        .sort((a, b) => Math.hypot(b.dx, b.dy) - Math.hypot(a.dx, a.dy))
-        .slice(0, 2),
-    }
-  })()
-  const liveScore = snapped || linesNow?.score ? linesNow?.score?.score : null
+  const recognized = !!lock?.held
+  const lines = useLiveLines(
+    videoRef,
+    trace,
+    videoSize.width
+      ? frameCrop(aspect, videoSize.width, videoSize.height)
+      : null,
+    aspect,
+    status === "live" && !shot && !interrupted && !showArchive,
+    recognized
+  )
+  const verdicts = lines?.check.lines ?? []
+  const confirmed = verdicts.filter((l) => l.state === "on").map((l) => l.index)
+  const off = verdicts.filter((l) => l.state === "off").map((l) => l.index)
+  const near = verdicts
+    .filter((l) => l.state === "unknown" && l.offset != null)
+    .map((l) => l.index)
+  const focus = lines && trace ? focusLine(lines.check, trace) : undefined
+  const possible = lines?.possible ?? []
+  const shifts = [...verdicts.filter((l) => l.state === "off"), ...possible]
+    .filter((l) => l.shift)
+    .map((l) => ({ index: l.index, dx: l.shift![0], dy: l.shift![1] }))
+  const snapped = recognized && !!lines?.held
+  const liveScore = recognized ? lines?.score : null
+  const foreground = confirmed.find(
+    (i) => trace?.features[i].name === trace?.foreground
+  )
+  // Traced routes use the gap on the named edge. A model fit alone cannot
+  // distinguish a step, a turn or parallax between the slide and distant shops.
+  const showCoarse = !trace && recognized
   useEffect(() => {
     // Without lines the follower's own "steady" buzz already marks this.
     if (snapped && trace) navigator.vibrate?.(15)
@@ -715,7 +539,6 @@ export function RephotoCamera({
         if (cancelled || !image.naturalWidth) return
         setAspect(image.naturalHeight / image.naturalWidth)
         archiveRef.current = prepareArchive(image)
-        archiveImage.current = image
       })
       .catch(() => {})
     return () => {
@@ -1696,9 +1519,11 @@ export function RephotoCamera({
                   <div className="absolute inset-0 border border-white/35" />
                   <ReferenceTrace
                     guide={trace}
-                    confirmed={lineStyle.confirmed}
-                    off={lineStyle.off}
-                    shifts={lineStyle.shifts}
+                    confirmed={confirmed}
+                    off={off}
+                    near={near}
+                    possible={possible.map((l) => l.index)}
+                    shifts={shifts}
                   />
                 </>
               )}
@@ -1727,14 +1552,16 @@ export function RephotoCamera({
           <div
             data-testid="handheld-guide"
             data-state={snapped ? "adjusted" : lock ? "found" : "searching"}
-            data-cue={cue?.kind ?? "none"}
+            data-cue={
+              snapped ? "hold" : showCoarse ? (cue?.kind ?? "none") : "none"
+            }
           >
             <MatcherGuide
               hidden={status !== "live" || interrupted}
               icon={
                 captureBusy ? undefined : snapped ? (
                   cueIcon("hold")
-                ) : cue && cue.kind !== "hold" ? (
+                ) : showCoarse && cue && cue.kind !== "hold" ? (
                   cueIcon(cue.kind)
                 ) : !lock ? (
                   <Search
@@ -1749,7 +1576,7 @@ export function RephotoCamera({
               message={
                 captureBusy
                   ? "Taking photo…"
-                  : cue && cue.kind !== "hold" && !snapped
+                  : showCoarse && cue && cue.kind !== "hold" && !snapped
                     ? cueText(cue.kind, false)
                     : ""
               }
@@ -1762,6 +1589,31 @@ export function RephotoCamera({
               }
             />
           </div>
+          {trace && status === "live" && !interrupted && !showArchive && (
+            <div
+              data-testid="landmark-feedback"
+              className="pointer-events-none absolute inset-x-3 bottom-[max(.5rem,env(safe-area-inset-bottom))] flex justify-center"
+            >
+              <span className="max-w-full rounded-lg bg-black/80 px-3 py-1.5 text-center text-sm leading-tight text-white">
+                {focus
+                  ? (foreground != null && foreground !== focus.index
+                      ? trace.features[foreground].name + " ✓ · "
+                      : "") + lineInstruction(trace, aspect, focus)
+                  : confirmed.length
+                    ? trace.features[confirmed[0]].name +
+                      " ✓ · " +
+                      confirmed.length +
+                      " of " +
+                      trace.features.length +
+                      " edges overlap"
+                    : lines?.possible.length
+                      ? "Check " +
+                        trace.features[lines.possible[0].index].name +
+                        " against the outline"
+                      : lineInstruction(trace, aspect)}
+              </span>
+            </div>
+          )}
           <button
             type="button"
             aria-pressed={showArchive}

@@ -138,11 +138,17 @@ can say where to stand. Set both up for every place with lines.
 | "Lined up" could pass on a fitting wall while the canopy was never measured.                                                                                    | Give each surviving part of the scene its own `region` (wall, canopy, shopfront; roof, facade). Lined up needs every region measured, so only regions that can be seen today. Two regions minimum.            |
 | The camera kept asking to step back and forth on noise.                                                                                                         | Add `zones: { near, far }` (archive fractions) only when a clearly near surface and a clearly far, unchanged part both survive. Without them the camera just doesn't give step signs.                         |
 | Most of the old view has changed (St Heliers: a tree hides the left wing, the street is a roundabout).                                                          | The matcher accepts a dense match on what survives (45+ agreeing points over at least 12% x 15% of the old view). Put the regions on that surviving part and drop lines over hidden or rebuilt parts.         |
-| Line names flashing on screen were unreadable.                                                                                                                  | Names stay internal (accessibility labels, telemetry). Write them for a person reading the code, not the camera user.                                                                                         |
+| Line names flashing on screen were unreadable.                                                                                                                  | Use short, recognizable names. The camera names the matched foreground reference and the edge to move.                                                                                         |
 
 Check a new or changed guide offline before shipping: `node --experimental-strip-types
 scripts/check-guide.mjs <slug> <recent-photo.jpg>` scores the lines the way the camera does.
 Every region should be measured, and a visually good shot should score highest.
+
+## Local feedback in the camera and review
+
+Every traced landmark can respond to its own image evidence, including at places without verified scoring regions. Green marks an overlapping edge. Amber shows a gap, with a dashed outline at the detected edge when its displacement is measurable. The arrow describes where to bring that edge on screen. A single uncorroborated candidate uses a dotted blue outline for manual comparison. The live camera clears lost evidence as the view changes. Only a recognized scene with supported regional measurements can earn “Lined up”. A clearly displaced distinctive edge can veto that result even when it has no scoring region. Traced cameras give screen-space corrections. The Mayfair slide is explicitly designated as the foreground anchor.
+
+In the 26 November Mayfair capture, the slide tip was within three pixels at a display width of 900 pixels, while the right blue lamp shaft was about 45 pixels right of its target. A single scale instruction obscured that difference. Keep the slide as the foreground reference and compare the right lamp and mast footing independently. The feedback leaves the preview, shutter and export at the photographer’s chosen framing.
 
 ## Neighbourhood guides, November 2026
 
