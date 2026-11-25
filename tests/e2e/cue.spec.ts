@@ -20,8 +20,9 @@ test("the view off to one side means turning the phone that way", () => {
 test("too big means stepping back, too small stepping closer", () => {
   expect(sign({ width: 4400 })).toBe("back")
   expect(sign({ width: 2000 })).toBe("closer")
-  // Somewhat smaller than the target is fine: the crop zooms in.
-  expect(sign({ width: 3000 })).toBe("hold")
+  // The fixed camera cannot magnify a subject that only fills 83% of the target.
+  expect(sign({ width: 3000 })).toBe("closer")
+  expect(sign({ width: 3600 })).toBe("hold")
 })
 
 test("a view leaning clockwise means turning the phone clockwise", () => {

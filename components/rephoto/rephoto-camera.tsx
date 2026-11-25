@@ -396,8 +396,7 @@ export function RephotoCamera({
           cueFilter.current.current?.kind ?? null,
           step && now - step.at < TRACKED_LIFE && now >= stepMutedUntil.current
             ? step
-            : null,
-          true
+            : null
         ),
         now
       )
@@ -617,11 +616,12 @@ export function RephotoCamera({
       "clockwise",
       "anticlockwise",
       "back",
+      "closer",
     ].includes(cue.kind)
   const snapped = trace
     ? !!lock && !!linesNow?.held && framedEnough
     : !!lock?.held && cue?.kind === "hold"
-  // Lined up: every line green. Otherwise each line as it has settled; the two furthest-off lines
+  // Show only individually confirmed lines in green. The two furthest-off lines
   // get a dashed copy where their edge really is, so the gap to close is plain to see.
   const lineStyle = (() => {
     if (!trace || showArchive || !wantsLineCheck)
