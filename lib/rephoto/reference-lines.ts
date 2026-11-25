@@ -992,7 +992,7 @@ const guides: Record<string, ReferenceLines> = {
     image: "/posts/0013-mayfair-place/then-mayfair-place.jpg",
     features: [
       {
-        name: "Slide upper lip from slope to flat runout",
+        name: "Slide lip",
         region: "slide",
         points: [
           [0.0, 0.75],
@@ -1006,7 +1006,7 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Slide underside and squared discharge tip",
+        name: "Slide exit",
         points: [
           [0.0, 0.86833],
           [0.03667, 0.89],
@@ -1019,7 +1019,7 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Slide foot below discharge tip",
+        name: "Slide support",
         points: [
           [0.18556, 0.89833],
           [0.18556, 0.92833],
@@ -1028,7 +1028,7 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Bench seat behind slide, near edge and far tip",
+        name: "Orange bench seat",
         points: [
           [0.23333, 0.72667],
           [0.28667, 0.72667],
@@ -1093,6 +1093,36 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
+        name: "Right blue lamp shaft",
+        region: "far lamp",
+        points: [
+          [0.73333, 0.44167],
+          [0.73444, 0.515],
+          [0.73556, 0.60833],
+        ],
+      },
+      {
+        name: "Central mast cap and side",
+        region: "centre mast",
+        points: [
+          [0.36667, 0.40667],
+          [0.36778, 0.28833],
+          [0.37222, 0.285],
+          [0.38, 0.28833],
+          [0.37889, 0.43],
+        ],
+      },
+      {
+        name: "Right mast footing",
+        region: "right mast",
+        points: [
+          [0.92222, 0.65667],
+          [0.92444, 0.75333],
+          [0.94778, 0.75667],
+          [0.94667, 0.66],
+        ],
+      },
+      {
         name: "Left shop parapet and corner",
         region: "shops",
         points: [
@@ -1109,7 +1139,7 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Pergola beam across the passage",
+        name: "Passage beam",
         region: "passage",
         points: [
           [0.41333, 0.54333],

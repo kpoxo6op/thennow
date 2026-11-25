@@ -1,6 +1,8 @@
 import type { Crop } from "@/lib/rephoto/crop"
 import type { ReferenceLines } from "@/lib/rephoto/reference-lines"
 
+import { matchContour } from "./contour.ts"
+
 // Whether each reference line really sits on its edge in the live picture, once the old photo's
 // view is placed by `crop`. One rotation, zoom and shift can fit the wall and still leave the
 // canopy off when the shot is taken from a different spot (Bradley Lane, 14 Nov 2026: "Lined up"
@@ -19,6 +21,7 @@ export type LineVerdict = {
   support: number
   // Whether the line takes part (has a region): decorative lines never count.
   votes: boolean
+  distinctive?: boolean
   // Where the line's edge sits in the live picture relative to the line, as fractions of the old
   // photo's width and height, when its points agree on it.
   shift?: [number, number]
@@ -85,7 +88,7 @@ function strongest(
   const scores: [number, number][] = []
   for (let d = -reach; d <= reach; d++) {
     const raw = edge(g, x + nx * d, y + ny * d, nx, ny)
-    if (!Number.isFinite(raw)) return null
+    if (!Number.isFinite(raw)) continue
     const s = sign ? raw * sign : Math.abs(raw)
     scores.push([d, s])
     if (s > best) {
@@ -130,7 +133,8 @@ function patchShift(
   reach: number,
   // Also look along the line: only for lines whose own pattern pins them that way (a sign's
   // lettering). Elsewhere a changed patch (a new sign over a wall's top) "finds" a false shift.
-  pinned = false
+  pinned = false,
+  minimum = 0.5
 ) {
   const T = 6
   const N = 10
@@ -178,20 +182,20 @@ function patchShift(
   let bestD = 0
   for (let d = -reach; d <= reach; d++) {
     const value = ncc(d, 0)
-    if (!Number.isFinite(value)) return null
+    if (!Number.isFinite(value)) continue
     scores.push([d, value])
     if (value > best) {
       best = value
       bestD = d
     }
   }
-  if (best < 0.5 || Math.abs(bestD) >= reach - 1) return null
+  if (best < minimum || Math.abs(bestD) >= reach - 1) return null
   for (const [d, value] of scores)
     if (Math.abs(d - bestD) > 3 && value > best - 0.05) return null
   // Along the line, too, where the pattern pins it (a sign's lettering): a sign moved sideways
   // keeps its top and bottom edges on their lines, so across alone can't see it (Bradley Lane's
   // TAKEAWAY 5% off on 14-15 Nov). A plain edge doesn't pin it and counts as on.
-  if (!pinned) return { d: bestD, e: 0 }
+  if (!pinned) return { d: bestD, e: 0, quality: best }
   let bestE = 0
   let bestAlong = best
   const along: [number, number][] = []
@@ -211,7 +215,7 @@ function patchShift(
     )
   )
     bestE = 0
-  return { d: bestD, e: bestE }
+  return { d: bestD, e: bestE, quality: best }
 }
 
 function median(values: number[]) {
@@ -228,7 +232,8 @@ export function checkLines(
   guide: ReferenceLines,
   archive: Gray,
   live: Gray,
-  crop: Crop
+  crop: Crop,
+  recognized = true
 ): LineCheck {
   const w = archive.width
   const h = archive.height
@@ -237,12 +242,21 @@ export function checkLines(
   const sin = Math.sin(crop.rotation)
   const reach = Math.max(4, Math.round(REACH * w))
   const lines: LineVerdict[] = guide.features.map((feature, index) => {
-    if (!feature.region)
-      return { index, state: "unknown", offset: null, support: 0, votes: false }
+    const votes = !!feature.region
+    const contour = matchContour(feature.points, archive, live, crop)
+    if (contour) return { index, votes, distinctive: true, ...contour }
+    const unknown = {
+      index,
+      state: "unknown" as const,
+      offset: null,
+      support: 0,
+      votes,
+    }
     // Offsets in thirds of the line, so one matching stretch can't hide the rest.
     const sections: number[][] = [[], [], []]
     const moves: [number, number][] = []
-    let total = 0
+    let total = 0,
+      unique = 0
     const lengths = feature.points.slice(1).map((p, k) => {
       const q = feature.points[k]
       return Math.hypot((p[0] - q[0]) * w, (p[1] - q[1]) * h)
@@ -258,7 +272,7 @@ export function checkLines(
       const bx = u1 * w
       const by = v1 * h
       const length = lengths[k - 1]
-      if (length < 10) {
+      if (length < 3) {
         walked += length
         continue
       }
@@ -270,7 +284,7 @@ export function checkLines(
         const x = ax + (bx - ax) * t
         const y = ay + (by - ay) * t
         const then = strongest(archive, x, y, nx, ny, reach)
-        if (!then) continue
+
         samples++
         const qx = (x - w / 2) * scale
         const qy = (y - h / 2) * scale
@@ -291,12 +305,14 @@ export function checkLines(
           lny,
           scale,
           Math.round(reach * scale),
-          !!feature.along
+          !!feature.along,
+          recognized && votes ? 0.5 : 0.8
         )
+        if (shift && (shift.quality ?? 0) >= 0.8) unique++
         // Where the surroundings changed too much for the patch to match (a 1929 photo against
         // today's colours), the single clear edge still can, provided nothing near the line's
         // place competes with it.
-        if (shift == null) {
+        if (shift == null && recognized && votes && then) {
           const edgeNow = strongest(
             live,
             lx,
@@ -308,7 +324,8 @@ export function checkLines(
             then.d * scale,
             Math.max(2, LINE_ON * w * scale)
           )
-          if (edgeNow) shift = { d: edgeNow.d - then.d * scale, e: 0 }
+          if (edgeNow)
+            shift = { d: edgeNow.d - then.d * scale, e: 0, quality: 0 }
         }
         if (shift == null) continue
         total++
@@ -334,7 +351,7 @@ export function checkLines(
       support < MIN_SUPPORT ||
       filled.length < (short ? 1 : 2)
     )
-      return { index, state: "unknown", offset: null, support, votes: true }
+      return { ...unknown, support }
     const offset = Math.max(
       ...filled.map((section) => Math.abs(median(section)) / w)
     )
@@ -344,20 +361,21 @@ export function checkLines(
     const my = median(moves.map(([, y]) => y))
     const agree =
       moves.filter(([x, y]) => x * mx + y * my > 0).length / moves.length
+    const coherent =
+      support >= 0.6 && agree >= 0.7 && Math.hypot(mx, my) / w > LINE_ON
+    if (!votes && offset > LINE_OFF && !coherent) return { ...unknown, support }
     return {
       index,
+      distinctive: unique >= 3 && unique >= total * 0.6,
       state: offset <= LINE_ON ? "on" : offset > LINE_OFF ? "off" : "unknown",
       offset,
       support,
-      votes: true,
-      shift:
-        support >= 0.6 && agree >= 0.7 && Math.hypot(mx, my) / w > LINE_ON
-          ? [mx / w, my / h]
-          : undefined,
+      votes,
+      shift: coherent ? [mx / w, my / h] : undefined,
     }
   })
   const off = lines
-    .filter((line) => line.state === "off")
+    .filter((line) => line.votes && line.state === "off")
     .sort((a, b) => (b.offset ?? 0) - (a.offset ?? 0))
   const voting = guide.features.flatMap((feature, index) =>
     feature.region ? [index] : []
@@ -367,13 +385,14 @@ export function checkLines(
   )
   const confirmed = new Set(
     lines
-      .filter((line) => line.state === "on")
+      .filter((line) => line.votes && line.state === "on")
       .map((line) => guide.features[line.index].region ?? "all")
   )
   return {
     ok:
       voting.length >= 2 &&
       off.length === 0 &&
+      !lines.some((l) => l.distinctive && l.state === "off" && l.shift) &&
       [...regions].every((region) => confirmed.has(region)),
     lines,
     worst: off[0]?.index ?? null,

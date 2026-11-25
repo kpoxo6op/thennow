@@ -386,14 +386,13 @@ for (const [orientation, viewport] of Object.entries({
         "data-state",
         "found"
       )
+      // The synthetic fit points to an unrelated scene. Suppress contradictory
+      // physical instructions until live landmarks support them.
       await expect(page.getByTestId("handheld-guide")).toHaveAttribute(
         "data-cue",
-        "back"
+        "none"
       )
-      await expect(page.getByTestId("cue-icon")).toBeVisible()
-      await expect(page.getByTestId("handheld-guide")).toContainText(
-        "Step back"
-      )
+      await expect(page.getByTestId("landmark-feedback")).toBeVisible()
       await expect(page.getByTestId("rephoto-review")).toHaveCount(0)
       expect(
         events()
@@ -497,7 +496,7 @@ for (const capability of ["none", "no-f16"] as const) {
     await page.goto("/mission-house/camera")
     const guide = page.getByTestId("matcher-guide")
     await expect(guide).toHaveAttribute("data-state", "unsupported")
-    await expect(guide).toContainText("Live guide unavailable")
+    await expect(guide).toContainText("Scene matcher unavailable")
     await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
     await screenshot(page, `portrait-unsupported-${capability}`)
     await page.setViewportSize({ width: 844, height: 390 })
@@ -613,7 +612,7 @@ test("downloaded bytes are measured and a stalled startup falls back", async ({
     "failed"
   )
   await expect(page.getByTestId("matcher-guide")).toContainText(
-    "Live guide unavailable"
+    "Scene matcher unavailable"
   )
 })
 
@@ -722,4 +721,79 @@ test("a hung first inference leaves starting and recovers without disabling capt
     )
     .toBeGreaterThan(0)
   await expect(guide).toHaveCount(0)
+})
+
+test("landmarks react to a moved foreground and clear on an empty frame without scene recognition", async ({
+  page,
+}) => {
+  test.setTimeout(45_000)
+  await gpu(page, "none")
+  await page.route("**/api/align", (r) => r.abort())
+  await page.addInitScript(() => {
+    const state = Object.assign(window, { guideScene: "aligned" })
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      value: async () => {
+        const image = new Image()
+        image.src = "/posts/0013-mayfair-place/then-mayfair-place.jpg"
+        await image.decode()
+        const canvas = document.createElement("canvas")
+        canvas.width = 800
+        canvas.height = 600
+        const ctx = canvas.getContext("2d")!
+        const draw = () => {
+          ctx.fillStyle = "#555"
+          ctx.fillRect(0, 0, 800, 600)
+          if (state.guideScene === "blank") return
+          ctx.drawImage(image, 40, 60, 720, 480)
+          if (state.guideScene === "moved") {
+            ctx.save()
+            ctx.beginPath()
+            ctx.rect(40, 400, 170, 140)
+            ctx.clip()
+            ctx.drawImage(image, 40, 78, 720, 480)
+            ctx.restore()
+          }
+        }
+        draw()
+        const task = setInterval(draw, 100)
+        const stream = canvas.captureStream(10)
+        stream
+          .getVideoTracks()[0]
+          .addEventListener("ended", () => clearInterval(task))
+        return stream
+      },
+    })
+  })
+  await page.goto("/mayfair-place/camera")
+  const trace = page.getByTestId("reference-trace")
+  const slide = trace.locator('g[aria-label="Slide lip"]')
+  const bird = trace.locator('g[aria-label="Left bird, head and neck"]')
+  const show = (guideScene: string) =>
+    page.evaluate((value) => {
+      Object.assign(window, { guideScene: value })
+    }, guideScene)
+  await expect(slide).toHaveAttribute("data-state", "on", { timeout: 12000 })
+  await expect(bird).toHaveAttribute("data-state", "on")
+  await show("moved")
+  await expect(slide).toHaveAttribute("data-state", "off")
+  await expect(bird).toHaveAttribute("data-state", "on")
+  await expect(page.getByTestId("landmark-feedback")).toContainText("Slide lip")
+  await expect(trace.getByTestId("line-shift").first()).toBeVisible()
+  await show("blank")
+  await expect(
+    trace.locator('[data-state="on"],[data-state="off"]')
+  ).toHaveCount(0)
+  await expect(page.getByTestId("handheld-guide")).toHaveAttribute(
+    "data-cue",
+    "none"
+  )
+  await show("moved")
+  await expect(slide).toHaveAttribute("data-state", "off")
+  await page.getByTestId("rephoto-shutter").click()
+  await expect(page.getByTestId("rephoto-review")).toHaveAttribute(
+    "data-phase",
+    "unchecked"
+  )
+  await expect(slide).toHaveAttribute("data-state", "off", { timeout: 10000 })
+  await expect(bird).toHaveAttribute("data-state", "on")
 })

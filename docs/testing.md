@@ -209,6 +209,8 @@ and an agent's approval are not evidence of real device behaviour.
 
 The matcher-guide journey follows recognition, loss, reacquisition and archive inspection with a stationary camera. The video and archive target stay fixed, and a displaced model fit leaves the captured crop at the visible frame. The send journey compares the actual JPEG to the corresponding area of the viewfinder. Manual capture remains available while the matcher is loading or unavailable. A failed still-frame recognition after a live lock asks for a retake. Runtime failures allow the photographer to review and send their composition.
 
+A separate camera journey moves only the Mayfair slide in a synthetic video while the bird stays fixed. It verifies independent feedback, clearing on occlusion and the captured review with scene recognition unavailable. The stationary matcher journey cannot exercise relative movement between two landmarks.
+
 These existing journeys protect control flow with simulated inference. The manual
 photo baseline in [alignment-quality.md](alignment-quality.md) and real field
 captures determine photographic quality. Automatic capture remains disabled until

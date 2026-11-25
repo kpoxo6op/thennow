@@ -24,6 +24,11 @@ import {
   scoreUsable,
   type LineCheck,
 } from "@/lib/rephoto/line-check"
+import {
+  corroborated,
+  focusLine,
+  lineInstruction,
+} from "@/lib/rephoto/line-feedback"
 import { grayOf, loadImage } from "@/lib/rephoto/pixels"
 import { referenceLines } from "@/lib/rephoto/reference-lines"
 import { newKey, sendPhoto } from "@/lib/rephoto/submit"
@@ -230,23 +235,16 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
           const image = await loadImage(thenSrc)
           controller.signal.throwIfAborted()
           const archive = shot.archive ?? prepareArchive(image)
-          const found = await align(
+          const recognition = align(
             archive,
             shot.canvas,
             photo,
             controller.signal,
             { server: true }
+          ).then(
+            (result) => (result ? ("recognized" as const) : ("miss" as const)),
+            () => "unavailable" as const
           )
-          controller.signal.throwIfAborted()
-          if (!found) {
-            if (shot.locked) {
-              setNote("The views don’t line up. Try another nearby viewpoint.")
-              setPhase("unmatched")
-              done("unmatched")
-              return
-            }
-            throw new Error("Scene unconfirmed")
-          }
           const k = Math.min(1, SCORE_WIDTH / placed.width)
           const live = await grayOf(
             shot.canvas,
@@ -260,30 +258,73 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
           )
           controller.signal.throwIfAborted()
           if (live && old) {
-            const check = checkLines(trace, old, live, {
+            const crop = {
               cx: placed.cx * k,
               cy: placed.cy * k,
               width: placed.width * k,
               rotation: placed.rotation,
-            })
-            const scored = alignmentScore(check, trace)
-            // Only what this shot itself shows: no borrowed live number (19 Nov: an 81 came from
-            // the live score while the shot could be checked in one region only).
-            // At least two parts of the scene measured (19 Nov: a well-lined-up shot whose
-            // shaded TAKEAWAY sign couldn't be read got no score at all).
-            const value = scoreUsable(scored) ? scored.score : null
-            const lined = linedUp(scored, false)
-            setScore({ value, check })
-            const off = check.lines.filter(
-              (line) => line.state === "off"
-            ).length
-            setNote(
-              lined && off
-                ? "Some edges differ. Drag to compare."
-                : lined
+            }
+            const local = checkLines(trace, old, live, crop, false)
+            const show = (check: LineCheck, known: boolean) => {
+              const supported =
+                corroborated(check, trace) ||
+                (known &&
+                  check.lines.some(
+                    (line) => line.distinctive && line.state !== "unknown"
+                  ))
+              const scored =
+                supported && known ? alignmentScore(check, trace) : null
+              const value = scoreUsable(scored) ? scored.score : null
+              const lined =
+                known && supported && check.ok && linedUp(scored, false)
+              const shown = supported
+                ? check
+                : {
+                    ...check,
+                    lines: check.lines.map((l) => ({
+                      ...l,
+                      state: "unknown" as const,
+                      offset: null,
+                      shift: undefined,
+                    })),
+                  }
+              const focus = focusLine(shown)
+              const matched = shown.lines.find((l) => l.state === "on")
+              setScore({ value, check: shown })
+              setNote(
+                lined
                   ? "Lined up. Drag to compare."
-                  : "Drag to compare edges."
-            )
+                  : focus
+                    ? (matched
+                        ? trace.features[matched.index].name + " ✓ · "
+                        : "") + lineInstruction(trace, focus)
+                    : matched
+                      ? trace.features[matched.index].name +
+                        " overlaps. Drag to compare."
+                      : "Your framing. Compare " + trace.features[0].name + "."
+              )
+              return {
+                value,
+                lined,
+                off: shown.lines.filter((l) => l.state === "off").length,
+              }
+            }
+            show(local, false)
+            const status = await recognition
+            controller.signal.throwIfAborted()
+            const known = status === "recognized"
+            const check = known
+              ? checkLines(trace, old, live, crop, true)
+              : local
+            const { value, lined, off } = show(check, known)
+            if (status === "miss" && shot.locked) {
+              setNote(
+                "Scene match lost. Compare the landmarks before retaking."
+              )
+              setPhase("unmatched")
+              done("unmatched")
+              return
+            }
             diagnostic("score", {
               score: value,
               ok: lined,
@@ -662,6 +703,22 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
             {trace && !peek && !comparing && settled && !sweeping && (
               <ReferenceTrace
                 guide={trace}
+                shifts={score?.check.lines.flatMap((line) =>
+                  line.state === "off" && line.shift
+                    ? [
+                        {
+                          index: line.index,
+                          dx: line.shift[0],
+                          dy: line.shift[1],
+                        },
+                      ]
+                    : []
+                )}
+                near={score?.check.lines
+                  .filter(
+                    (line) => line.state === "unknown" && line.offset != null
+                  )
+                  .map((line) => line.index)}
                 confirmed={
                   score
                     ? score.check.lines
