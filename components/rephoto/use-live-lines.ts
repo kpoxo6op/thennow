@@ -5,8 +5,10 @@ import { useEffect, useRef, useState, type RefObject } from "react"
 import type { Crop } from "@/lib/rephoto/crop"
 import {
   alignmentScore,
+  checkLines,
   linedUp,
   scoreUsable,
+  type Gray,
   type LineCheck,
 } from "@/lib/rephoto/line-check"
 import { consistentEdge, corroborated } from "@/lib/rephoto/line-feedback"
@@ -43,6 +45,10 @@ export function useLiveLines(
       return
     let cancelled = false
     let worker: Worker | undefined
+    let archive: Gray | null = null
+    const targetGuide = guide
+    let generation = 0
+    let sampleGeneration = 0
     let timer: ReturnType<typeof setTimeout>
     let expire: ReturnType<typeof setTimeout>
     let previousTime = -1
@@ -63,10 +69,11 @@ export function useLiveLines(
     let sampled = 0,
       known = false
     const later = () => {
-      if (!cancelled) timer = setTimeout(() => void sample(), 250)
+      if (!cancelled)
+        timer = setTimeout(() => void sample(), worker ? 250 : 500)
     }
     async function sample() {
-      if (cancelled || !video || !worker) return
+      if (cancelled || !video || !archive) return
       if (
         document.hidden ||
         video.paused ||
@@ -78,6 +85,7 @@ export function useLiveLines(
       }
       previousTime = video.currentTime
       sampled = performance.now()
+      sampleGeneration = generation
       known = identity.current
       try {
         const live = await grayOf(
@@ -90,9 +98,13 @@ export function useLiveLines(
           later()
           return
         }
-        worker.postMessage({ live, crop: target, recognized: known }, [
-          live.data.buffer,
-        ])
+        if (worker) {
+          worker.postMessage({ live, crop: target, recognized: known }, [
+            live.data.buffer,
+          ])
+        } else {
+          accept(checkLines(targetGuide, archive, live, target, known))
+        }
       } catch {
         if (!cancelled) {
           reset()
@@ -100,109 +112,127 @@ export function useLiveLines(
         }
       }
     }
+    function accept(check: LineCheck) {
+      if (cancelled) return
+      const trusted = known && identity.current
+      if (
+        document.hidden ||
+        sampleGeneration !== generation ||
+        performance.now() - sampled > 1500 ||
+        (known && !trusted)
+      ) {
+        reset()
+        later()
+        return
+      }
+      const evidence = corroborated(check, targetGuide, aspect)
+      // A positive edge requires two actual frames. A definite miss or
+      // occlusion removes green immediately, independently for each line.
+      const nextTracked = new Set<number>()
+      const display = {
+        ...check,
+        lines: check.lines.map((l, i) => {
+          const retained =
+            tracked.has(i) && consistentEdge(l, previous?.lines[i])
+          const measured = evidence || retained
+          if (measured && l.state !== "unknown") nextTracked.add(i)
+          const state =
+            !measured || (l.state === "on" && previous?.lines[i].state !== "on")
+              ? ("unknown" as const)
+              : l.state
+          return {
+            ...l,
+            state,
+            offset:
+              measured && (state !== "unknown" || l.state === "unknown")
+                ? l.offset
+                : null,
+          }
+        }),
+      }
+      const possible = evidence
+        ? []
+        : check.lines.filter(
+            (l, i) =>
+              !nextTracked.has(i) && consistentEdge(l, previous?.lines[i])
+          )
+      tracked = nextTracked
+      previous = check
+      const raw = alignmentScore(check, targetGuide)
+      const on = display.lines.filter((l) => l.state === "on").length
+      const off = display.lines.filter((l) => l.state === "off").length
+      const ok = evidence && trusted && check.ok && linedUp(raw, held)
+      passes = ok ? passes + 1 : 0
+      held = ok && (held || passes >= 2)
+      const score = evidence && trusted && scoreUsable(raw) ? raw.score : null
+      setReading({
+        check: display,
+        held,
+        score,
+        recognized: trusted,
+        possible,
+      })
+      clearTimeout(expire)
+      expire = setTimeout(
+        reset,
+        Math.max(0, sampled + 1500 - performance.now())
+      )
+      const summary = [
+        held,
+        Math.round((score ?? -10) / 10),
+        check.worst,
+        on,
+        off,
+      ].join("/")
+      if (summary !== logged) {
+        logged = summary
+        diagnostic("lines", {
+          ok: held,
+          score,
+          on,
+          off,
+          worst: check.worst,
+          worstOffset:
+            check.worst == null ? null : check.lines[check.worst].offset,
+          raw: raw?.score ?? null,
+          weakest: raw?.weakest ?? null,
+          measured: raw?.measured ?? 0,
+          regions: raw?.regions ?? 0,
+          passes,
+        })
+      }
+      later()
+    }
     async function start() {
-      if (!guide || !width) return
+      if (!width) return
       try {
-        const archive = await grayOf(
-          await loadImage(guide.image),
+        archive = await grayOf(
+          await loadImage(targetGuide.image),
           width * k,
           width * k * aspect
         )
         if (cancelled || !archive) return
-        worker = new Worker(
-          new URL("../../lib/rephoto/line-worker.ts", import.meta.url),
-          { type: "module" }
-        )
-        worker.onmessage = (event: MessageEvent<LineCheck>) => {
-          if (cancelled) return
-          const check = event.data,
-            trusted = known && identity.current
-          if (
-            document.hidden ||
-            performance.now() - sampled > 1500 ||
-            (known && !trusted)
-          ) {
+        try {
+          worker = new Worker(
+            new URL("../../lib/rephoto/line-worker.ts", import.meta.url),
+            { type: "module" }
+          )
+          worker.onmessage = (event: MessageEvent<LineCheck>) =>
+            accept(event.data)
+          worker.onerror = () => {
+            if (cancelled) return
+            clearTimeout(timer)
+            worker?.terminate()
+            worker = undefined
             reset()
             later()
-            return
           }
-          const evidence =
-            corroborated(check, guide) ||
-            (trusted &&
-              check.lines.some((l) => l.distinctive && l.state !== "unknown"))
-          // A positive edge requires two actual frames. A definite miss or
-          // occlusion removes green immediately, independently for each line.
-          const nextTracked = new Set<number>()
-          const display = {
-            ...check,
-            lines: check.lines.map((l, i) => {
-              const retained =
-                tracked.has(i) && consistentEdge(l, previous?.lines[i])
-              const measured = evidence || retained
-              if (measured && l.state !== "unknown") nextTracked.add(i)
-              const state =
-                !measured ||
-                (l.state === "on" && previous?.lines[i].state !== "on")
-                  ? ("unknown" as const)
-                  : l.state
-              return { ...l, state, offset: measured ? l.offset : null }
-            }),
-          }
-          const possible = evidence
-            ? []
-            : check.lines.filter(
-                (l, i) =>
-                  !nextTracked.has(i) && consistentEdge(l, previous?.lines[i])
-              )
-          tracked = nextTracked
-          previous = check
-          const raw = alignmentScore(check, guide)
-          const on = display.lines.filter((l) => l.state === "on").length
-          const off = display.lines.filter((l) => l.state === "off").length
-          const ok = evidence && trusted && check.ok && linedUp(raw, held)
-          passes = ok ? passes + 1 : 0
-          held = ok && (held || passes >= 2)
-          const score =
-            evidence && trusted && scoreUsable(raw) ? raw.score : null
-          setReading({
-            check: display,
-            held,
-            score,
-            recognized: trusted,
-            possible,
-          })
-          clearTimeout(expire)
-          expire = setTimeout(reset, 1500)
-          const summary = [
-            held,
-            Math.round((score ?? -10) / 10),
-            check.worst,
-            on,
-            off,
-          ].join("/")
-          if (summary !== logged) {
-            logged = summary
-            diagnostic("lines", {
-              ok: held,
-              score,
-              on,
-              off,
-              worst: check.worst,
-              worstOffset:
-                check.worst == null ? null : check.lines[check.worst].offset,
-              raw: raw?.score ?? null,
-              weakest: raw?.weakest ?? null,
-              measured: raw?.measured ?? 0,
-              regions: raw?.regions ?? 0,
-              passes,
-            })
-          }
-          later()
+          // Keep the one reference buffer for browsers that fail to load the module worker.
+          worker.postMessage({ archive, guide: targetGuide })
+        } catch {
+          worker?.terminate()
+          worker = undefined
         }
-        worker.onerror = () => {
-          if (!cancelled) reset()
-        }
-        worker.postMessage({ archive, guide }, [archive.data.buffer])
         void sample()
       } catch {
         if (!cancelled) reset()
@@ -210,7 +240,10 @@ export function useLiveLines(
     }
     void start()
     const visibility = () => {
-      if (document.hidden) reset()
+      if (document.hidden) {
+        generation++
+        reset()
+      }
     }
     document.addEventListener("visibilitychange", visibility)
     return () => {

@@ -93,7 +93,7 @@ export function ReferenceTrace({
           points={guide.features[index].points
             .map(([x, y]) => `${x * 1000},${y * 1000}`)
             .join(" ")}
-          stroke="#fbbf24"
+          stroke={possible.includes(index) ? "#7dd3fc" : "#fbbf24"}
           strokeOpacity="0.85"
           strokeWidth="2"
           strokeDasharray="6 5"

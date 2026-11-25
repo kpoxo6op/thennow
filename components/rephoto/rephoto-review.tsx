@@ -148,6 +148,7 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
   const [score, setScore] = useState<{
     value: number | null
     check: LineCheck
+    possible: number[]
   } | null>(null)
   const [settled, setSettled] = useState(false)
   // The wipe from the old photograph to the new one, played once when the shot is placed.
@@ -266,12 +267,7 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
             }
             const local = checkLines(trace, old, live, crop, false)
             const show = (check: LineCheck, known: boolean) => {
-              const supported =
-                corroborated(check, trace) ||
-                (known &&
-                  check.lines.some(
-                    (line) => line.distinctive && line.state !== "unknown"
-                  ))
+              const supported = corroborated(check, trace, shot.aspect)
               const scored =
                 supported && known ? alignmentScore(check, trace) : null
               const value = scoreUsable(scored) ? scored.score : null
@@ -290,18 +286,29 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
                   }
               const focus = focusLine(shown)
               const matched = shown.lines.find((l) => l.state === "on")
-              setScore({ value, check: shown })
+              const possible = supported
+                ? []
+                : check.lines
+                    .filter((l) => l.distinctive && l.state !== "unknown")
+                    .map((l) => l.index)
+              setScore({ value, check: shown, possible })
               setNote(
                 lined
                   ? "Lined up. Drag to compare."
                   : focus
                     ? (matched
                         ? trace.features[matched.index].name + " ✓ · "
-                        : "") + lineInstruction(trace, focus)
+                        : "") + lineInstruction(trace, shot.aspect, focus)
                     : matched
                       ? trace.features[matched.index].name +
                         " overlaps. Drag to compare."
-                      : "Your framing. Compare " + trace.features[0].name + "."
+                      : possible.length
+                        ? "Possible match. Compare " +
+                          trace.features[possible[0]].name +
+                          " with the archive."
+                        : "Your framing. Compare " +
+                          trace.features[0].name +
+                          "."
               )
               return {
                 value,
@@ -700,41 +707,46 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
                 </div>
               )}
             </div>
-            {trace && !peek && !comparing && settled && !sweeping && (
-              <ReferenceTrace
-                guide={trace}
-                shifts={score?.check.lines.flatMap((line) =>
-                  line.state === "off" && line.shift
-                    ? [
-                        {
-                          index: line.index,
-                          dx: line.shift[0],
-                          dy: line.shift[1],
-                        },
-                      ]
-                    : []
-                )}
-                near={score?.check.lines
-                  .filter(
-                    (line) => line.state === "unknown" && line.offset != null
-                  )
-                  .map((line) => line.index)}
-                confirmed={
-                  score
-                    ? score.check.lines
-                        .filter((line) => line.state === "on")
-                        .map((line) => line.index)
-                    : []
-                }
-                off={
-                  score
-                    ? score.check.lines
-                        .filter((line) => line.state === "off")
-                        .map((line) => line.index)
-                    : []
-                }
-              />
-            )}
+            {trace &&
+              !peek &&
+              !comparing &&
+              (settled || (phase === "aligning" && score)) &&
+              !sweeping && (
+                <ReferenceTrace
+                  guide={trace}
+                  possible={score?.possible}
+                  shifts={score?.check.lines.flatMap((line) =>
+                    line.state === "off" && line.shift
+                      ? [
+                          {
+                            index: line.index,
+                            dx: line.shift[0],
+                            dy: line.shift[1],
+                          },
+                        ]
+                      : []
+                  )}
+                  near={score?.check.lines
+                    .filter(
+                      (line) => line.state === "unknown" && line.offset != null
+                    )
+                    .map((line) => line.index)}
+                  confirmed={
+                    score
+                      ? score.check.lines
+                          .filter((line) => line.state === "on")
+                          .map((line) => line.index)
+                      : []
+                  }
+                  off={
+                    score
+                      ? score.check.lines
+                          .filter((line) => line.state === "off")
+                          .map((line) => line.index)
+                      : []
+                  }
+                />
+              )}
           </div>
         )}
         {score?.value != null && (

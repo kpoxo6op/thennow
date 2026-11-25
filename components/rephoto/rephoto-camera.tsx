@@ -1597,7 +1597,7 @@ export function RephotoCamera({
                 {focus
                   ? (foreground != null && foreground !== focus.index
                       ? trace.features[foreground].name + " ✓ · "
-                      : "") + lineInstruction(trace, focus)
+                      : "") + lineInstruction(trace, aspect, focus)
                   : confirmed.length
                     ? trace.features[confirmed[0]].name +
                       " ✓ · " +
@@ -1609,7 +1609,7 @@ export function RephotoCamera({
                       ? "Check " +
                         trace.features[lines.possible[0].index].name +
                         " against the outline"
-                      : lineInstruction(trace)}
+                      : lineInstruction(trace, aspect)}
               </span>
             </div>
           )}
