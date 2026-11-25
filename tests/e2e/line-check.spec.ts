@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { checkLines, type Gray } from "@/lib/rephoto/line-check"
+import { alignmentScore, checkLines, type Gray } from "@/lib/rephoto/line-check"
 import type { ReferenceLines } from "@/lib/rephoto/reference-lines"
 
 // "Lined up" as a plain calculation: a made-up scene with a wall corner (dark left of x = 0.4)
@@ -53,6 +53,15 @@ test("every region on its edge: lined up", () => {
     "unknown",
   ])
   expect(result.ok).toBe(true)
+
+  // A visual-only guide can trace even a perfect match without awarding a score.
+  const visualGuide: ReferenceLines = {
+    ...guide,
+    features: guide.features.map(({ name, points }) => ({ name, points })),
+  }
+  const manual = checkLines(visualGuide, scene(480, 320), scene(480, 320), crop)
+  expect(manual.ok).toBe(false)
+  expect(alignmentScore(manual, visualGuide)).toBeNull()
 })
 
 test("a canopy off its edge while the wall fits: not lined up, canopy named", () => {

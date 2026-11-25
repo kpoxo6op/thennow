@@ -1,8 +1,8 @@
 # Reference guides
 
-Bradley Lane and the former Tamaki Road Board offices have an editorial tracing
-pilot. Selected reference lines and recognizable details from the archive sit over the
-live camera.
+Every pending place has hand-drawn lines bound to its archive image. Camera and
+capture review share the same guide. Some guides contain only visual references:
+without independently identifiable surviving regions, all strokes stay unscored.
 A faint full archive underneath supplies context beyond the selected lines,
 including lower features and any visible horizon. The target stays fixed while
 the photographer aims. This follows Boris's manual tracing-paper technique; it is not automatic feature detection or an accuracy score.
@@ -143,3 +143,12 @@ can say where to stand. Set both up for every place with lines.
 Check a new or changed guide offline before shipping: `node --experimental-strip-types
 scripts/check-guide.mjs <slug> <recent-photo.jpg>` scores the lines the way the camera does.
 Every region should be measured, and a visually good shot should score highest.
+
+## Neighbourhood guides, November 2026
+
+- **Mayfair Place.** The suspended birds locate the upper left. The passage beam and post sit across the square, and the stage rim and play-surface curve frame the foreground. The business association shows the birds from a different angle. Benches, vegetation and lettering stay outside the score. [Local photo gallery](https://www.gleninnesvillage.co.nz/gallery)
+- **Apirana Avenue.** Auckland Transport's right-hand ramp photo on page one shows the post office frontage, high white sawtooth, long verandah and pavement end from the other side of the approach. Use the roof and frontage to aim. The far window, lamp and kerb are visual references. Parked cars and shop signs change. [Auckland Transport, June 2024](https://at.govt.nz/media/0nspxrxh/links-to-glen-innes-june-2024-newsletter.pdf) · [Kura archive record](https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/284852)
+- **Bridgeway and Northcote Tavern.** Compare the shop arches and right roof at the cinema, and the gables, windows and upper verandah on the two faces of the tavern. The modern cinema fascia is deeper. The tavern gained a wing, hedge and fence. [October 2026 photographs](https://tmrowe.com/2026/10/26/how-to-time-travel-without-leaving-home/)
+- **Northcote Post Office.** Use the front cornice, tall windows and receding side elevation. The 1929 crowd hides the base. The restaurant conversion leaves the exact window correspondence uncertain, so these lines are visual only. [Auckland Council heritage review, Fig. 12](https://new.aucklandcouncil.govt.nz/content/dam/ac/docs/arts-culture-heritage/north-shore-heritage-thematic-review-volume-2.2.pdf)
+- **Tāmaki Drive and Gower Point.** The first archive looks along the curved seawall. The second faces the point with the distant harbour skyline to its right. The sea surface, tree canopy and beach waterline change. Use the long curves and separated landforms as visual guides until a matching modern view establishes their correspondence.
+- **Riddell Road.** Use the distant road cutting and outside bend to find the view. The 2024 before-and-after photos show the utility poles removed and a changed shop-side streetscape. The old kerbs help read the archive but cannot establish a modern match. [Entrust, page 5](https://www.entrustnz.co.nz/media/hnkpq5bm/entrust-energy-solutions-annual-report-2024_v2.pdf)

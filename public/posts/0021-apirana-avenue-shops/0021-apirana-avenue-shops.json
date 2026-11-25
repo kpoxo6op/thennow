@@ -1,0 +1,22 @@
+{
+  "status": "pending",
+  "name": "Apirana Avenue shops, Glen Innes",
+  "slug": "apirana-avenue-shops",
+  "description": "From Mayfair Place, walk to the PostShop at 280 Apirana Avenue. Stand on the paved end of the parking row, with the post office on your left. Look along the verandah towards the supermarket. Line up the sloping white roof above the shops and leave the lower right open for the car park.",
+  "b_imageUrl": "/posts/0021-apirana-avenue-shops/then-apirana-avenue-shops.jpg",
+  "w": 2000,
+  "h": 1333,
+  "location": {
+    "lat": -36.8792,
+    "lng": 174.85474
+  },
+  "archive": {
+    "date": "8 August 2018",
+    "photographer": "Matt Elliott",
+    "credit": "Auckland Libraries Heritage Collections 1385-1216",
+    "rights": "Creative Commons Licence: Attribution CC BY",
+    "sourceUrl": "https://kura.aucklandlibraries.govt.nz/digital/collection/photos/id/284852",
+    "sourceId": "1385-1216"
+  },
+  "area": "Auckland"
+}
