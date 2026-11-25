@@ -26,18 +26,18 @@ test("too big means stepping back, too small stepping closer", () => {
 })
 
 test("a view leaning clockwise means turning the phone clockwise", () => {
-  expect(sign({ rotation: 0.15, width: 3000 })).toBe("clockwise")
-  expect(sign({ rotation: -0.15, width: 3000 })).toBe("anticlockwise")
-  expect(sign({ rotation: 0.03, width: 3000 })).toBe("hold")
+  expect(sign({ rotation: 0.15 })).toBe("clockwise")
+  expect(sign({ rotation: -0.15 })).toBe("anticlockwise")
+  expect(sign({ rotation: 0.03 })).toBe("hold")
 })
 
 test("a showing sign stays until well past its threshold", () => {
   // 4% off: not enough to start a sign, but enough to keep one already showing.
-  expect(sign({ cx: 2016 + 0.04 * 3628.8, width: 3000 })).toBe("hold")
+  expect(sign({ cx: 2016 + 0.04 * 3628.8 })).toBe("hold")
   expect(
     cueFor(
       cueErrors(
-        { ...target, cx: 2016 + 0.04 * 3628.8, width: 3000 },
+        { ...target, cx: 2016 + 0.04 * 3628.8 },
         target,
         aspect,
         photo
