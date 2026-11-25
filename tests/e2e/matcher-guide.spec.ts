@@ -744,6 +744,27 @@ test("landmarks react to a moved foreground and clear on an empty frame without 
           ctx.fillStyle = "#555"
           ctx.fillRect(0, 0, 800, 600)
           if (state.guideScene === "blank") return
+          if (state.guideScene === "opposed") {
+            // Only two distant poles remain visible. Their independent errors
+            // have opposite signs, as can happen when viewpoint changes.
+            for (const [left, top, right, bottom, dx] of [
+              [0.345, 0.26, 0.405, 0.455, 23],
+              [0.71, 0.418, 0.76, 0.553, -23],
+            ]) {
+              ctx.save()
+              ctx.beginPath()
+              ctx.rect(
+                40 + left * 720 + dx,
+                60 + top * 480,
+                (right - left) * 720,
+                (bottom - top) * 480
+              )
+              ctx.clip()
+              ctx.drawImage(image, 40 + dx, 60, 720, 480)
+              ctx.restore()
+            }
+            return
+          }
           ctx.drawImage(image, 40, 60, 720, 480)
           if (state.guideScene === "moved") {
             ctx.save()
@@ -779,6 +800,14 @@ test("landmarks react to a moved foreground and clear on an empty frame without 
   await expect(bird).toHaveAttribute("data-state", "on")
   await expect(page.getByTestId("landmark-feedback")).toContainText("Slide lip")
   await expect(trace.getByTestId("line-shift").first()).toBeVisible()
+  await show("opposed")
+  await expect(
+    trace.locator('g[aria-label="Central mast cap and side"]')
+  ).toHaveAttribute("data-state", "off")
+  await expect(
+    trace.locator('g[aria-label="Right blue lamp shaft"]')
+  ).toHaveAttribute("data-state", "off")
+  await expect(trace.locator('[data-state="on"]')).toHaveCount(0)
   await show("blank")
   await expect(
     trace.locator('[data-state="on"],[data-state="off"]')

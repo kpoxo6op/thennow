@@ -27,29 +27,15 @@ export function corroborated(
       )
         return false
       if (a.state === "on" && b.state === "on") return true
-      // When the view moves along one straight edge, it can still overlap the
-      // target while a perpendicular landmark shows the displacement.
-      if (a.state !== b.state) {
-        const moving = a.state === "off" ? a : b
-        const fixed = a.state === "on" ? a : b
-        if (!moving.shift || Math.min(a.support, b.support) < 0.85) return false
-        const points = guide.features[fixed.index].points
-        const [dx, dy] = moving.shift
-        let total = 0,
-          overlap = 0
-        for (let j = 1; j < points.length; j++) {
-          const tx = points[j][0] - points[j - 1][0]
-          const ty = (points[j][1] - points[j - 1][1]) * aspect
-          const length = Math.hypot(tx, ty)
-          total += length
-          if (Math.abs(-ty * dx + tx * dy * aspect) < 0.015 * length)
-            overlap += length
-        }
-        return overlap > 0.8 * total
-      }
+      // Two independently distinctive, strongly supported landmarks can move
+      // in opposite directions with parallax. Each keeps its own correction.
+      if (Math.min(a.support, b.support) >= 0.85) return true
       if (!a.shift || !b.shift) return false
       return (
-        Math.hypot(a.shift[0] - b.shift[0], a.shift[1] - b.shift[1]) < 0.035
+        Math.hypot(
+          a.shift[0] - b.shift[0],
+          (a.shift[1] - b.shift[1]) * aspect
+        ) < 0.035
       )
     })
   )
