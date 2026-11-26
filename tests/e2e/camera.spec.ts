@@ -772,3 +772,98 @@ test.describe("simulated camera application and API boundaries", () => {
     await expect(page.getByTestId("rephoto-shutter")).toBeDisabled()
   })
 })
+
+// A still fixture cannot expose selecting the first, last or stale decoded
+// frame. Encode three distinct portions, then inspect the actual exported JPEG.
+test("a video pass suggests the matching middle and exports the photographer's chosen frame", async ({
+  page,
+}) => {
+  test.setTimeout(60_000)
+  await withoutServerMatcher(page)
+  await page.addInitScript((src) => {
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      value: async () => {
+        const img = new Image()
+        img.src = src
+        await img.decode()
+        const source = document.createElement("canvas")
+        source.width = 800
+        source.height = 600
+        const ctx = source.getContext("2d")!
+        let scene = "red"
+        const select = (event: Event) => {
+          scene = (event as CustomEvent<string>).detail
+        }
+        window.addEventListener("change-scene", select)
+        const draw = () => {
+          ctx.fillStyle = scene === "blue" ? "#1030e0" : "#e02020"
+          ctx.fillRect(0, 0, 800, 600)
+          if (scene === "archive") {
+            const ratio = img.naturalHeight / img.naturalWidth
+            const w = 0.9 * Math.min(800, 600 / ratio)
+            ctx.drawImage(
+              img,
+              (800 - w) / 2,
+              (600 - w * ratio) / 2,
+              w,
+              w * ratio
+            )
+          }
+        }
+        draw()
+        const timer = window.setInterval(draw, 35)
+        const stream = source.captureStream(25)
+        const track = stream.getVideoTracks()[0],
+          stop = track.stop.bind(track)
+        track.stop = () => {
+          clearInterval(timer)
+          window.removeEventListener("change-scene", select)
+          stop()
+        }
+        return stream
+      },
+    })
+  }, archive("mission-house").b_imageUrl)
+  await openCamera(page, "mission-house")
+  await page.getByRole("button", { name: "Record video pass" }).click()
+  const segment = async (scene: string) => {
+    const at = await page.evaluate((scene) => {
+      window.dispatchEvent(new CustomEvent("change-scene", { detail: scene }))
+      return document.querySelector("video")!.currentTime
+    }, scene)
+    await expect
+      .poll(() =>
+        page
+          .getByTestId("rephoto-video")
+          .evaluate((v: HTMLVideoElement, start) => v.currentTime - start, at)
+      )
+      .toBeGreaterThan(0.85)
+  }
+  await segment("red")
+  await segment("archive")
+  await segment("blue")
+  await page.getByRole("button", { name: "Stop video pass" }).click()
+  const picker = page.getByTestId("video-pass-picker")
+  await expect(picker.getByRole("status").first()).toHaveText(
+    "Suggested by matching landmarks",
+    { timeout: 15_000 }
+  )
+  const slider = picker.getByRole("slider", { name: "Frame time" })
+  const middle = Number(await slider.inputValue())
+  expect(middle).toBeGreaterThan(0.5)
+  expect(middle).toBeLessThan(Number(await slider.getAttribute("max")) - 0.5)
+  await slider.press("End")
+  await picker.getByRole("button", { name: "Use frame" }).click()
+  const downloading = page.waitForEvent("download")
+  await page.getByTestId("rephoto-save").click()
+  const file = await (await downloading).path()
+  const sharp = (await import("sharp")).default
+  const pixel = await sharp(file!).resize(1, 1).removeAlpha().raw().toBuffer()
+  expect(pixel[2]).toBeGreaterThan(pixel[0] + 100)
+  await page.getByRole("button", { name: "Choose another frame" }).click()
+  await expect(picker).toBeVisible()
+  await picker.getByRole("button", { name: "Back to camera" }).click()
+  await expect(page.getByTestId("rephoto-shutter")).toBeEnabled()
+  await shoot(page)
+  await expect(page.getByRole("button", { name: "Retake" })).toBeVisible()
+})

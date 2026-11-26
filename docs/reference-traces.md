@@ -108,12 +108,12 @@ the app does not infer a physical walking direction from a 2D discrepancy.
 
 The Old photo toggle shows the source with the same traces. Return to Live camera
 to shoot. Capture remains available during loading and unsupported operation.
-Freshly recognised scenes use up to three frames over roughly 240 milliseconds;
-each frame is independently checked. A later frame replaces the pressed frame
-only when its supported regional residuals are no worse and it is sharper (or the
-pressed frame lacked supported geometry). Without evidence, keep the pressed
-frame and manual crop. If an assisted preview cannot be confirmed at capture,
-review requires a retake rather than silently exporting a different framing.
+The still shutter captures the moment it is pressed. Video pass records up to
+12 seconds of silent, guide-free video in memory on the device. The encoder
+follows the visible crop as the photographer zooms. The picker checks decoded
+frames for distinctive corner matches and rejects suggestions with conflicting
+landmarks. Users can scrub or play the pass, choose any frame, and reopen the
+same pass from review. The selected JPEG follows the ordinary photo workflow.
 
 Review preserves the selected crop. Guides never enter the JPEG. These photos
 remain unchecked under the [manual-photo baseline](alignment-quality.md). The photographer controls

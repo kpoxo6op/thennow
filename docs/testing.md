@@ -227,3 +227,5 @@ changed walking destination, reset, and failure fallback. These are public brows
 contracts that the old fixed-pin story checks cannot cover. Existing touch scroll
 and compare checks continue to protect page interaction. Browser fixtures do not
 prove GPS precision, pedestrian access, or the historical camera position.
+
+The video pass journey in `camera.spec.ts` encodes a changing camera scene with a known matching middle. It checks the landmark suggestion, saves a different selected moment as JPEG, inspects its pixels, reopens the same pass and returns to still capture. A stationary camera cannot distinguish an incorrectly decoded first or last frame.

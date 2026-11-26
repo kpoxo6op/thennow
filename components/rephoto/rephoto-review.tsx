@@ -52,6 +52,7 @@ interface Props {
   slug: string
   thenSrc: string
   shot: Shot
+  retakeLabel?: string
   onRetake: () => void
 }
 
@@ -137,7 +138,14 @@ function stamp(date: Date) {
 // The same as the live check's, so the number after the shot matches the one shown before it.
 const SCORE_WIDTH = 480
 
-export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
+export function RephotoReview({
+  name,
+  slug,
+  thenSrc,
+  shot,
+  retakeLabel = "Retake",
+  onRetake,
+}: Props) {
   const trace = referenceLines(slug, thenSrc)
   const aspect = shot.aspect
   const stageRef = useRef<HTMLDivElement>(null)
@@ -790,7 +798,7 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
             disabled={busy}
             className="min-h-11 px-4 text-base text-white/85 disabled:opacity-40"
           >
-            Retake
+            {retakeLabel}
           </button>
         )}
         <div className="flex min-w-0 flex-1 flex-col items-end gap-2 landscape:flex-none landscape:items-stretch">
@@ -801,7 +809,7 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
               onClick={onRetake}
               className="inline-flex min-h-12 min-w-40 items-center justify-center rounded-md bg-white px-6 text-lg font-medium text-black"
             >
-              Retake
+              {retakeLabel}
             </button>
           ) : sending === "refused" ? null : (
             <button
