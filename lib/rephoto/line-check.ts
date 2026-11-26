@@ -403,8 +403,17 @@ export function checkLines(
       .filter((line) => line.votes && line.state === "on")
       .map((line) => guide.features[line.index].region ?? "all")
   )
+  // Corner labels refer to the subject in this archive. A strip of sky or a
+  // print border is never evidence. Unknown corners leave the frame unchecked.
+  const corners = new Set(
+    lines.flatMap((line) => {
+      const corner = guide.features[line.index].corner
+      return corner && line.state === "on" ? [corner] : []
+    })
+  )
   return {
     ok:
+      corners.size === 4 &&
       voting.length >= 2 &&
       off.length === 0 &&
       !lines.some((l) => l.distinctive && l.state === "off" && l.shift) &&
@@ -423,6 +432,7 @@ export type Score = {
   score: number
   // Regions measured, out of all regions with lines.
   measured: number
+  measuredCorners: number
   regions: number
   // The weakest measured region's score.
   weakest: number
@@ -431,28 +441,35 @@ export type Score = {
 }
 export function alignmentScore(
   check: LineCheck,
-  guide: { features: { region?: string }[] }
+  guide: ReferenceLines
 ): Score | null {
   const byRegion = new Map<string, number[]>()
   let lines = 0
   const all = new Set<string>()
+  const measuredCorners = new Set<string>()
+  let worstCorner = 1
   for (const line of check.lines) {
-    if (!line.votes) continue
-    const region = guide.features[line.index].region ?? "all"
-    all.add(region)
+    const { corner, region } = guide.features[line.index]
+    if (region) all.add(region)
     if (line.offset == null) continue
-    lines++
     const value = Math.min(1, Math.max(0, 1 - (line.offset - LINE_ON) / 0.02))
+    if (corner && line.state !== "unknown") {
+      measuredCorners.add(corner)
+      worstCorner = Math.min(worstCorner, value)
+    }
+    if (!region || !line.votes) continue
+    lines++
     byRegion.set(region, [...(byRegion.get(region) ?? []), value])
   }
   if (!byRegion.size) return null
   const regionScores = [...byRegion.values()].map(
     (values) => values.reduce((a, b) => a + b, 0) / values.length
   )
+  const regionalMean =
+    regionScores.reduce((a, b) => a + b, 0) / regionScores.length
   return {
-    score: Math.round(
-      (100 * regionScores.reduce((a, b) => a + b, 0)) / regionScores.length
-    ),
+    score: Math.round(100 * Math.min(regionalMean, worstCorner)),
+    measuredCorners: measuredCorners.size,
     measured: byRegion.size,
     regions: all.size,
     weakest: Math.round(100 * Math.min(...regionScores)),
@@ -465,6 +482,7 @@ export function alignmentScore(
 export function scoreUsable(score: Score | null): score is Score {
   return (
     !!score &&
+    score.measuredCorners === 4 &&
     // Three lines, or two where a place has only two parts left to check (St Heliers).
     score.lines >= Math.min(3, Math.max(2, score.regions)) &&
     score.measured >= Math.min(2, score.regions)

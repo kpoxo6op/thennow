@@ -798,6 +798,14 @@ test("landmarks react to a moved foreground and clear on an empty frame without 
   await show("moved")
   await expect(slide).toHaveAttribute("data-state", "off")
   await expect(bird).toHaveAttribute("data-state", "on")
+  await expect(trace.locator('[data-corner="upper-left"]')).toHaveAttribute(
+    "data-state",
+    "on"
+  )
+  await expect(trace.locator('[data-corner="lower-left"]')).toHaveAttribute(
+    "data-state",
+    "off"
+  )
   await expect(page.getByTestId("landmark-feedback")).toContainText("Slide lip")
   await expect(trace.getByTestId("line-shift").first()).toBeVisible()
   await show("opposed")
