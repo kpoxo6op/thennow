@@ -63,7 +63,7 @@ export function lineInstruction(
   aspect: number,
   line?: LineVerdict
 ) {
-  if (!line) return "Find " + guide.features[0].name
+  if (!line) return "Pinch to fit the outer edges"
   const name = guide.features[line.index].name
   if (!line.shift) return "Match " + name
   const [dx, y] = line.shift

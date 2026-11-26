@@ -64,6 +64,7 @@ import { MatcherGuide } from "@/components/rephoto/matcher-guide"
 import { ReferenceTrace } from "@/components/rephoto/reference-trace"
 import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
+import { useCameraZoom } from "./use-camera-zoom"
 import { useLiveLines } from "./use-live-lines"
 
 const CUE_TEXT: Record<CueKind, string> = {
@@ -71,8 +72,8 @@ const CUE_TEXT: Record<CueKind, string> = {
   right: "Turn right",
   up: "Tilt up",
   down: "Tilt down",
-  closer: "Step closer",
-  back: "Step back",
+  closer: "Zoom in",
+  back: "Zoom out",
   clockwise: "Turn the phone clockwise",
   anticlockwise: "Turn the phone anticlockwise",
   "step-left": "Step left",
@@ -131,11 +132,16 @@ function fit(aspect: number, width: number, height: number, fill = 1) {
   return { width: w, height: w * aspect }
 }
 
-function frameCrop(aspect: number, width: number, height: number): Crop {
+function frameCrop(
+  aspect: number,
+  width: number,
+  height: number,
+  digitalZoom = 1
+): Crop {
   return {
     cx: width / 2,
     cy: height / 2,
-    width: fit(aspect, width, height, GHOST_FILL).width,
+    width: fit(aspect, width, height, GHOST_FILL).width / digitalZoom,
     rotation: 0,
   }
 }
@@ -288,6 +294,7 @@ export function RephotoCamera({
   const streamRef = useRef<MediaStream | null>(null)
   const archiveRef = useRef<Archive | null>(null)
   const tiltRef = useRef<number | null>(null)
+  const levelRef = useRef<HTMLDivElement>(null)
   // How long the latest live placement stays good for: one round of matching and a bit more.
   const lockLife = useRef(2500)
   const attempt = useRef(0)
@@ -304,8 +311,6 @@ export function RephotoCamera({
     frameAt: 0,
   })
   const plain = useRef(false)
-  // Report the camera's actual zoom; the guide never changes it.
-  const zoomRef = useRef(1)
   const [status, setStatus] = useState<"starting" | "live" | "error">(
     "starting"
   )
@@ -339,6 +344,13 @@ export function RephotoCamera({
   }, [shot, status, showArchive, stage.width, stage.height])
   const capturing = useRef(false)
   const [captureBusy, setCaptureBusy] = useState(false)
+  const zoomEnabled =
+    status === "live" && !shot && !interrupted && !showArchive && !captureBusy
+  const {
+    zoom,
+    attach: attachZoom,
+    change: changeZoom,
+  } = useCameraZoom(stageRef, zoomEnabled, GHOST_FILL)
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
     crop: Crop
@@ -380,7 +392,7 @@ export function RephotoCamera({
       const photo = { width: video.videoWidth, height: video.videoHeight }
       errors = cueErrors(
         lock.crop,
-        frameCrop(aspect, photo.width, photo.height),
+        frameCrop(aspect, photo.width, photo.height, zoom.digital),
         aspect,
         photo
       )
@@ -440,17 +452,18 @@ export function RephotoCamera({
       })
       cueLogged.current = { kind, at: now }
     }
-  }, [lock, aspect, step])
+  }, [lock, aspect, step, zoom.digital])
   const recognized = !!lock?.held
   const lines = useLiveLines(
     videoRef,
     trace,
     videoSize.width
-      ? frameCrop(aspect, videoSize.width, videoSize.height)
+      ? frameCrop(aspect, videoSize.width, videoSize.height, zoom.digital)
       : null,
     aspect,
     status === "live" && !shot && !interrupted && !showArchive,
-    recognized
+    recognized,
+    zoom.native
   )
   const verdicts = lines?.check.lines ?? []
   const confirmed = verdicts.filter((l) => l.state === "on").map((l) => l.index)
@@ -560,6 +573,13 @@ export function RephotoCamera({
         const angle = tiltFromGravity(g.x, g.y, screenAngle())
         smooth = smooth == null ? angle : smooth + (angle - smooth) * 0.2
       }
+      // The side ticks show camera roll even indoors or behind a building,
+      // where the actual horizon in the archive cannot be seen.
+      if (levelRef.current) {
+        levelRef.current.hidden = smooth == null
+        if (smooth != null)
+          levelRef.current.style.setProperty("--camera-roll", `${-smooth}rad`)
+      }
       tiltRef.current =
         smooth != null && Math.abs(smooth) < MAX_TILT_RADIANS ? smooth : null
     }
@@ -568,9 +588,10 @@ export function RephotoCamera({
   }, [])
 
   const stop = useCallback(() => {
+    attachZoom(null)
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
-  }, [])
+  }, [attachZoom])
 
   const restart = useRef(async () => {})
   const start = useCallback(async () => {
@@ -602,8 +623,7 @@ export function RephotoCamera({
       }
       streamRef.current = stream
       const opened = stream.getVideoTracks()[0]
-      zoomRef.current =
-        (opened?.getSettings() as { zoom?: number } | undefined)?.zoom ?? 1
+      attachZoom(opened ?? null)
       video.srcObject = stream
       try {
         debug("play")
@@ -666,7 +686,7 @@ export function RephotoCamera({
       report("camera error", {}, { message: explain(caught) })
       setStatus("error")
     }
-  }, [stop, trace])
+  }, [stop, trace, attachZoom])
   useEffect(() => {
     restart.current = start
   }, [start])
@@ -1334,7 +1354,7 @@ export function RephotoCamera({
         { steady: stats.firstSteady >= 0 }
       )
     }
-  }, [shot, status, trace])
+  }, [shot, status, trace, zoom.native])
 
   // A placement that has gone stale leaves the screen too, so what is shown is what is shot.
   useEffect(() => {
@@ -1395,7 +1415,7 @@ export function RephotoCamera({
     const lean = tiltRef.current
     const photo = { width: video.videoWidth, height: video.videoHeight }
     const now = performance.now()
-    const crop = frameCrop(aspect, photo.width, photo.height)
+    const crop = frameCrop(aspect, photo.width, photo.height, zoom.digital)
     const frameAge = telemetry.current.frameAt
       ? now - telemetry.current.frameAt
       : null
@@ -1407,7 +1427,7 @@ export function RephotoCamera({
         width: photo.width,
         height: photo.height,
         lean: lean == null ? null : Math.round((lean * 180) / Math.PI),
-        zoom: zoomRef.current,
+        zoom: zoom.value,
         steady: !!lock?.steady,
         cropX: crop.cx / photo.width,
         cropY: crop.cy / photo.height,
@@ -1483,6 +1503,10 @@ export function RephotoCamera({
           ref={videoRef}
           data-testid="rephoto-video"
           className="absolute inset-0 size-full object-contain"
+          style={{
+            transform:
+              zoom.digital === 1 ? undefined : `scale(${zoom.digital})`,
+          }}
           autoPlay
           muted
           playsInline
@@ -1514,6 +1538,29 @@ export function RephotoCamera({
                   opacity: showArchive ? 1 : TRACE_OVERLAY_OPACITY,
                 }}
               />
+              {!showArchive && (
+                <div
+                  ref={levelRef}
+                  hidden
+                  aria-label="Camera roll level"
+                  role="img"
+                  className="absolute inset-0"
+                >
+                  {["left-0", "right-0"].map((side) => (
+                    <span
+                      key={side}
+                      className={`absolute ${side} top-1/2 w-5 border-t border-dashed border-white/75`}
+                    >
+                      <span
+                        className="absolute inset-x-0 h-0.5 bg-white shadow-[0_0_2px_black]"
+                        style={{
+                          transform: "rotate(var(--camera-roll, 0rad))",
+                        }}
+                      />
+                    </span>
+                  ))}
+                </div>
+              )}
               {trace && (
                 <>
                   <div className="absolute inset-0 border border-white/35" />
@@ -1607,9 +1654,7 @@ export function RephotoCamera({
                       trace.features.length +
                       " edges overlap"
                     : lines?.possible.length
-                      ? "Check " +
-                        trace.features[lines.possible[0].index].name +
-                        " against the outline"
+                      ? "Compare the dotted edges with the archive"
                       : lineInstruction(trace, aspect)}
               </span>
             </div>
@@ -1639,7 +1684,16 @@ export function RephotoCamera({
         </Link>
       </div>
 
-      <div className="flex shrink-0 items-center justify-center pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 landscape:px-[max(1rem,env(safe-area-inset-right))] landscape:py-4">
+      <div className="flex shrink-0 items-center justify-center gap-3 landscape:flex-col pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 landscape:px-[max(1rem,env(safe-area-inset-right))] landscape:py-4">
+        <button
+          type="button"
+          aria-label="Zoom out"
+          disabled={!zoomEnabled || zoom.value <= zoom.min}
+          className="grid size-11 place-items-center rounded-full disabled:opacity-35"
+          onClick={() => void changeZoom(zoom.value / 1.25)}
+        >
+          <ZoomOut aria-hidden className="size-5" />
+        </button>
         <button
           type="button"
           data-testid="rephoto-shutter"
@@ -1651,7 +1705,18 @@ export function RephotoCamera({
           data-lined={snapped || undefined}
           className={`relative grid size-[4.5rem] place-items-center rounded-full border-4 transition-[transform,border-color] duration-300 active:scale-95 disabled:opacity-40 ${snapped ? "border-lime-300" : "border-white"}`}
         >
-          <span className="size-14 rounded-full bg-white" />
+          <span className="grid size-14 place-items-center rounded-full bg-white text-sm font-semibold text-black">
+            {Number(zoom.value.toFixed(2))}×
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          disabled={!zoomEnabled || zoom.value >= zoom.max}
+          className="grid size-11 place-items-center rounded-full disabled:opacity-35"
+          onClick={() => void changeZoom(zoom.value * 1.25)}
+        >
+          <ZoomIn aria-hidden className="size-5" />
         </button>
       </div>
     </div>

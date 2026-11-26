@@ -383,6 +383,39 @@ test.describe("simulated camera application and API boundaries", () => {
       await route.fulfill({ json: { ok: true } })
     })
     await openCamera(page, "mission-house")
+    // Only this journey checks the pixels sent. A browser page pinch or a
+    // preview-only zoom would otherwise pass the capture and review checks.
+    const frameBox = await page.getByTestId("rephoto-frame").boundingBox()
+    const center = {
+      x: frameBox!.x + frameBox!.width / 2,
+      y: frameBox!.y + frameBox!.height / 2,
+    }
+    const cdp = await page.context().newCDPSession(page)
+    async function pinch(from: number, to: number) {
+      const points = (radius: number) => [
+        { x: center.x - radius, y: center.y, id: 1 },
+        { x: center.x + radius, y: center.y, id: 2 },
+      ]
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: points(from),
+      })
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: points(to),
+      })
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      })
+    }
+    await pinch(60, 30)
+    await expect(page.getByTestId("rephoto-shutter")).toHaveText("0.9×")
+    await pinch(36, 80)
+    await expect(page.getByTestId("rephoto-shutter")).toHaveText("2×")
+    expect(await page.getByTestId("rephoto-frame").boundingBox()).toEqual(
+      frameBox
+    )
     // Sample the actual stationary sensor under the visible archive rectangle.
     const expectedPixels = await page
       .getByTestId("rephoto-video")

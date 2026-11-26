@@ -116,8 +116,8 @@ frame and manual crop. If an assisted preview cannot be confirmed at capture,
 review requires a retake rather than silently exporting a different framing.
 
 Review preserves the selected crop. Guides never enter the JPEG. These photos
-remain unchecked under the [manual-photo baseline](alignment-quality.md), with no
-automatic shutter, hardware zoom, perspective warping or automatic publication.
+remain unchecked under the [manual-photo baseline](alignment-quality.md). The photographer controls
+the shutter and zoom. Only a crop and uniform scaling enter the JPEG.
 Places without editorial traces retain their existing split-view matcher.
 
 The first evaluation rejects the morning Bradley shot despite 403 coarse inliers;
@@ -158,3 +158,21 @@ In the 26 November Mayfair capture, the slide tip was within three pixels at a d
 - **Northcote Post Office.** Use the front cornice, tall windows and receding side elevation. The 1929 crowd hides the base. The restaurant conversion leaves the exact window correspondence uncertain, so these lines are visual only. [Auckland Council heritage review, Fig. 12](https://new.aucklandcouncil.govt.nz/content/dam/ac/docs/arts-culture-heritage/north-shore-heritage-thematic-review-volume-2.2.pdf)
 - **Tāmaki Drive and Gower Point.** The first archive looks along the curved seawall. The second faces the point with the distant harbour skyline to its right. The sea surface, tree canopy and beach waterline change. Use the long curves and separated landforms as visual guides until a matching modern view establishes their correspondence.
 - **Riddell Road.** Use the distant road cutting and outside bend to find the view. The 2024 before-and-after photos show the utility poles removed and a changed shop-side streetscape. The old kerbs help read the archive but cannot establish a modern match. [Entrust, page 5](https://www.entrustnz.co.nz/media/hnkpq5bm/entrust-energy-solutions-annual-report-2024_v2.pdf)
+
+## Whole-frame field framing
+
+Every current archive has dashed composition strokes in both the live camera and
+review. They trace the visible harbour horizon, distant land, roof silhouette or
+street boundary, with references towards opposite sides and corners. The library
+includes the left wing, entrance arch, parapet, whole right roof and the diagonal
+street edge. The modern tree can hide the entrance and the kerb has changed.
+These archive outlines help judge composition and never vote for a match.
+Gravity supplies short roll indicators at the sides when the phone provides it.
+Their height marks the middle of the frame. The archive supplies the actual
+horizon height wherever a horizon is visible.
+
+Pinch the live picture or use the zoom buttons to frame the photo from the
+footpath. The archive stays fixed. The camera uses the zoom range its browser
+exposes and can widen to the edge of the available sensor image. The user-selected
+field of view carries through the shutter, review and JPEG. Zoom changes framing
+from the same standing point. It cannot reproduce a different viewpoint.
