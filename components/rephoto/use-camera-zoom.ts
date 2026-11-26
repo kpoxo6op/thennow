@@ -24,6 +24,7 @@ export function useCameraZoom(
     wanted: number
     applying: boolean
   } | null>(null)
+  const chosen = useRef<number | null>(null)
   const [zoom, setZoom] = useState({
     value: 1,
     digital: 1,
@@ -31,40 +32,17 @@ export function useCameraZoom(
     min: frameFill,
     max: 4,
   })
-  const attach = useCallback(
-    (track: MediaStreamTrack | null) => {
-      current.current = null
-      if (!track) return
-      const native = trackZoom(track)
-      const caps = track.getCapabilities?.() as
-        | (MediaTrackCapabilities & { zoom?: ZoomRange })
-        | undefined
-      const range =
-        caps?.zoom && caps.zoom.min > 0 && caps.zoom.max >= caps.zoom.min
-          ? caps.zoom
-          : undefined
-      current.current = {
-        track,
-        range,
-        constraints: track.getConstraints(),
-        wanted: native,
-        applying: false,
-      }
-      setZoom({
-        value: native,
-        digital: 1,
-        native,
-        min: (range?.min ?? native) * frameFill,
-        max: Math.max(4, range?.max ?? native),
-      })
-    },
-    [frameFill]
-  )
   const change = useCallback(
     async (value: number) => {
       const session = current.current
       if (!session || !Number.isFinite(value)) return
-      session.wanted = clamp(value, zoom.min, zoom.max)
+      const native = trackZoom(session.track)
+      session.wanted = clamp(
+        value,
+        (session.range?.min ?? native) * frameFill,
+        Math.max(4, session.range?.max ?? native)
+      )
+      chosen.current = session.wanted
       if (session.applying) return
       session.applying = true
       try {
@@ -117,6 +95,7 @@ export function useCameraZoom(
           )
           setZoom({ value: actual, native, digital: actual / native, min, max })
           if (requested === session.wanted) {
+            chosen.current = actual
             session.wanted = actual
             break
           }
@@ -125,9 +104,39 @@ export function useCameraZoom(
         session.applying = false
       }
     },
-    [frameFill, zoom.min, zoom.max]
+    [frameFill]
   )
 
+  const attach = useCallback(
+    (track: MediaStreamTrack | null) => {
+      current.current = null
+      if (!track) return
+      const native = trackZoom(track)
+      const caps = track.getCapabilities?.() as
+        | (MediaTrackCapabilities & { zoom?: ZoomRange })
+        | undefined
+      const range =
+        caps?.zoom && caps.zoom.min > 0 && caps.zoom.max >= caps.zoom.min
+          ? caps.zoom
+          : undefined
+      current.current = {
+        track,
+        range,
+        constraints: track.getConstraints(),
+        wanted: native,
+        applying: false,
+      }
+      setZoom({
+        value: native,
+        digital: 1,
+        native,
+        min: (range?.min ?? native) * frameFill,
+        max: Math.max(4, range?.max ?? native),
+      })
+      if (chosen.current != null) void change(chosen.current)
+    },
+    [frameFill, change]
+  )
   useEffect(() => {
     const el = stage.current
     if (!el || !enabled) return
