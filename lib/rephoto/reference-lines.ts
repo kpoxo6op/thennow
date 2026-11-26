@@ -769,6 +769,7 @@ const guides: Record<string, ReferenceLines> = {
   "st-heliers-beach-gower-point": {
     image:
       "/posts/0008-st-heliers-beach-gower-point/then-st-heliers-beach-gower-point.jpg",
+    foreground: "Curved stone rim below the palm",
     framing: [
       {
         name: "Horizon from last island to right border",
@@ -788,12 +789,15 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Seawall top from the left edge",
+        name: "Stone facing around the seaward bend",
         points: [
-          [0.025, 0.6367],
-          [0.115, 0.6433],
-          [0.195, 0.6367],
-          [0.24, 0.64],
+          [0.2415, 0.64162],
+          [0.248, 0.6474],
+          [0.2565, 0.65446],
+          [0.2665, 0.66474],
+          [0.2775, 0.67502],
+          [0.2885, 0.68593],
+          [0.2985, 0.69685],
         ],
       },
       {
@@ -806,6 +810,28 @@ const guides: Record<string, ReferenceLines> = {
       },
     ],
     features: [
+      {
+        name: "Curved stone rim below the palm",
+        points: [
+          [0.0175, 0.66089],
+          [0.042, 0.6596],
+          [0.0715, 0.65768],
+          [0.0975, 0.65575],
+          [0.1225, 0.65382],
+          [0.147, 0.65189],
+          [0.17, 0.64933],
+          [0.191, 0.64676],
+          [0.209, 0.64419],
+          [0.2235, 0.64162],
+          [0.2345, 0.63905],
+          [0.2405, 0.63648],
+          [0.2415, 0.63455],
+          [0.239, 0.63263],
+          [0.2325, 0.6307],
+          [0.221, 0.62877],
+          [0.208, 0.62749],
+        ],
+      },
       {
         name: "Gower Point slope above the water",
         points: [
