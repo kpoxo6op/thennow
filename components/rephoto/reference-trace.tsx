@@ -33,20 +33,27 @@ export function ReferenceTrace({
       strokeLinecap="round"
     >
       <g aria-label="Archive framing" strokeWidth="1.5">
-        {guide.framing?.map((line) => (
-          <polyline
-            key={line.name}
-            aria-label={line.name}
-            points={line.points
-              .map(([x, y]) => `${x * 1000},${y * 1000}`)
-              .join(" ")}
-            stroke="white"
-            strokeOpacity=".88"
-            strokeDasharray="6 3"
-            vectorEffect="non-scaling-stroke"
-            style={{ filter: "drop-shadow(0 0 1px black)" }}
-          />
-        ))}
+        {guide.framing?.map((line) => {
+          const points = line.points
+            .map(([x, y]) => `${x * 1000},${y * 1000}`)
+            .join(" ")
+          return (
+            <g key={line.name} aria-label={line.name} strokeDasharray="6 3">
+              <polyline
+                points={points}
+                stroke="black"
+                strokeOpacity=".8"
+                strokeWidth="3"
+                vectorEffect="non-scaling-stroke"
+              />
+              <polyline
+                points={points}
+                stroke="white"
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
+          )
+        })}
         <path
           d="M 1 44 V 1 H 42 M 958 1 H 999 V 44 M 999 956 V 999 H 958 M 42 999 H 1 V 956"
           stroke="white"
