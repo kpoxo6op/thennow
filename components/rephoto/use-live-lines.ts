@@ -29,7 +29,8 @@ export function useLiveLines(
   crop: Crop | null,
   aspect: number,
   enabled: boolean,
-  recognized: boolean
+  recognized: boolean,
+  nativeZoom: number
 ) {
   const [reading, setReading] = useState<Reading | null>(null)
   const identity = useRef(false)
@@ -66,7 +67,11 @@ export function useLiveLines(
       held = false
       setReading(null)
     }
-    const k = Math.min(1, 480 / width)
+    const k = Math.min(
+      1,
+      480 / width,
+      1024 / Math.max(video.videoWidth, video.videoHeight)
+    )
     const target = { cx: cx * k, cy: cy * k, width: width * k, rotation }
     let sampled = 0,
       known = false
@@ -267,6 +272,6 @@ export function useLiveLines(
       document.removeEventListener("visibilitychange", visibility)
       reset()
     }
-  }, [videoRef, guide, width, cx, cy, rotation, aspect, enabled])
+  }, [videoRef, guide, width, cx, cy, rotation, aspect, enabled, nativeZoom])
   return enabled && (!reading?.recognized || recognized) ? reading : null
 }

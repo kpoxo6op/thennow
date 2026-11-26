@@ -246,7 +246,11 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
             (result) => (result ? ("recognized" as const) : ("miss" as const)),
             () => "unavailable" as const
           )
-          const k = Math.min(1, SCORE_WIDTH / placed.width)
+          const k = Math.min(
+            1,
+            SCORE_WIDTH / placed.width,
+            1280 / Math.max(photo.width, photo.height)
+          )
           const live = await grayOf(
             shot.canvas,
             photo.width * k,
@@ -302,13 +306,7 @@ export function RephotoReview({ name, slug, thenSrc, shot, onRetake }: Props) {
                     : matched
                       ? trace.features[matched.index].name +
                         " overlaps. Drag to compare."
-                      : possible.length
-                        ? "Possible match. Compare " +
-                          trace.features[possible[0]].name +
-                          " with the archive."
-                        : "Your framing. Compare " +
-                          trace.features[0].name +
-                          "."
+                      : "Drag to compare the skyline and outer edges."
               )
               return {
                 value,

@@ -6,6 +6,9 @@ export const TRACE_OVERLAY_OPACITY = 0.16
 // of that image, not detections or a claim that the modern scene is unchanged.
 export type ReferenceLines = {
   image: string
+  // Visible archive composition, including edges obscured or rebuilt today.
+  // These paths are drawn only. The matcher receives evidence from features.
+  framing?: { name: string; points: [number, number][] }[]
   foreground?: string
   features: {
     name: string
@@ -20,6 +23,44 @@ export type ReferenceLines = {
 const guides: Record<string, ReferenceLines> = {
   sheep: {
     image: "/posts/0001-sheep/then-sheep-4018x2298.jpg",
+    framing: [
+      {
+        name: "Roof silhouette at right",
+        points: [
+          [0.505, 0.3567],
+          [0.6, 0.2667],
+          [0.6575, 0.3467],
+          [0.7425, 0.3367],
+        ],
+      },
+      {
+        name: "Far gable and end wall",
+        points: [
+          [0.8525, 0.36],
+          [0.885, 0.3033],
+          [0.915, 0.3467],
+          [0.915, 0.51],
+        ],
+      },
+      {
+        name: "Distant ridgeline behind houses",
+        points: [
+          [0.015, 0.1533],
+          [0.075, 0.1633],
+          [0.13, 0.1933],
+          [0.175, 0.2033],
+        ],
+      },
+      {
+        name: "Boundary down the hill",
+        points: [
+          [0.2225, 0.31],
+          [0.3, 0.33],
+          [0.4125, 0.3633],
+          [0.5125, 0.3867],
+        ],
+      },
+    ],
     features: [
       {
         name: "Uphill power pole above the street corner",
@@ -60,6 +101,42 @@ const guides: Record<string, ReferenceLines> = {
   },
   "mill-house": {
     image: "/posts/0000-mill-house/t1-mill-house-750x580.jpg",
+    framing: [
+      {
+        name: "Left eave to front entrance",
+        points: [
+          [0.37, 0.4933],
+          [0.3925, 0.49],
+          [0.435, 0.4867],
+          [0.465, 0.4833],
+        ],
+      },
+      {
+        name: "Right eave and outer gable",
+        points: [
+          [0.71, 0.5033],
+          [0.7775, 0.5033],
+          [0.795, 0.3767],
+          [0.8125, 0.4833],
+        ],
+      },
+      {
+        name: "Foreground gate rails",
+        points: [
+          [0.27, 0.67],
+          [0.3575, 0.6433],
+          [0.455, 0.6433],
+        ],
+      },
+      {
+        name: "Gate across the lower frame",
+        points: [
+          [0.2725, 0.77],
+          [0.36, 0.7933],
+          [0.4475, 0.7267],
+        ],
+      },
+    ],
     features: [
       {
         name: "Chimney above the left end of the ridge",
@@ -154,6 +231,40 @@ const guides: Record<string, ReferenceLines> = {
   "historic-post-office": {
     image:
       "/posts/0002-historic-helensville-post-office/post1-then-2003x1241.jpg",
+    framing: [
+      {
+        name: "Outer roof and receding eaves",
+        points: [
+          [0.425, 0.3467],
+          [0.4725, 0.33],
+          [0.5075, 0.33],
+          [0.53, 0.3167],
+          [0.5925, 0.3133],
+          [0.64, 0.3333],
+          [0.7025, 0.3667],
+        ],
+      },
+      {
+        name: "Street edge past the building",
+        points: [
+          [0.2975, 0.5733],
+          [0.41, 0.5733],
+          [0.555, 0.5967],
+          [0.705, 0.6233],
+          [0.8725, 0.6533],
+          [0.9925, 0.6733],
+        ],
+      },
+      {
+        name: "Foreground road shoulder",
+        points: [
+          [0.375, 0.7533],
+          [0.455, 0.78],
+          [0.565, 0.83],
+          [0.725, 0.9133],
+        ],
+      },
+    ],
     features: [
       {
         name: "Left masonry facade corner",
@@ -249,6 +360,24 @@ const guides: Record<string, ReferenceLines> = {
   },
   "mission-bay-fountain": {
     image: "/posts/0003-mission-bay-fountain/fountain-then-1080x885.jpg",
+    framing: [
+      {
+        name: "Harbour horizon left of fountain",
+        points: [
+          [0.1825, 0.71],
+          [0.2425, 0.70667],
+          [0.29, 0.70667],
+        ],
+      },
+      {
+        name: "Harbour horizon at right edge",
+        points: [
+          [0.9225, 0.7],
+          [0.9625, 0.7],
+          [0.975, 0.7],
+        ],
+      },
+    ],
     features: [
       {
         name: "Front basin lip to plaque",
@@ -338,6 +467,39 @@ const guides: Record<string, ReferenceLines> = {
   "mission-bay-yacht-club": {
     image:
       "/posts/0004-mission-bay-yacht-club/then-mission-bay-yacht-club-1000x675.jpg",
+    framing: [
+      {
+        name: "Open water beyond the seawall",
+        points: [
+          [0.6675, 0.46],
+          [0.7025, 0.46],
+        ],
+      },
+      {
+        name: "Harbour horizon at right margin",
+        points: [
+          [0.9425, 0.4567],
+          [0.9925, 0.4567],
+        ],
+      },
+      {
+        name: "Clubhouse outer gable and eaves",
+        points: [
+          [0.1225, 0.41],
+          [0.145, 0.4],
+          [0.1925, 0.4033],
+          [0.1925, 0.4567],
+        ],
+      },
+      {
+        name: "Clubhouse base across the jetty",
+        points: [
+          [0.1525, 0.4767],
+          [0.26, 0.48],
+          [0.365, 0.4767],
+        ],
+      },
+    ],
     features: [
       {
         name: "Walkway edge from clubhouse to foreground",
@@ -416,6 +578,36 @@ const guides: Record<string, ReferenceLines> = {
   },
   "mission-house": {
     image: "/posts/0005-mission-house/mission-house-then-768x512.jpg",
+    framing: [
+      {
+        name: "Road edge from left foreground",
+        points: [
+          [0.005, 0.7267],
+          [0.125, 0.6933],
+          [0.2625, 0.6633],
+          [0.42, 0.6267],
+          [0.585, 0.6],
+        ],
+      },
+      {
+        name: "End wall to the rise at right",
+        points: [
+          [0.75, 0.5733],
+          [0.8275, 0.55],
+          [0.8925, 0.5233],
+          [0.9475, 0.5],
+        ],
+      },
+      {
+        name: "Left skyline above roadside",
+        points: [
+          [0.005, 0.48],
+          [0.04, 0.47],
+          [0.07, 0.4633],
+          [0.09, 0.4633],
+        ],
+      },
+    ],
     features: [
       {
         name: "Left roof rising from the eaves",
@@ -490,6 +682,28 @@ const guides: Record<string, ReferenceLines> = {
   "riddell-road-waimarie-street": {
     image:
       "/posts/0009-riddell-road-waimarie-street/then-riddell-road-waimarie-street.jpg",
+    framing: [
+      {
+        name: "Distant skyline to the left",
+        points: [
+          [0.015, 0.46],
+          [0.05, 0.46],
+          [0.0775, 0.4667],
+          [0.1075, 0.49],
+          [0.1575, 0.5033],
+        ],
+      },
+      {
+        name: "Outer bank meets the road at right",
+        points: [
+          [0.645, 0.6133],
+          [0.705, 0.6367],
+          [0.78, 0.65],
+          [0.8875, 0.6633],
+          [0.995, 0.6733],
+        ],
+      },
+    ],
     features: [
       {
         name: "Distant rise of Riddell Road, left edge",
@@ -555,6 +769,42 @@ const guides: Record<string, ReferenceLines> = {
   "st-heliers-beach-gower-point": {
     image:
       "/posts/0008-st-heliers-beach-gower-point/then-st-heliers-beach-gower-point.jpg",
+    framing: [
+      {
+        name: "Horizon from last island to right border",
+        points: [
+          [0.8875, 0.5267],
+          [0.9425, 0.5267],
+          [0.9775, 0.5267],
+        ],
+      },
+      {
+        name: "Western slope towards the point",
+        points: [
+          [0.2325, 0.4433],
+          [0.2525, 0.4433],
+          [0.285, 0.4633],
+          [0.3175, 0.4933],
+        ],
+      },
+      {
+        name: "Seawall top from the left edge",
+        points: [
+          [0.025, 0.6367],
+          [0.115, 0.6433],
+          [0.195, 0.6367],
+          [0.24, 0.64],
+        ],
+      },
+      {
+        name: "Near end of the seawall",
+        points: [
+          [0.0975, 0.5867],
+          [0.1425, 0.58],
+          [0.14, 0.6033],
+        ],
+      },
+    ],
     features: [
       {
         name: "Gower Point slope above the water",
@@ -622,6 +872,39 @@ const guides: Record<string, ReferenceLines> = {
   "tamaki-drive-from-long-drive": {
     image:
       "/posts/0007-tamaki-drive-from-long-drive/then-tamaki-drive-from-long-drive.jpg",
+    framing: [
+      {
+        name: "Far shore towards the vanishing point",
+        points: [
+          [0.1225, 0.4033],
+          [0.2075, 0.4033],
+          [0.3075, 0.41],
+          [0.395, 0.4167],
+          [0.46, 0.42],
+        ],
+      },
+      {
+        name: "Hills across the right of the bay",
+        points: [
+          [0.5675, 0.3367],
+          [0.6125, 0.33],
+          [0.65, 0.3133],
+          [0.675, 0.3267],
+          [0.7075, 0.33],
+          [0.7475, 0.3133],
+          [0.7775, 0.32],
+        ],
+      },
+      {
+        name: "Outer road edge towards the houses",
+        points: [
+          [0.6375, 0.4667],
+          [0.7325, 0.4867],
+          [0.8275, 0.5033],
+          [0.9325, 0.5167],
+        ],
+      },
+    ],
     features: [
       {
         name: "Seawall sweeping in from left",
@@ -689,6 +972,40 @@ const guides: Record<string, ReferenceLines> = {
   },
   "northcote-post-office": {
     image: "/posts/0011-northcote-post-office/then-northcote-post-office.jpg",
+    framing: [
+      {
+        name: "Front roof silhouette behind parapet",
+        points: [
+          [0.275, 0.32667],
+          [0.31, 0.30333],
+          [0.3325, 0.29667],
+          [0.3475, 0.28333],
+          [0.3725, 0.28667],
+          [0.405, 0.26],
+          [0.4225, 0.27667],
+          [0.4475, 0.29333],
+          [0.47, 0.31],
+          [0.5275, 0.36333],
+        ],
+      },
+      {
+        name: "Outer corner below parapet",
+        points: [
+          [0.105, 0.3633],
+          [0.1, 0.4733],
+          [0.0975, 0.5433],
+        ],
+      },
+      {
+        name: "Street edge on the foreground diagonal",
+        points: [
+          [0.015, 0.7933],
+          [0.1725, 0.7633],
+          [0.3425, 0.74],
+          [0.52, 0.72],
+        ],
+      },
+    ],
     features: [
       {
         name: "Cornice across the front, left of pole",
@@ -754,6 +1071,38 @@ const guides: Record<string, ReferenceLines> = {
   },
   "bridgeway-cinema": {
     image: "/posts/0010-bridgeway-cinema/then-bridgeway-cinema.jpg",
+    framing: [
+      {
+        name: "Street edge below the arcade",
+        points: [
+          [0.005, 0.68],
+          [0.1675, 0.7],
+          [0.385, 0.72],
+          [0.59, 0.7333],
+          [0.7675, 0.7433],
+          [0.9925, 0.75],
+        ],
+      },
+      {
+        name: "Verandah end at the right border",
+        points: [
+          [0.77, 0.3467],
+          [0.895, 0.3533],
+          [0.9925, 0.3533],
+          [0.95, 0.3833],
+        ],
+      },
+      {
+        name: "Front kerb across the lower frame",
+        points: [
+          [0.01, 0.8],
+          [0.1875, 0.84],
+          [0.3575, 0.8867],
+          [0.49, 0.9333],
+          [0.6, 0.97],
+        ],
+      },
+    ],
     features: [
       {
         name: "Gable at the right of the roof",
@@ -836,6 +1185,34 @@ const guides: Record<string, ReferenceLines> = {
   },
   "northcote-tavern": {
     image: "/posts/0012-northcote-tavern/then-northcote-tavern.jpg",
+    framing: [
+      {
+        name: "Left verandah edge and outer posts",
+        points: [
+          [0.145, 0.4433],
+          [0.1525, 0.57],
+          [0.155, 0.7867],
+        ],
+      },
+      {
+        name: "Left verandah rail and lower roof",
+        points: [
+          [0.15, 0.5767],
+          [0.26, 0.5567],
+          [0.41, 0.5133],
+        ],
+      },
+      {
+        name: "Fence and pavement across the right foreground",
+        points: [
+          [0.4175, 0.8167],
+          [0.5675, 0.8367],
+          [0.735, 0.86],
+          [0.9, 0.9],
+          [0.9725, 0.9233],
+        ],
+      },
+    ],
     features: [
       {
         name: "Left gable above Queen Street",
@@ -911,6 +1288,40 @@ const guides: Record<string, ReferenceLines> = {
   },
   "apirana-avenue-shops": {
     image: "/posts/0021-apirana-avenue-shops/then-apirana-avenue-shops.jpg",
+    framing: [
+      {
+        name: "Right end of the upper shopfront",
+        points: [
+          [0.785, 0.45],
+          [0.845, 0.45],
+          [0.845, 0.5533],
+        ],
+      },
+      {
+        name: "Farthest roof on the right margin",
+        points: [
+          [0.895, 0.5567],
+          [0.925, 0.5167],
+          [0.9925, 0.5167],
+        ],
+      },
+      {
+        name: "Upper verandah from left frame edge",
+        points: [
+          [0.0025, 0.48],
+          [0.12, 0.4933],
+          [0.2375, 0.5033],
+        ],
+      },
+      {
+        name: "Foot of the shopfront at left",
+        points: [
+          [0.005, 0.75],
+          [0.0675, 0.74],
+          [0.105, 0.7367],
+        ],
+      },
+    ],
     features: [
       {
         name: "High sawtooth roof and upright",
@@ -992,6 +1403,35 @@ const guides: Record<string, ReferenceLines> = {
   "mayfair-place": {
     image: "/posts/0013-mayfair-place/then-mayfair-place.jpg",
     foreground: "Slide lip",
+    framing: [
+      {
+        name: "Beam across the square passage",
+        points: [
+          [0.42, 0.54333],
+          [0.4575, 0.54333],
+          [0.495, 0.54333],
+        ],
+      },
+      {
+        name: "Roof above the far side of the square",
+        points: [
+          [0.6675, 0.50333],
+          [0.725, 0.5],
+          [0.7925, 0.49333],
+        ],
+      },
+      {
+        name: "Curve of outer planting bed",
+        points: [
+          [0.9975, 0.97667],
+          [0.955, 0.93667],
+          [0.9175, 0.89],
+          [0.8875, 0.84],
+          [0.8625, 0.79333],
+          [0.8525, 0.77333],
+        ],
+      },
+    ],
     features: [
       {
         name: "Slide lip",
@@ -1191,6 +1631,43 @@ const guides: Record<string, ReferenceLines> = {
     image: "/posts/0014-bradley-lane-line-road/then-bradley-lane-line-road.jpg",
     // The mural wall a few metres away; the shopfronts and awnings down the street.
     zones: { near: [0, 0, 0.385, 0.83], far: [0.43, 0.05, 1, 0.75] },
+    framing: [
+      {
+        name: "Sloping roof silhouette at top of frame",
+        points: [
+          [0.4725, 0.0],
+          [0.6225, 0.17],
+        ],
+      },
+      {
+        name: "Receding canopy underside",
+        points: [
+          [0.4125, 0.3167],
+          [0.5225, 0.3533],
+          [0.6225, 0.3833],
+          [0.675, 0.3933],
+        ],
+      },
+      {
+        name: "Far end of canopy at street edge",
+        points: [
+          [0.865, 0.29],
+          [0.8975, 0.45],
+          [0.9025, 0.48333],
+        ],
+      },
+      {
+        name: "Far skyline beyond the canopy",
+        points: [
+          [0.915, 0.48333],
+          [0.93, 0.49],
+          [0.9425, 0.5],
+          [0.9575, 0.49],
+          [0.975, 0.49333],
+          [0.995, 0.48],
+        ],
+      },
+    ],
     features: [
       {
         name: "Mural wall corner",
@@ -1268,6 +1745,109 @@ const guides: Record<string, ReferenceLines> = {
     // Only what still shows takes part: the right roof and the corner and window of the right
     // facade. The kerb, the left wing's eaves and the horizon were dropped (now hidden or
     // rebuilt), and the base stays as a plain guide (benches and a hedge cover it).
+    framing: [
+      {
+        name: "Left wing roof and outer eave",
+        points: [
+          [0.533, 0.3678],
+          [0.552, 0.3584],
+          [0.583, 0.3302],
+          [0.607, 0.3067],
+        ],
+      },
+      {
+        name: "Left wing eave and outer wall",
+        points: [
+          [0.534, 0.3709],
+          [0.557, 0.3725],
+          [0.604, 0.3631],
+        ],
+      },
+      {
+        name: "Left wall from eave to foot",
+        points: [
+          [0.553, 0.3756],
+          [0.552, 0.5587],
+        ],
+      },
+      {
+        name: "Entrance parapet and roof behind it",
+        points: [
+          [0.609, 0.3036],
+          [0.613, 0.266],
+          [0.638, 0.2535],
+          [0.664, 0.252],
+          [0.666, 0.2629],
+          [0.694, 0.2645],
+          [0.75, 0.2645],
+        ],
+      },
+      {
+        name: "Entrance arch opening",
+        points: [
+          [0.621, 0.5524],
+          [0.621, 0.3693],
+          [0.623, 0.3505],
+          [0.628, 0.3333],
+          [0.634, 0.3208],
+          [0.64, 0.3286],
+          [0.646, 0.349],
+          [0.651, 0.3756],
+          [0.652, 0.5524],
+        ],
+      },
+      {
+        name: "Entrance right pier and front roof junction",
+        points: [
+          [0.687, 0.5603],
+          [0.688, 0.3505],
+          [0.711, 0.3318],
+          [0.735, 0.3099],
+          [0.752, 0.2879],
+        ],
+      },
+      {
+        name: "Roof ridge approaching from the entrance",
+        points: [
+          [0.751, 0.2535],
+          [0.811, 0.2332],
+          [0.89, 0.2097],
+        ],
+      },
+      {
+        name: "Base of the left wing and entry",
+        points: [
+          [0.549, 0.5634],
+          [0.578, 0.5728],
+          [0.606, 0.5806],
+          [0.651, 0.5884],
+          [0.688, 0.5962],
+        ],
+      },
+      {
+        name: "Street edge across the lower right",
+        points: [
+          [0.311, 0.5759],
+          [0.392, 0.6088],
+          [0.549, 0.6604],
+          [0.674, 0.7011],
+          [0.836, 0.7637],
+          [0.998, 0.82],
+        ],
+      },
+      {
+        name: "Distant street skyline on the left",
+        points: [
+          [0.172, 0.3584],
+          [0.214, 0.3255],
+          [0.257, 0.3192],
+          [0.273, 0.302],
+          [0.306, 0.277],
+          [0.329, 0.2942],
+          [0.348, 0.2911],
+        ],
+      },
+    ],
     features: [
       {
         name: "Right roof ridge near frame edge",
@@ -1324,6 +1904,37 @@ const guides: Record<string, ReferenceLines> = {
   },
   "civic-theatre": {
     image: "/posts/0015-civic-theatre/then-civic-theatre.jpg",
+    framing: [
+      {
+        name: "West edge of the theatre front",
+        points: [
+          [0.0475, 0.2067],
+          [0.045, 0.3767],
+          [0.045, 0.51],
+          [0.045, 0.5367],
+        ],
+      },
+      {
+        name: "Far side of the marquee",
+        points: [
+          [0.745, 0.5],
+          [0.8525, 0.51],
+          [0.96, 0.5167],
+        ],
+      },
+      {
+        name: "Kerb around the full theatre corner",
+        points: [
+          [0.1625, 0.7133],
+          [0.28, 0.7267],
+          [0.425, 0.7333],
+          [0.5275, 0.7333],
+          [0.6675, 0.7267],
+          [0.81, 0.71],
+          [0.955, 0.6933],
+        ],
+      },
+    ],
     features: [
       {
         name: "Right canopy edge from entrance",
@@ -1435,6 +2046,37 @@ const guides: Record<string, ReferenceLines> = {
   },
   "st-matthew-in-the-city": {
     image: "/posts/0016-st-matthew-in-the-city/then-st-matthew-in-the-city.jpg",
+    framing: [
+      {
+        name: "Roofline from tower to east gable",
+        points: [
+          [0.36, 0.5433],
+          [0.4075, 0.5],
+          [0.475, 0.4533],
+          [0.5625, 0.4],
+          [0.6, 0.38],
+        ],
+      },
+      {
+        name: "Far roof beyond the east gable",
+        points: [
+          [0.7875, 0.61],
+          [0.865, 0.61],
+          [0.9725, 0.5833],
+        ],
+      },
+      {
+        name: "Street edge across the church frontage",
+        points: [
+          [0.025, 0.9],
+          [0.2, 0.89],
+          [0.4225, 0.87],
+          [0.62, 0.8567],
+          [0.7875, 0.8467],
+          [0.965, 0.8333],
+        ],
+      },
+    ],
     features: [
       {
         name: "Tower left edge",
@@ -1506,6 +2148,46 @@ const guides: Record<string, ReferenceLines> = {
   },
   "auckland-art-gallery": {
     image: "/posts/0017-auckland-art-gallery/then-auckland-art-gallery.jpg",
+    framing: [
+      {
+        name: "Tower cupola and lantern",
+        points: [
+          [0.575, 0.22333],
+          [0.5875, 0.22],
+          [0.5925, 0.19],
+          [0.61, 0.17],
+          [0.6175, 0.16333],
+          [0.6225, 0.14333],
+          [0.63, 0.16],
+          [0.64, 0.16333],
+          [0.66, 0.18333],
+          [0.6625, 0.21],
+        ],
+      },
+      {
+        name: "Right wing receding roof",
+        points: [
+          [0.7525, 0.45333],
+          [0.775, 0.50333],
+          [0.7975, 0.49333],
+          [0.805, 0.54667],
+          [0.86, 0.54333],
+          [0.8875, 0.6],
+          [0.895, 0.63333],
+          [0.925, 0.66333],
+        ],
+      },
+      {
+        name: "Ground line on both sides of tower",
+        points: [
+          [0.19, 0.8067],
+          [0.41, 0.8267],
+          [0.56, 0.8433],
+          [0.68, 0.84],
+          [0.925, 0.82],
+        ],
+      },
+    ],
     features: [
       {
         name: "Clock face",
@@ -1584,6 +2266,46 @@ const guides: Record<string, ReferenceLines> = {
   },
   "ferry-building": {
     image: "/posts/0018-ferry-building/then-ferry-building.jpg",
+    framing: [
+      {
+        name: "Clock tower cap",
+        points: [
+          [0.59, 0.3567],
+          [0.6025, 0.3233],
+          [0.6175, 0.2833],
+          [0.625, 0.26],
+          [0.635, 0.28],
+          [0.665, 0.3567],
+        ],
+      },
+      {
+        name: "Long roof above receding facade",
+        points: [
+          [0.51, 0.4833],
+          [0.5725, 0.5133],
+          [0.6175, 0.5467],
+          [0.69, 0.59],
+          [0.7425, 0.62],
+        ],
+      },
+      {
+        name: "Distant wharf roof on the far left",
+        points: [
+          [0.025, 0.74],
+          [0.1125, 0.7367],
+          [0.12, 0.7533],
+        ],
+      },
+      {
+        name: "Quayside at the lower right",
+        points: [
+          [0.5125, 0.8567],
+          [0.6275, 0.8567],
+          [0.745, 0.85],
+          [0.83, 0.8533],
+        ],
+      },
+    ],
     features: [
       {
         name: "Wharf-side corner",
@@ -1679,6 +2401,33 @@ const guides: Record<string, ReferenceLines> = {
   },
   "chief-post-office": {
     image: "/posts/0019-chief-post-office/then-chief-post-office.jpg",
+    framing: [
+      {
+        name: "Upper cornice entering at the right edge",
+        points: [
+          [0.8175, 0.27],
+          [0.8625, 0.24],
+          [0.925, 0.2],
+          [0.965, 0.16],
+        ],
+      },
+      {
+        name: "Outer building corner at the far left",
+        points: [
+          [0.09, 0.5333],
+          [0.09, 0.7567],
+        ],
+      },
+      {
+        name: "Lower street edge across the frame",
+        points: [
+          [0.03, 0.8333],
+          [0.3425, 0.87],
+          [0.6525, 0.92],
+          [0.95, 0.96],
+        ],
+      },
+    ],
     features: [
       {
         name: "Large dome",
@@ -1738,6 +2487,43 @@ const guides: Record<string, ReferenceLines> = {
   },
   customhouse: {
     image: "/posts/0020-customhouse/then-customhouse.jpg",
+    framing: [
+      {
+        name: "Left bay roof and end wall",
+        points: [
+          [0.055, 0.4367],
+          [0.0575, 0.3867],
+          [0.0775, 0.3367],
+          [0.185, 0.36],
+        ],
+      },
+      {
+        name: "Roof silhouette across central tower",
+        points: [
+          [0.525, 0.41],
+          [0.5225, 0.35],
+          [0.535, 0.32333],
+          [0.5375, 0.27333],
+          [0.555, 0.24333],
+          [0.5725, 0.19333],
+          [0.5725, 0.17333],
+          [0.59, 0.16333],
+          [0.615, 0.17],
+          [0.6125, 0.19],
+          [0.6375, 0.22],
+          [0.6575, 0.27],
+          [0.665, 0.29667],
+        ],
+      },
+      {
+        name: "Right end cornice and pavement",
+        points: [
+          [0.92, 0.6333],
+          [0.92, 0.8367],
+          [0.9475, 0.8333],
+        ],
+      },
+    ],
     features: [
       {
         name: "Left pavilion roof",
