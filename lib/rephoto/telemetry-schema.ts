@@ -207,7 +207,7 @@ const enums: Record<string, string[]> = {
     "hold",
     "none",
   ],
-  how: ["manual", "auto", "share", "download"],
+  how: ["manual", "auto", "video", "share", "download"],
   phase: ["aligning", "framed", "aligned", "unchecked", "unmatched"],
   result: [
     "framed",

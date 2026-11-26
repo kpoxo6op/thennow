@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import {
   ArrowDown,
@@ -15,6 +22,8 @@ import {
   RotateCcw,
   RotateCw,
   Search,
+  Square,
+  Video,
   X,
   ZoomIn,
   ZoomOut,
@@ -59,6 +68,11 @@ import {
 } from "@/lib/rephoto/telemetry"
 import { screenAngle, tiltFromGravity } from "@/lib/rephoto/tilt"
 import { slide, thumb, type Thumb } from "@/lib/rephoto/track"
+import {
+  PASS_SECONDS,
+  recordPass,
+  type VideoPass,
+} from "@/lib/rephoto/video-pass"
 import { releaseScreen } from "@/components/rephoto/camera-link"
 import { MatcherGuide } from "@/components/rephoto/matcher-guide"
 import { ReferenceTrace } from "@/components/rephoto/reference-trace"
@@ -66,6 +80,11 @@ import { RephotoReview, type Shot } from "@/components/rephoto/rephoto-review"
 
 import { useCameraZoom } from "./use-camera-zoom"
 import { useLiveLines } from "./use-live-lines"
+
+const VideoPassPicker = dynamic(
+  () => import("./video-pass-picker").then((m) => m.VideoPassPicker),
+  { ssr: false }
+)
 
 const CUE_TEXT: Record<CueKind, string> = {
   left: "Turn left",
@@ -318,6 +337,23 @@ export function RephotoCamera({
   const [stage, setStage] = useState({ width: 0, height: 0 })
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 })
   const [shot, setShot] = useState<Shot | null>(null)
+  const [pass, setPass] = useState<VideoPass | null>(null)
+  const [lastPick, setLastPick] = useState<number | null>(null)
+  const [recording, setRecording] = useState(false)
+  const [remaining, setRemaining] = useState(PASS_SECONDS)
+  const [passError, setPassError] = useState("")
+  const recorder = useRef<ReturnType<typeof recordPass> | null>(null)
+  const reviewing = !!shot || !!pass
+  useEffect(() => {
+    if (!recording) return
+    const end = performance.now() + PASS_SECONDS * 1000
+    const tick = window.setInterval(
+      () =>
+        setRemaining(Math.max(0, Math.ceil((end - performance.now()) / 1000))),
+      250
+    )
+    return () => clearInterval(tick)
+  }, [recording])
   const shotRef = useRef<Shot | null>(null)
   useEffect(() => {
     shotRef.current = shot
@@ -333,7 +369,7 @@ export function RephotoCamera({
   }, [])
   const [showArchive, setShowArchive] = useState(false)
   useEffect(() => {
-    if (shot || status !== "live") return
+    if (reviewing || status !== "live") return
     diagnostic("guide view", {
       view: showArchive ? "archive" : "traces",
       overlay: showArchive ? 1 : TRACE_OVERLAY_OPACITY,
@@ -341,16 +377,25 @@ export function RephotoCamera({
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
     })
-  }, [shot, status, showArchive, stage.width, stage.height])
+  }, [reviewing, status, showArchive, stage.width, stage.height])
   const capturing = useRef(false)
   const [captureBusy, setCaptureBusy] = useState(false)
   const zoomEnabled =
-    status === "live" && !shot && !interrupted && !showArchive && !captureBusy
+    status === "live" &&
+    !reviewing &&
+    !interrupted &&
+    !showArchive &&
+    !captureBusy
   const {
     zoom,
     attach: attachZoom,
     change: changeZoom,
   } = useCameraZoom(stageRef, zoomEnabled, GHOST_FILL)
+  const passFraming = useRef({ aspect, digital: zoom.digital })
+  useLayoutEffect(() => {
+    if (aspect !== passFraming.current.aspect) recorder.current?.cancel()
+    passFraming.current = { aspect, digital: zoom.digital }
+  }, [aspect, zoom.digital])
   // Where the archive view sits in the live picture, once the matcher has found it.
   const [lock, setLock] = useState<{
     crop: Crop
@@ -461,7 +506,7 @@ export function RephotoCamera({
       ? frameCrop(aspect, videoSize.width, videoSize.height, zoom.digital)
       : null,
     aspect,
-    status === "live" && !shot && !interrupted && !showArchive,
+    status === "live" && !reviewing && !interrupted && !showArchive,
     recognized,
     zoom.native
   )
@@ -588,6 +633,7 @@ export function RephotoCamera({
   }, [])
 
   const stop = useCallback(() => {
+    recorder.current?.cancel()
     attachZoom(null)
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
@@ -661,12 +707,14 @@ export function RephotoCamera({
       // The screen locked, a call came in, another app took the camera.
       track?.addEventListener("ended", () => {
         if (mine !== attempt.current) return
+        recorder.current?.cancel()
         report("restart", {}, { reason: "ended" })
         setError("Camera paused.")
         setStatus("error")
       })
       track?.addEventListener("mute", () => {
         if (mine !== attempt.current) return
+        recorder.current?.cancel()
         setInterrupted(true)
         // A picture that stays stopped gets the camera opened again.
         setTimeout(() => {
@@ -692,7 +740,7 @@ export function RephotoCamera({
   }, [start])
 
   useEffect(() => {
-    if (shot) return
+    if (reviewing) return
     const attempts = attempt
     const timer = setTimeout(() => void start(), 0)
     let lock: { release: () => Promise<void> } | null = null
@@ -732,7 +780,7 @@ export function RephotoCamera({
       stop()
       lock?.release().catch(() => {})
     }
-  }, [shot, start, stop])
+  }, [reviewing, start, stop])
 
   // A picture that stops without the camera saying so (Firefox on Android when another app took
   // the camera) is noticed by its frames and the camera opened again. Only the live view is watched:
@@ -744,7 +792,8 @@ export function RephotoCamera({
           cancelVideoFrameCallback?: (handle: number) => void
         })
       | null
-    if (shot || status !== "live" || !video?.requestVideoFrameCallback) return
+    if (reviewing || status !== "live" || !video?.requestVideoFrameCallback)
+      return
     let last = performance.now()
     let handle = 0
     const onFrame = () => {
@@ -766,7 +815,7 @@ export function RephotoCamera({
       clearInterval(watch)
       video.cancelVideoFrameCallback?.(handle)
     }
-  }, [shot, status])
+  }, [reviewing, status])
 
   useEffect(() => {
     const element = stageRef.current
@@ -779,12 +828,12 @@ export function RephotoCamera({
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [shot])
+  }, [reviewing])
 
   // Matching and following share immutable frames. Hardware zoom stays fixed: the review
   // crops the full photo without moving the view while someone is composing it.
   useEffect(() => {
-    if (shot || status !== "live" || !canMatchLocally()) return
+    if (reviewing || status !== "live" || !canMatchLocally()) return
     const controller = new AbortController()
     const runSequence = telemetryRun
     const run = runSequence.current
@@ -1354,7 +1403,7 @@ export function RephotoCamera({
         { steady: stats.firstSteady >= 0 }
       )
     }
-  }, [shot, status, trace, zoom.native])
+  }, [reviewing, status, trace, zoom.native])
 
   // A placement that has gone stale leaves the screen too, so what is shown is what is shot.
   useEffect(() => {
@@ -1397,6 +1446,52 @@ export function RephotoCamera({
       left: view.left + crop.cx - crop.width / 2,
       top: view.top + crop.cy - (crop.width * aspect) / 2,
       rotation: 0,
+    }
+  }
+
+  const record = () => {
+    if (recorder.current) {
+      recorder.current.stop()
+      return
+    }
+    const v = videoRef.current
+    if (
+      !v ||
+      !zoomEnabled ||
+      capturing.current ||
+      document.hidden ||
+      v.readyState < 2
+    )
+      return
+    setPassError("")
+    capturing.current = true
+    setRemaining(PASS_SECONDS)
+    setRecording(true)
+    const crop = () =>
+      frameCrop(
+        aspect,
+        v.videoWidth,
+        v.videoHeight,
+        passFraming.current.digital
+      )
+    try {
+      recorder.current = recordPass(v, crop, aspect, (result) => {
+        recorder.current = null
+        capturing.current = false
+        setRecording(false)
+        if (!result) {
+          setPassError("Video pass interrupted. Try again or take a photo.")
+          return
+        }
+        setLastPick(null)
+        setPass(result)
+        attempt.current++
+        stop()
+      })
+    } catch {
+      capturing.current = false
+      setRecording(false)
+      setPassError("Video unavailable. You can still take a photo.")
     }
   }
 
@@ -1460,6 +1555,49 @@ export function RephotoCamera({
     })
   }
 
+  if (pass && !shot)
+    return (
+      <VideoPassPicker
+        pass={pass}
+        initialTime={lastPick}
+        guide={trace}
+        onBack={() => {
+          setStatus("starting")
+          setPass(null)
+          setPassError("")
+        }}
+        onUse={(canvas, time) => {
+          setLastPick(time)
+          report(
+            "shot",
+            {
+              width: canvas.width,
+              height: canvas.height,
+              aspect: pass.aspect,
+              mediaTime: Math.round(time * 1000),
+              cropX: 0.5,
+              cropY: 0.5,
+              cropWidth: 1,
+              cropRotation: 0,
+            },
+            { framing: "traced", how: "video" }
+          )
+          setShot({
+            canvas,
+            crop: {
+              cx: canvas.width / 2,
+              cy: canvas.height / 2,
+              width: canvas.width,
+              rotation: 0,
+            },
+            aspect: pass.aspect,
+            locked: false,
+            archive: archiveRef.current,
+            takenAt: new Date(pass.started + time * 1000),
+          })
+        }}
+      />
+    )
   if (shot) {
     return (
       <RephotoReview
@@ -1467,12 +1605,14 @@ export function RephotoCamera({
         slug={slug}
         thenSrc={thenSrc}
         shot={shot}
+        retakeLabel={pass ? "Choose another frame" : "Retake"}
         onRetake={() => {
           // iPhone frees canvas memory late; hand it back now.
           releaseCanvas(shot.canvas)
           report("retake")
           capturing.current = false
           setCaptureBusy(false)
+          if (!pass) setStatus("starting")
           setShot(null)
         }}
       />
@@ -1662,7 +1802,7 @@ export function RephotoCamera({
           <button
             type="button"
             aria-pressed={showArchive}
-            disabled={captureBusy}
+            disabled={captureBusy || recording}
             onClick={() => setShowArchive(!showArchive)}
             className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] min-h-11 rounded-full bg-black/65 px-3 text-sm"
           >
@@ -1684,7 +1824,7 @@ export function RephotoCamera({
         </Link>
       </div>
 
-      <div className="flex shrink-0 items-center justify-center gap-3 landscape:flex-col pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 landscape:px-[max(1rem,env(safe-area-inset-right))] landscape:py-4">
+      <div className="relative flex shrink-0 items-center justify-center gap-3 landscape:flex-col pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 landscape:px-[max(1rem,env(safe-area-inset-right))] landscape:py-4">
         <button
           type="button"
           aria-label="Zoom out"
@@ -1699,7 +1839,11 @@ export function RephotoCamera({
           data-testid="rephoto-shutter"
           aria-label="Take photo"
           disabled={
-            status !== "live" || interrupted || captureBusy || showArchive
+            status !== "live" ||
+            interrupted ||
+            captureBusy ||
+            showArchive ||
+            recording
           }
           onClick={() => capture()}
           data-lined={snapped || undefined}
@@ -1718,6 +1862,32 @@ export function RephotoCamera({
         >
           <ZoomIn aria-hidden className="size-5" />
         </button>
+        {status === "live" &&
+          typeof MediaRecorder !== "undefined" &&
+          typeof HTMLCanvasElement.prototype.captureStream === "function" && (
+            <button
+              type="button"
+              aria-label={recording ? "Stop video pass" : "Record video pass"}
+              disabled={!recording && !zoomEnabled}
+              onClick={record}
+              className="absolute right-1 flex min-h-11 w-16 flex-col items-center justify-center rounded-full text-xs disabled:opacity-35 landscape:inset-x-0 landscape:bottom-1 landscape:mx-auto"
+            >
+              {recording ? (
+                <Square className="size-5 fill-red-500 text-red-500" />
+              ) : (
+                <Video className="size-5" />
+              )}
+              {recording ? `Stop ${remaining}s` : "Video pass"}
+            </button>
+          )}
+        {passError && (
+          <p
+            role="status"
+            className="absolute bottom-full rounded bg-black/80 px-3 py-1 text-sm landscape:bottom-1 landscape:right-full landscape:w-48"
+          >
+            {passError}
+          </p>
+        )}
       </div>
     </div>
   )
