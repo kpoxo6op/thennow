@@ -1,5 +1,12 @@
 import type { ReferenceLines } from "@/lib/rephoto/reference-lines"
 
+const frameCorners = {
+  "upper-left": "M 1 44 V 1 H 42",
+  "upper-right": "M 958 1 H 999 V 44",
+  "lower-right": "M 999 956 V 999 H 958",
+  "lower-left": "M 42 999 H 1 V 956",
+} as const
+
 export function ReferenceTrace({
   guide,
   highlighted = null,
@@ -54,11 +61,42 @@ export function ReferenceTrace({
             </g>
           )
         })}
-        <path
-          d="M 1 44 V 1 H 42 M 958 1 H 999 V 44 M 999 956 V 999 H 958 M 42 999 H 1 V 956"
-          stroke="white"
-          vectorEffect="non-scaling-stroke"
-        />
+        {Object.entries(frameCorners).map(([corner, path]) => {
+          const index = guide.features.findIndex((f) => f.corner === corner)
+          if (index < 0) return null
+          const state = off.includes(index)
+            ? "off"
+            : confirmed.includes(index)
+              ? "on"
+              : "unknown"
+          return (
+            <g
+              key={corner}
+              aria-label={corner + " · " + guide.features[index].name}
+              data-corner={corner}
+              data-state={state}
+            >
+              <path
+                d={path}
+                stroke="black"
+                strokeWidth="4"
+                vectorEffect="non-scaling-stroke"
+              />
+              <path
+                d={path}
+                stroke={
+                  state === "off"
+                    ? "#fbbf24"
+                    : state === "on"
+                      ? "#a3e635"
+                      : "white"
+                }
+                strokeWidth={state === "unknown" ? 1.5 : 3}
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
+          )
+        })}
       </g>
       {guide.features.map((feature, index) => (
         <g

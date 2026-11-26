@@ -171,6 +171,20 @@ Gravity supplies short roll indicators at the sides when the phone provides it.
 Their height marks the middle of the frame. The archive supplies the actual
 horizon height wherever a horizon is visible.
 
+Designate a separate landmark for each corner of the subject in every archive.
+Follow the nearest identifiable outline where a literal corner contains open
+sky, blank road, a print border or a moving object. Trace additional geometry
+along the sides between those landmarks. For Gower Point, follow the entire
+curved rim of stones below the palm, the point, the offshore ridge and the
+promenade lip toward the opposite edge.
+
+The four corner indicators in the camera and review follow their own landmark.
+Green means that edge overlaps, amber means a measured displacement, and white
+means the corner is unconfirmed. Four overlaps are required for the whole-frame
+cue, together with scene recognition and independent scoring regions. A missing
+corner suppresses the whole-frame percentage. Visual guides remain available
+at every place, including those without verified scoring regions.
+
 Pinch the live picture or use the zoom buttons to frame the photo from the
 footpath. The archive stays fixed. The camera uses the zoom range its browser
 exposes and can widen to the edge of the available sensor image. The user-selected

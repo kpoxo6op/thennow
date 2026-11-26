@@ -13,6 +13,8 @@ export type ReferenceLines = {
   features: {
     name: string
     points: [number, number][]
+    // Closest identifiable landmark to this corner of the subject.
+    corner?: "upper-left" | "upper-right" | "lower-left" | "lower-right"
     region?: string
     // Its lettering pins it along its length too, so a sideways shift can be measured.
     along?: boolean
@@ -34,30 +36,36 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Far gable and end wall",
-        points: [
-          [0.8525, 0.36],
-          [0.885, 0.3033],
-          [0.915, 0.3467],
-          [0.915, 0.51],
-        ],
-      },
-      {
-        name: "Distant ridgeline behind houses",
-        points: [
-          [0.015, 0.1533],
-          [0.075, 0.1633],
-          [0.13, 0.1933],
-          [0.175, 0.2033],
-        ],
-      },
-      {
         name: "Boundary down the hill",
         points: [
           [0.2225, 0.31],
           [0.3, 0.33],
           [0.4125, 0.3633],
           [0.5125, 0.3867],
+        ],
+      },
+      {
+        name: "Near house eaves down to the street",
+        points: [
+          [0.5175, 0.35],
+          [0.5175, 0.4833],
+          [0.555, 0.4967],
+        ],
+      },
+      {
+        name: "Roadside pole at the far left",
+        points: [
+          [0.0375, 0.1633],
+          [0.0425, 0.4],
+          [0.0475, 0.61],
+        ],
+      },
+      {
+        name: "Foundation and front step beside the street",
+        points: [
+          [0.6725, 0.54],
+          [0.7225, 0.52],
+          [0.75, 0.5233],
         ],
       },
     ],
@@ -86,6 +94,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.1825, 0.68996],
           [0.17125, 0.68341],
         ],
+        corner: "lower-left",
       },
       {
         name: "Kerb returning up the side street",
@@ -96,6 +105,36 @@ const guides: Record<string, ReferenceLines> = {
           [0.06, 0.6179],
           [0.005, 0.58515],
         ],
+      },
+      {
+        name: "Distant ridgeline behind houses",
+        points: [
+          [0.015, 0.1533],
+          [0.075, 0.1633],
+          [0.13, 0.1933],
+          [0.175, 0.2033],
+        ],
+        corner: "upper-left",
+      },
+      {
+        name: "Far gable and end wall",
+        points: [
+          [0.8525, 0.36],
+          [0.885, 0.3033],
+          [0.915, 0.3467],
+          [0.915, 0.51],
+        ],
+        corner: "upper-right",
+      },
+      {
+        name: "Front step at the outer gable",
+        points: [
+          [0.8625, 0.5233],
+          [0.91, 0.5233],
+          [0.945, 0.5067],
+          [0.9875, 0.5],
+        ],
+        corner: "lower-right",
       },
     ],
   },
@@ -136,6 +175,30 @@ const guides: Record<string, ReferenceLines> = {
           [0.4475, 0.7267],
         ],
       },
+      {
+        name: "Left fence rail into the gate",
+        points: [
+          [0.0975, 0.67],
+          [0.1575, 0.67],
+          [0.23, 0.6733],
+        ],
+      },
+      {
+        name: "Right gatepost at the end of the rails",
+        points: [
+          [0.455, 0.64],
+          [0.4775, 0.64],
+          [0.4775, 0.75],
+        ],
+      },
+      {
+        name: "End of the right wing at the eave",
+        points: [
+          [0.795, 0.3767],
+          [0.8125, 0.48],
+          [0.805, 0.5033],
+        ],
+      },
     ],
     features: [
       {
@@ -148,6 +211,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.43962, 0.30351],
           [0.43962, 0.31754],
         ],
+        corner: "upper-left",
       },
       {
         name: "Right wing roof ridge above the low windows",
@@ -156,6 +220,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.74355, 0.38246],
           [0.7924, 0.3807],
         ],
+        corner: "upper-right",
       },
       {
         name: "Main roof left slope and ridge",
@@ -226,6 +291,26 @@ const guides: Record<string, ReferenceLines> = {
           [0.52239, 0.48772],
         ],
       },
+      {
+        name: "Left gatepost and fence junction",
+        points: [
+          [0.235, 0.6367],
+          [0.235, 0.68],
+          [0.235, 0.7633],
+        ],
+        corner: "lower-left",
+      },
+      {
+        name: "Lower right wing window pair",
+        points: [
+          [0.7275, 0.5133],
+          [0.7575, 0.5133],
+          [0.7575, 0.55],
+          [0.7275, 0.55],
+          [0.7275, 0.5133],
+        ],
+        corner: "lower-right",
+      },
     ],
   },
   "historic-post-office": {
@@ -245,23 +330,48 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Street edge past the building",
-        points: [
-          [0.2975, 0.5733],
-          [0.41, 0.5733],
-          [0.555, 0.5967],
-          [0.705, 0.6233],
-          [0.8725, 0.6533],
-          [0.9925, 0.6733],
-        ],
-      },
-      {
         name: "Foreground road shoulder",
         points: [
           [0.375, 0.7533],
           [0.455, 0.78],
           [0.565, 0.83],
           [0.725, 0.9133],
+        ],
+      },
+      {
+        name: "Verandah fascia at the left margin",
+        points: [
+          [0.1425, 0.2633],
+          [0.21, 0.2767],
+          [0.29, 0.2933],
+          [0.29, 0.3167],
+          [0.145, 0.2967],
+        ],
+      },
+      {
+        name: "Fence panels to the right of the post office",
+        points: [
+          [0.7075, 0.5367],
+          [0.755, 0.53],
+          [0.85, 0.5233],
+          [0.88, 0.5267],
+        ],
+      },
+      {
+        name: "Right fence return beyond the pole",
+        points: [
+          [0.9, 0.56],
+          [0.9425, 0.5633],
+          [0.9875, 0.5667],
+        ],
+      },
+      {
+        name: "Street gutter into the near foreground",
+        points: [
+          [0.3575, 0.7467],
+          [0.41, 0.7633],
+          [0.5025, 0.7933],
+          [0.6025, 0.8533],
         ],
       },
     ],
@@ -289,6 +399,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.51875, 0.27866],
           [0.525, 0.31225],
         ],
+        corner: "upper-left",
       },
       {
         name: "Upper cornice turning onto right wall",
@@ -298,6 +409,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.605, 0.31818],
           [0.7025, 0.35771],
         ],
+        corner: "upper-right",
       },
       {
         name: "Lower cornice and facade corner",
@@ -356,6 +468,28 @@ const guides: Record<string, ReferenceLines> = {
           [0.53375, 0.44071],
         ],
       },
+      {
+        name: "Left edge of the footpath under the verandah",
+        points: [
+          [0.0475, 0.6467],
+          [0.055, 0.62],
+          [0.0575, 0.55],
+          [0.0575, 0.4867],
+        ],
+        corner: "lower-left",
+      },
+      {
+        name: "Street edge past the building",
+        points: [
+          [0.2975, 0.5733],
+          [0.41, 0.5733],
+          [0.555, 0.5967],
+          [0.705, 0.6233],
+          [0.8725, 0.6533],
+          [0.9925, 0.6733],
+        ],
+        corner: "lower-right",
+      },
     ],
   },
   "mission-bay-fountain": {
@@ -375,6 +509,42 @@ const guides: Record<string, ReferenceLines> = {
           [0.9225, 0.7],
           [0.9625, 0.7],
           [0.975, 0.7],
+        ],
+      },
+      {
+        name: "Left upper lip of the basin",
+        points: [
+          [0.0375, 0.75],
+          [0.145, 0.75],
+          [0.235, 0.7467],
+          [0.28, 0.75],
+        ],
+      },
+      {
+        name: "Return of the outer rim at the right edge",
+        points: [
+          [0.875, 0.75],
+          [0.9, 0.7467],
+          [0.9125, 0.75],
+          [0.92, 0.76],
+          [0.91, 0.7767],
+        ],
+      },
+      {
+        name: "Paving against lawn below the basin",
+        points: [
+          [0.3025, 0.96],
+          [0.3625, 0.9033],
+          [0.4125, 0.8533],
+          [0.4375, 0.8333],
+        ],
+      },
+      {
+        name: "Near paving corner at left",
+        points: [
+          [0.2125, 0.98],
+          [0.2175, 0.9667],
+          [0.2925, 0.9667],
         ],
       },
     ],
@@ -408,6 +578,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.87644, 0.79649],
           [0.91379, 0.78772],
         ],
+        corner: "lower-right",
       },
       {
         name: "Left basin base",
@@ -416,6 +587,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.14655, 0.81053],
           [0.28017, 0.81404],
         ],
+        corner: "lower-left",
       },
       {
         name: "Front plaque surround",
@@ -439,6 +611,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.39943, 0.69123],
           [0.38649, 0.67719],
         ],
+        corner: "upper-left",
       },
       {
         name: "Central bowl pedestal",
@@ -461,6 +634,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.68966, 0.66667],
           [0.70402, 0.67544],
         ],
+        corner: "upper-right",
       },
     ],
   },
@@ -499,6 +673,41 @@ const guides: Record<string, ReferenceLines> = {
           [0.365, 0.4767],
         ],
       },
+      {
+        name: "Left corner of clubhouse entrance",
+        points: [
+          [0.1225, 0.4067],
+          [0.1225, 0.4533],
+          [0.1525, 0.4567],
+        ],
+      },
+      {
+        name: "Walkway paving joint near the left edge",
+        points: [
+          [0.0075, 0.93],
+          [0.0525, 0.9267],
+          [0.1175, 0.9267],
+        ],
+      },
+      {
+        name: "Next course across the near walkway",
+        points: [
+          [0.16, 0.9367],
+          [0.2275, 0.9367],
+          [0.2875, 0.93],
+        ],
+      },
+      {
+        name: "Seaward foot of the sloping wall",
+        points: [
+          [0.235, 0.6033],
+          [0.2775, 0.6633],
+          [0.3325, 0.7333],
+          [0.3875, 0.8033],
+          [0.4525, 0.87],
+          [0.515, 0.9267],
+        ],
+      },
     ],
     features: [
       {
@@ -511,6 +720,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.0475, 0.83519],
           [0.00875, 0.98519],
         ],
+        corner: "lower-left",
       },
       {
         name: "Beach side of seawall cap",
@@ -522,6 +732,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.2525, 0.82963],
           [0.3075, 0.99444],
         ],
+        corner: "lower-right",
       },
       {
         name: "Clubhouse front roof",
@@ -530,6 +741,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.17375, 0.32963],
           [0.21, 0.38519],
         ],
+        corner: "upper-left",
       },
       {
         name: "Long roof ridge and outer hip",
@@ -566,6 +778,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.84875, 0.4037],
           [0.87625, 0.41481],
         ],
+        corner: "upper-right",
       },
       {
         name: "Sea below the headland between sails",
@@ -579,16 +792,6 @@ const guides: Record<string, ReferenceLines> = {
   "mission-house": {
     image: "/posts/0005-mission-house/mission-house-then-768x512.jpg",
     framing: [
-      {
-        name: "Road edge from left foreground",
-        points: [
-          [0.005, 0.7267],
-          [0.125, 0.6933],
-          [0.2625, 0.6633],
-          [0.42, 0.6267],
-          [0.585, 0.6],
-        ],
-      },
       {
         name: "End wall to the rise at right",
         points: [
@@ -607,6 +810,33 @@ const guides: Record<string, ReferenceLines> = {
           [0.09, 0.4633],
         ],
       },
+      {
+        name: "Downhill wing chimney at left",
+        points: [
+          [0.2, 0.4567],
+          [0.2025, 0.3567],
+          [0.1975, 0.3467],
+          [0.2125, 0.3367],
+          [0.22, 0.34],
+          [0.215, 0.45],
+        ],
+      },
+      {
+        name: "End of the right wing",
+        points: [
+          [0.8275, 0.45],
+          [0.8425, 0.4533],
+          [0.8425, 0.53],
+        ],
+      },
+      {
+        name: "Left wing lower masonry",
+        points: [
+          [0.02, 0.6],
+          [0.0775, 0.5933],
+          [0.13, 0.59],
+        ],
+      },
     ],
     features: [
       {
@@ -615,6 +845,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.15234, 0.50977],
           [0.19922, 0.39453],
         ],
+        corner: "upper-left",
       },
       {
         name: "Roof ridge beyond the chimney",
@@ -667,6 +898,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.78255, 0.4375],
           [0.84245, 0.44336],
         ],
+        corner: "upper-right",
       },
       {
         name: "Right roof ridge and side wall",
@@ -676,6 +908,30 @@ const guides: Record<string, ReferenceLines> = {
           [0.84375, 0.44141],
           [0.84245, 0.54297],
         ],
+      },
+      {
+        name: "Road edge from left foreground",
+        points: [
+          [0.005, 0.7267],
+          [0.125, 0.6933],
+          [0.2625, 0.6633],
+          [0.42, 0.6267],
+          [0.585, 0.6],
+        ],
+        corner: "lower-left",
+      },
+      {
+        name: "Return kerb below the far gable",
+        points: [
+          [0.6875, 0.61],
+          [0.6875, 0.62],
+          [0.7, 0.6333],
+          [0.74, 0.6433],
+          [0.8125, 0.65],
+          [0.9025, 0.6567],
+          [0.9925, 0.6633],
+        ],
+        corner: "lower-right",
       },
     ],
   },
@@ -701,6 +957,31 @@ const guides: Record<string, ReferenceLines> = {
           [0.78, 0.65],
           [0.8875, 0.6633],
           [0.995, 0.6733],
+        ],
+      },
+      {
+        name: "Shop wall against the outer bank",
+        points: [
+          [0.795, 0.4433],
+          [0.795, 0.5433],
+          [0.76, 0.5733],
+        ],
+      },
+      {
+        name: "Left entrance sill above the bank",
+        points: [
+          [0.01, 0.5567],
+          [0.0575, 0.5533],
+          [0.1075, 0.5467],
+        ],
+      },
+      {
+        name: "Inside of the foreground kerb at the bottom",
+        points: [
+          [0.605, 0.8833],
+          [0.645, 0.9267],
+          [0.6925, 0.9767],
+          [0.71, 0.9967],
         ],
       },
     ],
@@ -730,6 +1011,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.33645, 0.49833],
           [0.36315, 0.50333],
         ],
+        corner: "upper-left",
       },
       {
         name: "Left footpath approaching the junction",
@@ -739,6 +1021,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.11348, 0.595],
           [0.16689, 0.58333],
         ],
+        corner: "lower-left",
       },
       {
         name: "Shop-side return into Waimarie Street",
@@ -763,12 +1046,25 @@ const guides: Record<string, ReferenceLines> = {
           [0.62483, 0.91833],
           [0.6996, 0.99333],
         ],
+        corner: "lower-right",
+      },
+      {
+        name: "Top corner of the shop parapet",
+        points: [
+          [0.5925, 0.4467],
+          [0.6625, 0.42],
+          [0.725, 0.41],
+          [0.725, 0.4267],
+          [0.7975, 0.42],
+        ],
+        corner: "upper-right",
       },
     ],
   },
   "st-heliers-beach-gower-point": {
     image:
       "/posts/0008-st-heliers-beach-gower-point/then-st-heliers-beach-gower-point.jpg",
+    foreground: "Curved stone rim below the palm",
     framing: [
       {
         name: "Horizon from last island to right border",
@@ -788,12 +1084,15 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Seawall top from the left edge",
+        name: "Stone facing around the seaward bend",
         points: [
-          [0.025, 0.6367],
-          [0.115, 0.6433],
-          [0.195, 0.6367],
-          [0.24, 0.64],
+          [0.2415, 0.64162],
+          [0.248, 0.6474],
+          [0.2565, 0.65446],
+          [0.2665, 0.66474],
+          [0.2775, 0.67502],
+          [0.2885, 0.68593],
+          [0.2985, 0.69685],
         ],
       },
       {
@@ -804,8 +1103,69 @@ const guides: Record<string, ReferenceLines> = {
           [0.14, 0.6033],
         ],
       },
+      {
+        name: "Lower paving edge beneath the stones",
+        points: [
+          [0.0225, 0.6733],
+          [0.07, 0.6767],
+          [0.135, 0.6867],
+          [0.19, 0.6967],
+          [0.24, 0.7067],
+        ],
+      },
+      {
+        name: "Land at the western end of the point",
+        points: [
+          [0.105, 0.5433],
+          [0.145, 0.5433],
+          [0.1825, 0.5333],
+          [0.225, 0.5333],
+        ],
+      },
+      {
+        name: "Promenade lip to the right margin",
+        points: [
+          [0.8625, 0.72],
+          [0.9125, 0.7267],
+          [0.9525, 0.73],
+          [0.9775, 0.7333],
+        ],
+      },
+      {
+        name: "Foot of the palm above the stone rim",
+        points: [
+          [0.0375, 0.6133],
+          [0.05, 0.6067],
+          [0.05, 0.56],
+          [0.0525, 0.5033],
+        ],
+      },
     ],
     features: [
+      {
+        name: "Curved stone rim below the palm",
+        region: "stonework",
+        points: [
+          [0.0175, 0.66089],
+          [0.042, 0.6596],
+          [0.0715, 0.65768],
+          [0.0975, 0.65575],
+          [0.1225, 0.65382],
+          [0.147, 0.65189],
+          [0.17, 0.64933],
+          [0.191, 0.64676],
+          [0.209, 0.64419],
+          [0.2235, 0.64162],
+          [0.2345, 0.63905],
+          [0.2405, 0.63648],
+          [0.2415, 0.63455],
+          [0.239, 0.63263],
+          [0.2325, 0.6307],
+          [0.221, 0.62877],
+          [0.208, 0.62749],
+        ],
+        corner: "lower-left",
+      },
       {
         name: "Gower Point slope above the water",
         points: [
@@ -815,6 +1175,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.38003, 0.52167],
           [0.40597, 0.52833],
         ],
+        corner: "upper-left",
       },
       {
         name: "Foot of the point",
@@ -847,6 +1208,7 @@ const guides: Record<string, ReferenceLines> = {
       },
       {
         name: "Right island ridge",
+        region: "offshore islands",
         points: [
           [0.77302, 0.52667],
           [0.79767, 0.52],
@@ -855,6 +1217,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.87678, 0.51667],
           [0.89364, 0.52333],
         ],
+        corner: "upper-right",
       },
       {
         name: "Edge of the promenade above the sand",
@@ -866,6 +1229,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.85603, 0.71667],
           [0.97536, 0.735],
         ],
+        corner: "lower-right",
       },
     ],
   },
@@ -884,24 +1248,39 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Hills across the right of the bay",
+        name: "Seaward edge below the left end of the promenade",
         points: [
-          [0.5675, 0.3367],
-          [0.6125, 0.33],
-          [0.65, 0.3133],
-          [0.675, 0.3267],
-          [0.7075, 0.33],
-          [0.7475, 0.3133],
-          [0.7775, 0.32],
+          [0.005, 0.6667],
+          [0.1025, 0.6367],
+          [0.215, 0.6033],
+          [0.3225, 0.5667],
         ],
       },
       {
-        name: "Outer road edge towards the houses",
+        name: "Near kerb lip round the foreground turn",
         points: [
-          [0.6375, 0.4667],
-          [0.7325, 0.4867],
-          [0.8275, 0.5033],
-          [0.9325, 0.5167],
+          [0.3125, 0.9933],
+          [0.2875, 0.9233],
+          [0.28, 0.8633],
+          [0.285, 0.82],
+          [0.31, 0.7733],
+        ],
+      },
+      {
+        name: "Roadside gable near the right edge",
+        points: [
+          [0.805, 0.4067],
+          [0.8525, 0.35],
+          [0.88, 0.3967],
+          [0.88, 0.4367],
+        ],
+      },
+      {
+        name: "Distant seawall at the far left",
+        points: [
+          [0.005, 0.4067],
+          [0.0475, 0.4067],
+          [0.1025, 0.4067],
         ],
       },
     ],
@@ -934,6 +1313,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.10763, 0.31833],
           [0.14894, 0.32833],
         ],
+        corner: "upper-left",
       },
       {
         name: "Headland toe at the water",
@@ -967,27 +1347,36 @@ const guides: Record<string, ReferenceLines> = {
           [0.39299, 0.69167],
           [0.46934, 0.64],
         ],
+        corner: "lower-left",
+      },
+      {
+        name: "Hills across the right of the bay",
+        points: [
+          [0.5675, 0.3367],
+          [0.6125, 0.33],
+          [0.65, 0.3133],
+          [0.675, 0.3267],
+          [0.7075, 0.33],
+          [0.7475, 0.3133],
+          [0.7775, 0.32],
+        ],
+        corner: "upper-right",
+      },
+      {
+        name: "Outer road edge towards the houses",
+        points: [
+          [0.6375, 0.4667],
+          [0.7325, 0.4867],
+          [0.8275, 0.5033],
+          [0.9325, 0.5167],
+        ],
+        corner: "lower-right",
       },
     ],
   },
   "northcote-post-office": {
     image: "/posts/0011-northcote-post-office/then-northcote-post-office.jpg",
     framing: [
-      {
-        name: "Front roof silhouette behind parapet",
-        points: [
-          [0.275, 0.32667],
-          [0.31, 0.30333],
-          [0.3325, 0.29667],
-          [0.3475, 0.28333],
-          [0.3725, 0.28667],
-          [0.405, 0.26],
-          [0.4225, 0.27667],
-          [0.4475, 0.29333],
-          [0.47, 0.31],
-          [0.5275, 0.36333],
-        ],
-      },
       {
         name: "Outer corner below parapet",
         points: [
@@ -997,12 +1386,38 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Street edge on the foreground diagonal",
+        name: "Far left roof and chimney beside post office",
         points: [
-          [0.015, 0.7933],
-          [0.1725, 0.7633],
-          [0.3425, 0.74],
-          [0.52, 0.72],
+          [0.0075, 0.4767],
+          [0.0625, 0.4733],
+          [0.0625, 0.4433],
+          [0.0725, 0.4367],
+          [0.075, 0.47],
+          [0.095, 0.4733],
+        ],
+      },
+      {
+        name: "Front window bank to the left of the pole",
+        points: [
+          [0.195, 0.4267],
+          [0.195, 0.5267],
+          [0.2475, 0.5267],
+          [0.2475, 0.4267],
+        ],
+      },
+      {
+        name: "Outer porch post beneath gable",
+        points: [
+          [0.6575, 0.4967],
+          [0.6575, 0.5433],
+        ],
+      },
+      {
+        name: "Street edge beyond the right of the crowd",
+        points: [
+          [0.6825, 0.73],
+          [0.7425, 0.7233],
+          [0.8075, 0.72],
         ],
       },
     ],
@@ -1051,6 +1466,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.53125, 0.44814],
           [0.53125, 0.55186],
         ],
+        corner: "lower-right",
       },
       {
         name: "Entrance porch gable",
@@ -1059,6 +1475,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.65, 0.41292],
           [0.67, 0.48141],
         ],
+        corner: "upper-right",
       },
       {
         name: "Roof hip above the corner",
@@ -1067,22 +1484,37 @@ const guides: Record<string, ReferenceLines> = {
           [0.5275, 0.36008],
         ],
       },
+      {
+        name: "Front roof silhouette behind parapet",
+        points: [
+          [0.275, 0.32667],
+          [0.31, 0.30333],
+          [0.3325, 0.29667],
+          [0.3475, 0.28333],
+          [0.3725, 0.28667],
+          [0.405, 0.26],
+          [0.4225, 0.27667],
+          [0.4475, 0.29333],
+          [0.47, 0.31],
+          [0.5275, 0.36333],
+        ],
+        corner: "upper-left",
+      },
+      {
+        name: "Street edge on the foreground diagonal",
+        points: [
+          [0.015, 0.7933],
+          [0.1725, 0.7633],
+          [0.3425, 0.74],
+          [0.52, 0.72],
+        ],
+        corner: "lower-left",
+      },
     ],
   },
   "bridgeway-cinema": {
     image: "/posts/0010-bridgeway-cinema/then-bridgeway-cinema.jpg",
     framing: [
-      {
-        name: "Street edge below the arcade",
-        points: [
-          [0.005, 0.68],
-          [0.1675, 0.7],
-          [0.385, 0.72],
-          [0.59, 0.7333],
-          [0.7675, 0.7433],
-          [0.9925, 0.75],
-        ],
-      },
       {
         name: "Verandah end at the right border",
         points: [
@@ -1102,6 +1534,40 @@ const guides: Record<string, ReferenceLines> = {
           [0.6, 0.97],
         ],
       },
+      {
+        name: "Left end of the verandah fascia",
+        points: [
+          [0.0025, 0.43],
+          [0.085, 0.4133],
+          [0.1725, 0.3933],
+          [0.175, 0.44],
+          [0.1, 0.4533],
+        ],
+      },
+      {
+        name: "Near right verandah post to pavement",
+        points: [
+          [0.9425, 0.43],
+          [0.9425, 0.61],
+          [0.94, 0.6967],
+        ],
+      },
+      {
+        name: "End of right shop sill",
+        points: [
+          [0.78, 0.67],
+          [0.845, 0.6667],
+          [0.925, 0.6633],
+        ],
+      },
+      {
+        name: "Near kerb below the left shop entrance",
+        points: [
+          [0.005, 0.7867],
+          [0.0725, 0.8],
+          [0.145, 0.8233],
+        ],
+      },
     ],
     features: [
       {
@@ -1111,6 +1577,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.71375, 0.22996],
           [0.7675, 0.11181],
         ],
+        corner: "upper-right",
       },
       {
         name: "Lower roof ridge behind the verandah",
@@ -1139,6 +1606,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.1425, 0.48734],
           [0.14875, 0.5],
         ],
+        corner: "upper-left",
       },
       {
         name: "Middle shop window arch",
@@ -1180,20 +1648,25 @@ const guides: Record<string, ReferenceLines> = {
           [0.93125, 0.66667],
           [0.78, 0.66034],
         ],
+        corner: "lower-right",
+      },
+      {
+        name: "Street edge below the arcade",
+        points: [
+          [0.005, 0.68],
+          [0.1675, 0.7],
+          [0.385, 0.72],
+          [0.59, 0.7333],
+          [0.7675, 0.7433],
+          [0.9925, 0.75],
+        ],
+        corner: "lower-left",
       },
     ],
   },
   "northcote-tavern": {
     image: "/posts/0012-northcote-tavern/then-northcote-tavern.jpg",
     framing: [
-      {
-        name: "Left verandah edge and outer posts",
-        points: [
-          [0.145, 0.4433],
-          [0.1525, 0.57],
-          [0.155, 0.7867],
-        ],
-      },
       {
         name: "Left verandah rail and lower roof",
         points: [
@@ -1212,6 +1685,33 @@ const guides: Record<string, ReferenceLines> = {
           [0.9725, 0.9233],
         ],
       },
+      {
+        name: "Lower edge of paling fence at right",
+        points: [
+          [0.8375, 0.8267],
+          [0.895, 0.8433],
+          [0.9025, 0.8433],
+          [0.9025, 0.7667],
+        ],
+      },
+      {
+        name: "Left annex roof at the frame edge",
+        points: [
+          [0.0225, 0.6967],
+          [0.1175, 0.6933],
+          [0.1375, 0.6467],
+          [0.1475, 0.6667],
+        ],
+      },
+      {
+        name: "Pavement below the near front corner",
+        points: [
+          [0.035, 0.8],
+          [0.155, 0.8133],
+          [0.28, 0.84],
+          [0.42, 0.8567],
+        ],
+      },
     ],
     features: [
       {
@@ -1222,6 +1722,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.3375, 0.21634],
           [0.375, 0.24062],
         ],
+        corner: "upper-left",
       },
       {
         name: "King Street gable to the right",
@@ -1231,6 +1732,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.76, 0.32671],
           [0.8025, 0.4128],
         ],
+        corner: "upper-right",
       },
       {
         name: "Main front gable",
@@ -1284,6 +1786,26 @@ const guides: Record<string, ReferenceLines> = {
           [0.7625, 0.44371],
         ],
       },
+      {
+        name: "Left verandah edge and outer posts",
+        points: [
+          [0.145, 0.4433],
+          [0.1525, 0.57],
+          [0.155, 0.7867],
+        ],
+        corner: "lower-left",
+      },
+      {
+        name: "Gate at the right end of the verandah",
+        points: [
+          [0.74, 0.77],
+          [0.8225, 0.77],
+          [0.8225, 0.83],
+          [0.745, 0.8267],
+          [0.74, 0.77],
+        ],
+        corner: "lower-right",
+      },
     ],
   },
   "apirana-avenue-shops": {
@@ -1298,14 +1820,6 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Farthest roof on the right margin",
-        points: [
-          [0.895, 0.5567],
-          [0.925, 0.5167],
-          [0.9925, 0.5167],
-        ],
-      },
-      {
         name: "Upper verandah from left frame edge",
         points: [
           [0.0025, 0.48],
@@ -1314,11 +1828,29 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Foot of the shopfront at left",
+        name: "Lower kerb around the footpath end",
         points: [
-          [0.005, 0.75],
-          [0.0675, 0.74],
-          [0.105, 0.7367],
+          [0.3, 0.82],
+          [0.285, 0.86],
+          [0.2775, 0.92],
+          [0.275, 0.9833],
+        ],
+      },
+      {
+        name: "Base of the near blue lamp beside the kerb",
+        points: [
+          [0.25, 0.68],
+          [0.25, 0.75],
+          [0.2475, 0.82],
+          [0.2375, 0.82],
+        ],
+      },
+      {
+        name: "Outer wall of the right shop",
+        points: [
+          [0.995, 0.57],
+          [0.9925, 0.65],
+          [0.9725, 0.65],
         ],
       },
     ],
@@ -1347,6 +1879,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.03222, 0.36833],
           [0.24222, 0.40667],
         ],
+        corner: "upper-left",
       },
       {
         name: "Post office parapet beyond the lamp",
@@ -1398,6 +1931,33 @@ const guides: Record<string, ReferenceLines> = {
           [0.27444, 0.99667],
         ],
       },
+      {
+        name: "Farthest roof on the right margin",
+        points: [
+          [0.895, 0.5567],
+          [0.925, 0.5167],
+          [0.9925, 0.5167],
+        ],
+        corner: "upper-right",
+      },
+      {
+        name: "Foot of the shopfront at left",
+        points: [
+          [0.005, 0.75],
+          [0.0675, 0.74],
+          [0.105, 0.7367],
+        ],
+        corner: "lower-left",
+      },
+      {
+        name: "Recessed entrance at the far right",
+        points: [
+          [0.9125, 0.5767],
+          [0.945, 0.5767],
+          [0.945, 0.64],
+        ],
+        corner: "lower-right",
+      },
     ],
   },
   "mayfair-place": {
@@ -1421,23 +1981,40 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Curve of outer planting bed",
+        name: "Shop roof rising at the right border",
         points: [
-          [0.9975, 0.97667],
-          [0.955, 0.93667],
-          [0.9175, 0.89],
-          [0.8875, 0.84],
-          [0.8625, 0.79333],
-          [0.8525, 0.77333],
+          [0.9525, 0.41],
+          [0.9725, 0.4],
+          [0.995, 0.3967],
+        ],
+      },
+      {
+        name: "Outer rim of the brick path at bottom right",
+        points: [
+          [0.8375, 0.7667],
+          [0.8075, 0.8233],
+          [0.805, 0.8633],
+          [0.815, 0.9067],
+          [0.8425, 0.9567],
+          [0.875, 0.9967],
+        ],
+      },
+      {
+        name: "Underside of left shop canopy",
+        points: [
+          [0.0025, 0.5033],
+          [0.075, 0.51],
+          [0.1325, 0.5133],
         ],
       },
     ],
     features: [
       {
         name: "Slide lip",
+        corner: "lower-left",
         region: "slide",
         points: [
-          [0.0, 0.75],
+          [0, 0.75],
           [0.03889, 0.78167],
           [0.06556, 0.80167],
           [0.08333, 0.81],
@@ -1450,7 +2027,7 @@ const guides: Record<string, ReferenceLines> = {
       {
         name: "Slide exit",
         points: [
-          [0.0, 0.86833],
+          [0, 0.86833],
           [0.03667, 0.89],
           [0.07333, 0.905],
           [0.10111, 0.90667],
@@ -1512,6 +2089,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.17444, 0.165],
           [0.16444, 0.18667],
         ],
+        corner: "upper-left",
       },
       {
         name: "Left bird, curved back to tail",
@@ -1625,6 +2203,28 @@ const guides: Record<string, ReferenceLines> = {
           [0.57333, 0.995],
         ],
       },
+      {
+        name: "High right mast against the sky",
+        points: [
+          [0.9, 0.0033],
+          [0.9075, 0.1267],
+          [0.915, 0.2867],
+          [0.9225, 0.4333],
+        ],
+        corner: "upper-right",
+      },
+      {
+        name: "Curve of outer planting bed",
+        points: [
+          [0.9975, 0.97667],
+          [0.955, 0.93667],
+          [0.9175, 0.89],
+          [0.8875, 0.84],
+          [0.8625, 0.79333],
+          [0.8525, 0.77333],
+        ],
+        corner: "lower-right",
+      },
     ],
   },
   "bradley-lane-line-road": {
@@ -1635,7 +2235,7 @@ const guides: Record<string, ReferenceLines> = {
       {
         name: "Sloping roof silhouette at top of frame",
         points: [
-          [0.4725, 0.0],
+          [0.4725, 0],
           [0.6225, 0.17],
         ],
       },
@@ -1667,13 +2267,39 @@ const guides: Record<string, ReferenceLines> = {
           [0.995, 0.48],
         ],
       },
+      {
+        name: "Painted canyon ledge at far left",
+        points: [
+          [0.005, 0.6967],
+          [0.045, 0.68],
+          [0.05, 0.5933],
+          [0.08, 0.5833],
+          [0.12, 0.5667],
+        ],
+      },
+      {
+        name: "Left end of the low mural seam",
+        points: [
+          [0.0025, 0.7267],
+          [0.07, 0.73],
+          [0.125, 0.7333],
+          [0.17, 0.7333],
+        ],
+      },
+      {
+        name: "Outer lower edge of the tactile paving",
+        points: [
+          [0.5125, 0.84],
+          [0.61, 0.85],
+          [0.7325, 0.8633],
+          [0.805, 0.8733],
+        ],
+      },
     ],
     features: [
       {
         name: "Mural wall corner",
         region: "wall",
-        // From below the DISCOUNTER sign that now covers the corner's top (2026): checked
-        // there, a fitting corner read 4.6% off (19 Nov 2026).
         points: [
           [0.3955, 0.15],
           [0.392, 0.81],
@@ -1688,6 +2314,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.013, 0.391],
           [0.001, 0.394],
         ],
+        corner: "upper-left",
       },
       {
         name: "Long mural wall joint",
@@ -1703,12 +2330,11 @@ const guides: Record<string, ReferenceLines> = {
           [0.01, 0.787],
           [0.391, 0.825],
         ],
+        corner: "lower-left",
       },
       {
-        // The awning's own front is hidden behind its sign, and the sign was replaced (MoneyGram
-        // in 2018, a deeper Hi Vape box by 2026), so the hanging TAKEAWAY sign, unchanged, marks
-        // the awning instead (16 Nov 2026).
         name: "TAKEAWAY sign",
+        corner: "upper-right",
         region: "canopy",
         along: true,
         points: [
@@ -1734,6 +2360,17 @@ const guides: Record<string, ReferenceLines> = {
           [0.626, 0.423],
           [0.624, 0.703],
         ],
+      },
+      {
+        name: "Base of the outer canopy post",
+        points: [
+          [0.885, 0.5033],
+          [0.885, 0.59],
+          [0.8825, 0.66],
+          [0.8975, 0.66],
+          [0.9, 0.51],
+        ],
+        corner: "lower-right",
       },
     ],
   },
@@ -1771,18 +2408,6 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Entrance parapet and roof behind it",
-        points: [
-          [0.609, 0.3036],
-          [0.613, 0.266],
-          [0.638, 0.2535],
-          [0.664, 0.252],
-          [0.666, 0.2629],
-          [0.694, 0.2645],
-          [0.75, 0.2645],
-        ],
-      },
-      {
         name: "Entrance arch opening",
         points: [
           [0.621, 0.5524],
@@ -1815,16 +2440,6 @@ const guides: Record<string, ReferenceLines> = {
         ],
       },
       {
-        name: "Base of the left wing and entry",
-        points: [
-          [0.549, 0.5634],
-          [0.578, 0.5728],
-          [0.606, 0.5806],
-          [0.651, 0.5884],
-          [0.688, 0.5962],
-        ],
-      },
-      {
         name: "Street edge across the lower right",
         points: [
           [0.311, 0.5759],
@@ -1847,6 +2462,49 @@ const guides: Record<string, ReferenceLines> = {
           [0.348, 0.2911],
         ],
       },
+      {
+        name: "Far left shop parapet beside the tram",
+        points: [
+          [0.155, 0.3833],
+          [0.2, 0.35],
+          [0.24, 0.34],
+          [0.2725, 0.3433],
+        ],
+      },
+      {
+        name: "Top of the neighboring brick wall",
+        points: [
+          [0.3975, 0.43],
+          [0.475, 0.43],
+          [0.54, 0.43],
+        ],
+      },
+      {
+        name: "Right wing bottom window recess",
+        points: [
+          [0.725, 0.5233],
+          [0.745, 0.5233],
+          [0.745, 0.3967],
+          [0.7325, 0.4],
+        ],
+      },
+      {
+        name: "Kerb return beneath the entrance",
+        points: [
+          [0.5875, 0.68],
+          [0.62, 0.6867],
+          [0.66, 0.68],
+        ],
+      },
+      {
+        name: "Road shoulder toward the bottom right",
+        points: [
+          [0.7725, 0.78],
+          [0.85, 0.8233],
+          [0.9375, 0.8633],
+          [0.995, 0.89],
+        ],
+      },
     ],
     features: [
       {
@@ -1863,6 +2521,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.845, 0.323],
           [0.899, 0.218],
         ],
+        corner: "upper-right",
       },
       {
         name: "Eaves across the right facade",
@@ -1899,6 +2558,31 @@ const guides: Record<string, ReferenceLines> = {
           [0.849, 0.603],
           [0.985, 0.598],
         ],
+        corner: "lower-right",
+      },
+      {
+        name: "Entrance parapet and roof behind it",
+        points: [
+          [0.609, 0.3036],
+          [0.613, 0.266],
+          [0.638, 0.2535],
+          [0.664, 0.252],
+          [0.666, 0.2629],
+          [0.694, 0.2645],
+          [0.75, 0.2645],
+        ],
+        corner: "upper-left",
+      },
+      {
+        name: "Base of the left wing and entry",
+        points: [
+          [0.549, 0.5634],
+          [0.578, 0.5728],
+          [0.606, 0.5806],
+          [0.651, 0.5884],
+          [0.688, 0.5962],
+        ],
+        corner: "lower-left",
       },
     ],
   },
@@ -1932,6 +2616,33 @@ const guides: Record<string, ReferenceLines> = {
           [0.6675, 0.7267],
           [0.81, 0.71],
           [0.955, 0.6933],
+        ],
+      },
+      {
+        name: "Pavement kerb under the left end of the foyer",
+        points: [
+          [0.065, 0.6967],
+          [0.1175, 0.7067],
+          [0.1625, 0.7133],
+        ],
+      },
+      {
+        name: "Rail groove bending across the right foreground",
+        points: [
+          [0.8225, 0.7467],
+          [0.7875, 0.77],
+          [0.78, 0.79],
+          [0.79, 0.81],
+          [0.8325, 0.8333],
+        ],
+      },
+      {
+        name: "Upper cornice above left side screens",
+        points: [
+          [0.05, 0.16],
+          [0.1125, 0.1233],
+          [0.1725, 0.0933],
+          [0.23, 0.0667],
         ],
       },
     ],
@@ -1977,6 +2688,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.14, 0.135],
           [0.14, 0.41],
         ],
+        corner: "upper-left",
       },
       {
         name: "Left lattice screen",
@@ -2041,6 +2753,25 @@ const guides: Record<string, ReferenceLines> = {
           [0.921, 0.06],
           [0.921, 0.4],
         ],
+        corner: "upper-right",
+      },
+      {
+        name: "Left entrance door jamb below the canopy",
+        points: [
+          [0.19, 0.55],
+          [0.19, 0.67],
+          [0.2075, 0.6733],
+        ],
+        corner: "lower-left",
+      },
+      {
+        name: "Far right bay below the marquee",
+        points: [
+          [0.91, 0.55],
+          [0.945, 0.5533],
+          [0.945, 0.6533],
+        ],
+        corner: "lower-right",
       },
     ],
   },
@@ -2074,6 +2805,25 @@ const guides: Record<string, ReferenceLines> = {
           [0.62, 0.8567],
           [0.7875, 0.8467],
           [0.965, 0.8333],
+        ],
+      },
+      {
+        name: "Far left building roof at the tower foot",
+        points: [
+          [0.0225, 0.7967],
+          [0.065, 0.7933],
+          [0.1175, 0.7933],
+          [0.145, 0.8133],
+          [0.1825, 0.82],
+        ],
+      },
+      {
+        name: "Roof of the low wing to the far right",
+        points: [
+          [0.7875, 0.6267],
+          [0.8425, 0.6367],
+          [0.915, 0.6167],
+          [0.9675, 0.6],
         ],
       },
     ],
@@ -2110,6 +2860,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.248, 0.102],
           [0.259, 0.17],
         ],
+        corner: "upper-left",
       },
       {
         name: "East gable",
@@ -2119,6 +2870,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.696, 0.324],
           [0.743, 0.408],
         ],
+        corner: "upper-right",
       },
       {
         name: "East end left turret",
@@ -2144,26 +2896,33 @@ const guides: Record<string, ReferenceLines> = {
           [0.743, 0.66],
         ],
       },
+      {
+        name: "Tower base at the left end",
+        points: [
+          [0.1925, 0.86],
+          [0.1925, 0.8833],
+          [0.245, 0.88],
+          [0.305, 0.87],
+        ],
+        corner: "lower-left",
+      },
+      {
+        name: "Lower right church doorway",
+        points: [
+          [0.74, 0.8433],
+          [0.74, 0.7867],
+          [0.75, 0.7633],
+          [0.76, 0.7767],
+          [0.765, 0.8],
+          [0.765, 0.84],
+        ],
+        corner: "lower-right",
+      },
     ],
   },
   "auckland-art-gallery": {
     image: "/posts/0017-auckland-art-gallery/then-auckland-art-gallery.jpg",
     framing: [
-      {
-        name: "Tower cupola and lantern",
-        points: [
-          [0.575, 0.22333],
-          [0.5875, 0.22],
-          [0.5925, 0.19],
-          [0.61, 0.17],
-          [0.6175, 0.16333],
-          [0.6225, 0.14333],
-          [0.63, 0.16],
-          [0.64, 0.16333],
-          [0.66, 0.18333],
-          [0.6625, 0.21],
-        ],
-      },
       {
         name: "Right wing receding roof",
         points: [
@@ -2185,6 +2944,23 @@ const guides: Record<string, ReferenceLines> = {
           [0.56, 0.8433],
           [0.68, 0.84],
           [0.925, 0.82],
+        ],
+      },
+      {
+        name: "Footpath kerb below the left pavilion",
+        points: [
+          [0.03, 0.9167],
+          [0.1525, 0.9067],
+          [0.2575, 0.8933],
+          [0.3825, 0.8833],
+        ],
+      },
+      {
+        name: "Eave return on the far right",
+        points: [
+          [0.8525, 0.6],
+          [0.89, 0.63],
+          [0.92, 0.6467],
         ],
       },
     ],
@@ -2262,6 +3038,56 @@ const guides: Record<string, ReferenceLines> = {
           [0.748, 0.83],
         ],
       },
+      {
+        name: "Left pavilion gable above the arches",
+        points: [
+          [0.1925, 0.5367],
+          [0.2275, 0.46],
+          [0.2525, 0.41],
+          [0.2775, 0.4633],
+          [0.305, 0.5167],
+        ],
+        corner: "upper-left",
+      },
+      {
+        name: "Tower cupola and lantern",
+        points: [
+          [0.575, 0.22333],
+          [0.5875, 0.22],
+          [0.5925, 0.19],
+          [0.61, 0.17],
+          [0.6175, 0.16333],
+          [0.6225, 0.14333],
+          [0.63, 0.16],
+          [0.64, 0.16333],
+          [0.66, 0.18333],
+          [0.6625, 0.21],
+        ],
+        corner: "upper-right",
+      },
+      {
+        name: "Twin entrance arches at the far left",
+        points: [
+          [0.185, 0.8067],
+          [0.185, 0.76],
+          [0.1925, 0.74],
+          [0.2025, 0.73],
+          [0.215, 0.7433],
+          [0.2175, 0.7667],
+          [0.2175, 0.8067],
+        ],
+        corner: "lower-left",
+      },
+      {
+        name: "Far right corner down to the pavement",
+        points: [
+          [0.9225, 0.6633],
+          [0.9275, 0.6667],
+          [0.9275, 0.8267],
+          [0.9025, 0.83],
+        ],
+        corner: "lower-right",
+      },
     ],
   },
   "ferry-building": {
@@ -2305,6 +3131,41 @@ const guides: Record<string, ReferenceLines> = {
           [0.83, 0.8533],
         ],
       },
+      {
+        name: "Arch above the first ground floor bay",
+        points: [
+          [0.3425, 0.8133],
+          [0.345, 0.7967],
+          [0.3525, 0.7833],
+          [0.3625, 0.78],
+          [0.3725, 0.7933],
+          [0.375, 0.81],
+        ],
+      },
+      {
+        name: "Far wharf roof below the right facade",
+        points: [
+          [0.7525, 0.7867],
+          [0.8, 0.7867],
+          [0.83, 0.7867],
+        ],
+      },
+      {
+        name: "Outer edge of wharf approach at the left",
+        points: [
+          [0.0325, 0.8367],
+          [0.1175, 0.8367],
+          [0.185, 0.8367],
+        ],
+      },
+      {
+        name: "Lower sill across the right end bays",
+        points: [
+          [0.66, 0.77],
+          [0.7, 0.78],
+          [0.7375, 0.79],
+        ],
+      },
     ],
     features: [
       {
@@ -2322,6 +3183,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.336, 0.5],
           [0.504, 0.477],
         ],
+        corner: "upper-left",
       },
       {
         name: "Wharf-side cornice",
@@ -2338,6 +3200,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.336, 0.848],
           [0.509, 0.848],
         ],
+        corner: "lower-left",
       },
       {
         name: "Front corner",
@@ -2354,6 +3217,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.746, 0.63],
           [0.746, 0.835],
         ],
+        corner: "lower-right",
       },
       {
         name: "Clock face",
@@ -2396,21 +3260,13 @@ const guides: Record<string, ReferenceLines> = {
           [0.626, 0.26],
           [0.664, 0.348],
         ],
+        corner: "upper-right",
       },
     ],
   },
   "chief-post-office": {
     image: "/posts/0019-chief-post-office/then-chief-post-office.jpg",
     framing: [
-      {
-        name: "Upper cornice entering at the right edge",
-        points: [
-          [0.8175, 0.27],
-          [0.8625, 0.24],
-          [0.925, 0.2],
-          [0.965, 0.16],
-        ],
-      },
       {
         name: "Outer building corner at the far left",
         points: [
@@ -2425,6 +3281,24 @@ const guides: Record<string, ReferenceLines> = {
           [0.3425, 0.87],
           [0.6525, 0.92],
           [0.95, 0.96],
+        ],
+      },
+      {
+        name: "Top of the far left roof",
+        points: [
+          [0.0875, 0.52],
+          [0.155, 0.4667],
+          [0.17, 0.4567],
+          [0.2025, 0.4633],
+        ],
+      },
+      {
+        name: "Upper arcade to the right border",
+        points: [
+          [0.82, 0.49],
+          [0.87, 0.4767],
+          [0.9225, 0.4633],
+          [0.9625, 0.45],
         ],
       },
     ],
@@ -2466,6 +3340,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.304, 0.362],
           [0.313, 0.39],
         ],
+        corner: "upper-left",
       },
       {
         name: "Building base",
@@ -2483,20 +3358,44 @@ const guides: Record<string, ReferenceLines> = {
           [0.202, 0.8],
         ],
       },
+      {
+        name: "Upper cornice entering at the right edge",
+        points: [
+          [0.8175, 0.27],
+          [0.8625, 0.24],
+          [0.925, 0.2],
+          [0.965, 0.16],
+        ],
+        corner: "upper-right",
+      },
+      {
+        name: "Base of the leftmost bay",
+        points: [
+          [0.0975, 0.7467],
+          [0.0975, 0.7733],
+          [0.155, 0.7733],
+          [0.1975, 0.7833],
+        ],
+        corner: "lower-left",
+      },
+      {
+        name: "Right entrance bay at pavement level",
+        points: [
+          [0.8375, 0.82],
+          [0.8375, 0.7367],
+          [0.8425, 0.7167],
+          [0.8525, 0.7033],
+          [0.865, 0.6967],
+          [0.875, 0.7067],
+          [0.8825, 0.73],
+        ],
+        corner: "lower-right",
+      },
     ],
   },
   customhouse: {
     image: "/posts/0020-customhouse/then-customhouse.jpg",
     framing: [
-      {
-        name: "Left bay roof and end wall",
-        points: [
-          [0.055, 0.4367],
-          [0.0575, 0.3867],
-          [0.0775, 0.3367],
-          [0.185, 0.36],
-        ],
-      },
       {
         name: "Roof silhouette across central tower",
         points: [
@@ -2521,6 +3420,31 @@ const guides: Record<string, ReferenceLines> = {
           [0.92, 0.6333],
           [0.92, 0.8367],
           [0.9475, 0.8333],
+        ],
+      },
+      {
+        name: "Lower sill at the right pavilion",
+        points: [
+          [0.8225, 0.8067],
+          [0.8725, 0.81],
+          [0.905, 0.8067],
+        ],
+      },
+      {
+        name: "Roadside kerb beyond the lamp",
+        points: [
+          [0.755, 0.9067],
+          [0.8175, 0.9133],
+          [0.89, 0.9233],
+          [0.9475, 0.9267],
+        ],
+      },
+      {
+        name: "Front cornice into the outer right bay",
+        points: [
+          [0.785, 0.5033],
+          [0.86, 0.5133],
+          [0.91, 0.5233],
         ],
       },
     ],
@@ -2584,6 +3508,7 @@ const guides: Record<string, ReferenceLines> = {
           [0.839, 0.368],
           [0.877, 0.466],
         ],
+        corner: "upper-right",
       },
       {
         name: "Albert Street corner",
@@ -2592,6 +3517,27 @@ const guides: Record<string, ReferenceLines> = {
           [0.921, 0.49],
           [0.921, 0.83],
         ],
+        corner: "lower-right",
+      },
+      {
+        name: "Left bay roof and end wall",
+        points: [
+          [0.055, 0.4367],
+          [0.0575, 0.3867],
+          [0.0775, 0.3367],
+          [0.185, 0.36],
+        ],
+        corner: "upper-left",
+      },
+      {
+        name: "Foot of the left entrance bay",
+        points: [
+          [0.1025, 0.8833],
+          [0.1, 0.79],
+          [0.1675, 0.7867],
+          [0.1675, 0.8767],
+        ],
+        corner: "lower-left",
       },
     ],
   },
