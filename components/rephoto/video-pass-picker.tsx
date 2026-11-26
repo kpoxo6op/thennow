@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react"
 
 import { suggestMoment } from "@/lib/rephoto/pass-suggestion"
-import type { ReferenceLines } from "@/lib/rephoto/reference-lines"
+import {
+  TRACE_OVERLAY_OPACITY,
+  type ReferenceLines,
+} from "@/lib/rephoto/reference-lines"
 import type { VideoPass } from "@/lib/rephoto/video-pass"
 
 import { ReferenceTrace } from "./reference-trace"
@@ -156,7 +159,19 @@ export function VideoPassPicker({
               )
             }
           />
-          {guides && guide && <ReferenceTrace guide={guide} />}
+          {guides && guide && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={guide.image}
+                alt=""
+                aria-hidden
+                className="pointer-events-none absolute inset-0 size-full"
+                style={{ opacity: TRACE_OVERLAY_OPACITY }}
+              />
+              <ReferenceTrace guide={guide} />
+            </>
+          )}
         </div>
       </div>
       <div className="mx-auto flex w-full max-w-md shrink-0 flex-col gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] landscape:w-56 landscape:justify-center">
@@ -203,7 +218,10 @@ export function VideoPassPicker({
               type="button"
               className="min-h-11"
               aria-pressed={guides}
-              onClick={() => setGuides(!guides)}
+              onClick={() => {
+                manual()
+                setGuides(!guides)
+              }}
             >
               Guides
             </button>
