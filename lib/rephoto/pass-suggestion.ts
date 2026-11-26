@@ -60,6 +60,8 @@ export async function suggestMoment(
       Number.isFinite(player.duration) ? player.duration : seconds
     )
     let best: { time: number; on: number; sharp: number } | null = null
+    let middle: ReturnType<typeof detail> | undefined
+    let clearer: { time: number; sharp: number } | undefined
     const stopAt = performance.now() + 6000
     // Visit the middle, then both halves and their subdivisions, so a slower
     // phone samples the whole pass before spending time refining one moment.
@@ -93,7 +95,9 @@ export async function suggestMoment(
       if (Math.abs(player.currentTime - time) > 0.12) continue
       const live = await grayOf(player, width, height)
       if (!live) continue
-      const sharp = sharpness(live)
+      const sample = detail(live)
+      const sharp = sample.sharp
+      if (i === 0) middle = sample
       const event = await wait(worker, "message", () =>
         worker.postMessage(
           {
@@ -105,35 +109,59 @@ export async function suggestMoment(
         )
       )
       const check = (event as MessageEvent<LineCheck>).data
+      if (check.lines.some((l) => l.distinctive && l.state === "off")) continue
+      // A sharper patch of a different scene is not a useful alternative.
+      // Compare all four quadrants' brightness to the default midpoint.
+      const baseline = middle
+      if (
+        baseline &&
+        sharp > baseline.sharp * 1.3 &&
+        sharp > 0.015 &&
+        sample.light.every((v, k) => Math.abs(v - baseline.light[k]) < 0.1) &&
+        (!clearer || sharp > clearer.sharp)
+      )
+        clearer = { time, sharp }
       if (!corroborated(check, guide, aspect)) continue
       const on = check.lines.filter(
         (l) =>
           l.distinctive && l.state === "on" && guide.features[l.index].corner
       ).length
-      if (on < 2 || check.lines.some((l) => l.distinctive && l.state === "off"))
-        continue
+      if (on < 2) continue
       if (!best || on > best.on || (on === best.on && sharp > best.sharp))
         best = { time, on, sharp }
     }
-    return best?.time ?? null
+    if (best) return { time: best.time, reason: "landmarks" as const }
+    if (clearer) return { time: clearer.time, reason: "sharpness" as const }
+    return null
   } finally {
     worker.terminate()
     player.removeAttribute("src")
     player.load()
   }
 }
-function sharpness({ width, height, data }: Gray) {
-  let sum = 0
+// Compare detail across the frame so a single sharp foreground object cannot
+// nominate an otherwise blurred view.
+function detail({ width, height, data }: Gray) {
+  const edges = [0, 0, 0, 0],
+    light = [0, 0, 0, 0],
+    counts = [0, 0, 0, 0]
   for (let y = 1; y < height - 1; y += 2)
     for (let x = 1; x < width - 1; x += 2) {
-      const i = y * width + x
-      sum += Math.abs(
+      const i = y * width + x,
+        q = Number(x >= width / 2) + 2 * Number(y >= height / 2)
+      edges[q] += Math.abs(
         4 * data[i] -
           data[i - 1] -
           data[i + 1] -
           data[i - width] -
           data[i + width]
       )
+      light[q] += data[i]
+      counts[q]++
     }
-  return sum
+  const sorted = edges.map((v, i) => v / counts[i]).sort((a, b) => a - b)
+  return {
+    sharp: (sorted[1] + sorted[2]) / 2,
+    light: light.map((v, i) => v / counts[i]),
+  }
 }

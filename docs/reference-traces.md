@@ -112,7 +112,7 @@ The still shutter captures the moment it is pressed. Video pass records up to
 12 seconds of silent, guide-free video in memory on the device. The encoder
 follows the visible crop as the photographer zooms. The picker checks decoded
 frames for distinctive corner matches and rejects suggestions with conflicting
-landmarks. Users can scrub or play the pass, choose any frame, and reopen the
+landmarks. If landmark evidence is insufficient, a noticeably sharper view with similar brightness across the four quadrants is labelled as unconfirmed. Users can scrub or play the pass, choose any frame, and reopen the
 same pass from review. The selected JPEG follows the ordinary photo workflow.
 
 Review preserves the selected crop. Guides never enter the JPEG. These photos

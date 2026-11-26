@@ -64,9 +64,13 @@ export function VideoPassPicker({
           }
           v.pause()
           setReady(false)
-          v.currentTime = suggestion
-          setTime(suggestion)
-          setNote("Suggested by matching landmarks")
+          v.currentTime = suggestion.time
+          setTime(suggestion.time)
+          setNote(
+            suggestion.reason === "landmarks"
+              ? "Suggested by matching landmarks"
+              : "Sharper frame · alignment unconfirmed"
+          )
         })
         .catch(() => {
           if (!controller.signal.aborted) setNote("Choose a frame")
